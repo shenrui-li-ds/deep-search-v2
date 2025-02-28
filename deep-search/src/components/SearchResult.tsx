@@ -130,7 +130,7 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
         <div className="md:w-1/4 md:block">
           <div className="sticky top-6">
             <SourcesList 
-              sources={result.sources.slice(0, 3)} 
+              sources={result.sources} 
               onSourceClick={(sourceId) => {
                 // Handle source click
                 console.log(`Source clicked: ${sourceId}`);
