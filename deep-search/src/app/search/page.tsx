@@ -155,6 +155,14 @@ interface SearchPageProps {
   searchParams: { q?: string };
 }
 
+export const generateMetadata = ({ searchParams }: SearchPageProps) => {
+  const query = searchParams.q || '';
+  return {
+    title: query ? `${query} - Deep Search` : 'Deep Search',
+    description: `Search results for "${query}" - Deep Search, an advanced internet search and research tool powered by AI`,
+  };
+};
+
 export default function SearchPage({ searchParams }: SearchPageProps) {
   const query = searchParams.q || '';
   

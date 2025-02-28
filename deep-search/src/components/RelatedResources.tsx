@@ -28,12 +28,13 @@ const RelatedResources: React.FC<RelatedResourcesProps> = ({ resources }) => {
             key={resource.id}
             className="block bg-neutral-800 rounded-lg overflow-hidden hover:ring-1 hover:ring-neutral-700 transition-all"
           >
-            <div className="relative h-32 w-full">
+            <div className="relative h-32 w-full bg-neutral-800">
               <Image
                 src={resource.imageUrl}
                 alt={resource.title}
                 fill
                 style={{ objectFit: 'cover' }}
+                unoptimized
               />
             </div>
             <div className="p-3">

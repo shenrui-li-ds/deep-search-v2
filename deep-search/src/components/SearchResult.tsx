@@ -45,7 +45,7 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <SearchBox defaultQuery={query} />
+        <SearchBox initialValue={query} />
       </div>
       
       <div className="flex flex-col-reverse md:flex-row gap-6">
@@ -57,12 +57,13 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
           {result.images && result.images.length > 0 && (
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {result.images.map((image, index) => (
-                <div key={index} className="relative h-48 rounded-lg overflow-hidden">
+                <div key={index} className="relative h-48 rounded-lg overflow-hidden bg-neutral-800">
                   <Image
                     src={image.url}
                     alt={image.alt}
                     fill
                     style={{ objectFit: 'cover' }}
+                    unoptimized
                   />
                 </div>
               ))}

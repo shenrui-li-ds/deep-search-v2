@@ -1,77 +1,141 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface SearchBoxProps {
   large?: boolean;
-  defaultQuery?: string;
+  initialValue?: string;
 }
 
-const SearchBox: React.FC<SearchBoxProps> = ({ large = false, defaultQuery = '' }) => {
+const SearchBox: React.FC<SearchBoxProps> = ({ large = false, initialValue = '' }) => {
+  const [query, setQuery] = useState(initialValue);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState('OpenAI');
+  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
   const router = useRouter();
-  const [query, setQuery] = useState(defaultQuery);
-  const [isLoading, setIsLoading] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
     
-    setIsLoading(true);
-    // In a real application, we would handle the search here
-    // For now, let's just navigate to the results page
-    router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      router.push(`/search?q=${encodeURIComponent(query)}`);
+    }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch(e);
+    }
+  };
+
+  const handleSendRequest = () => {
+    // This will be implemented later when we have a backend
+    console.log(`Sending request with query: ${query}, provider: ${selectedProvider}, deep research: ${deepResearchEnabled}`);
+    // For now, just navigate to the search results page
+    if (query.trim()) {
+      router.push(`/search?q=${encodeURIComponent(query)}`);
+    }
+  };
+
+  const apiProviders = ['OpenAI', 'DeepSeek', 'Qwen'];
+
   return (
-    <div className={`w-full ${large ? 'max-w-2xl' : 'max-w-full'}`}>
-      <form onSubmit={handleSubmit} className="relative">
+    <div className={`flex flex-col ${large ? 'w-full' : 'max-w-full'}`}>
+      <div className={`relative flex items-center ${large ? 'h-14' : 'h-10'}`}>
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg
+            className="h-5 w-5 text-neutral-400"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
         <input
           type="text"
+          className={`block w-full pl-10 pr-12 py-2 border border-neutral-700 bg-neutral-800 placeholder-neutral-400 text-white rounded-lg ${
+            large ? 'text-lg' : 'text-base'
+          }`}
+          placeholder="Ask anything..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ask anything..."
-          className={`w-full bg-neutral-800 text-white border border-neutral-700 
-                     rounded-md pl-4 pr-12 ${large ? 'py-3 text-lg' : 'py-2 text-base'}
-                     focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent`}
+          onKeyDown={handleKeyDown}
         />
         <button 
-          type="submit"
           className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-white"
-          disabled={isLoading}
+          onClick={handleSendRequest}
         >
-          {isLoading ? (
-            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          )}
+          <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          </svg>
         </button>
-      </form>
+      </div>
       {large && (
-        <div className="flex justify-start mt-2">
-          <button 
-            className="flex items-center text-sm text-neutral-400 hover:text-white mr-4"
-            onClick={() => {
-              setQuery('');
-              router.push('/');
-            }}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            Clear
-          </button>
-          <button className="flex items-center text-sm text-neutral-400 hover:text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-            </svg>
-            Try Deep Research
-          </button>
+        <div className="flex justify-between items-center mt-2">
+          <div className="flex items-center space-x-2">
+            <div className="relative" ref={dropdownRef}>
+              <button 
+                className="flex items-center text-sm text-neutral-400 hover:text-white bg-neutral-800 px-3 py-1 rounded"
+                onClick={() => setShowDropdown(!showDropdown)}
+              >
+                {selectedProvider}
+                <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+              {showDropdown && (
+                <div className="absolute left-0 mt-1 w-40 rounded-md shadow-lg bg-neutral-800 ring-1 ring-black ring-opacity-5 z-10">
+                  <div className="py-1" role="menu" aria-orientation="vertical">
+                    {apiProviders.map((provider) => (
+                      <button
+                        key={provider}
+                        className={`block px-4 py-2 text-sm w-full text-left ${
+                          provider === selectedProvider ? 'bg-neutral-700 text-white' : 'text-neutral-300 hover:bg-neutral-700'
+                        }`}
+                        onClick={() => {
+                          setSelectedProvider(provider);
+                          setShowDropdown(false);
+                        }}
+                      >
+                        {provider}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <button 
+              className={`flex items-center text-sm px-3 py-1 rounded ${
+                deepResearchEnabled 
+                  ? 'bg-teal-600 text-white' 
+                  : 'bg-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+              onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
+            >
+              <span className="material-symbols-outlined mr-1" style={{ fontSize: '16px' }}>travel_explore</span>
+              Deep Research {deepResearchEnabled ? 'ON' : 'OFF'}
+            </button>
+          </div>
         </div>
       )}
     </div>

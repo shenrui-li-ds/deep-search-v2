@@ -24,8 +24,13 @@ const SourceItem: React.FC<SourceItemProps> = ({
   onClick,
   isActive = false
 }) => {
-  // Extract domain from URL
-  const domain = new URL(url).hostname.replace('www.', '');
+  // Extract domain from URL safely
+  let domain = '';
+  try {
+    domain = new URL(url).hostname.replace('www.', '');
+  } catch (e) {
+    domain = url.split('/')[0];
+  }
 
   return (
     <div 
@@ -34,13 +39,21 @@ const SourceItem: React.FC<SourceItemProps> = ({
                  ${isActive ? 'bg-neutral-800' : 'hover:bg-neutral-800'}`}
     >
       <div className="flex-shrink-0 mr-3">
-        <Image
-          src={iconUrl}
-          alt={`${domain} icon`}
-          width={24}
-          height={24}
-          className="rounded-full"
-        />
+        {/* Use a fallback for the image in case it fails to load */}
+        <div className="relative w-6 h-6 rounded-full bg-neutral-700 flex items-center justify-center overflow-hidden">
+          {iconUrl ? (
+            <Image
+              src={iconUrl}
+              alt={`${domain} icon`}
+              width={24}
+              height={24}
+              className="rounded-full"
+              unoptimized
+            />
+          ) : (
+            <span className="text-xs text-white">{domain.charAt(0).toUpperCase()}</span>
+          )}
+        </div>
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white truncate">
