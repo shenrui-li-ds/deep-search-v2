@@ -5,6 +5,9 @@ import Image from 'next/image';
 import SearchBox from './SearchBox';
 import SourcesList from './SourcesList';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
+import rehypeSanitize from 'rehype-sanitize';
 
 interface Source {
   id: string;
@@ -52,8 +55,45 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
       <div className="flex flex-col-reverse md:flex-row gap-6">
         <div className="md:w-3/4">
           <div className="prose prose-invert max-w-none">
-            <div className="markdown-content">
-              <ReactMarkdown>
+            <div className="markdown-content mx-auto my-6 text-base">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                components={{
+                  h1: ({children, ...props}) => <h1 className="text-3xl font-bold mb-4 mt-6" {...props}>{children}</h1>,
+                  h2: ({children, ...props}) => <h2 className="text-2xl font-semibold mb-3 mt-5" {...props}>{children}</h2>,
+                  h3: ({children, ...props}) => <h3 className="text-xl font-semibold mb-2 mt-4" {...props}>{children}</h3>,
+                  h4: ({children, ...props}) => <h4 className="text-lg font-medium mb-2 mt-3" {...props}>{children}</h4>,
+                  p: ({children, ...props}) => <p className="mb-4" {...props}>{children}</p>,
+                  ul: ({children, ...props}) => <ul className="list-disc ml-5 mb-4" {...props}>{children}</ul>,
+                  ol: ({children, ...props}) => <ol className="list-decimal ml-5 mb-4" {...props}>{children}</ol>,
+                  li: ({children, ...props}) => <li className="mb-1" {...props}>{children}</li>,
+                  a: ({children, href, ...props}) => <a className="text-teal-500 hover:underline" href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>,
+                  blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-neutral-500 pl-4 italic my-4" {...props}>{children}</blockquote>,
+                  code: (props: any) => {
+                    const {inline, className, children, ...rest} = props;
+                    const match = /language-(\w+)/.exec(className || '');
+                    return !inline && match ? (
+                      <pre className="bg-neutral-800 p-3 rounded overflow-x-auto mb-4">
+                        <code
+                          className={`language-${match[1]}`}
+                          {...rest}
+                        >
+                          {children}
+                        </code>
+                      </pre>
+                    ) : (
+                      <code className="bg-neutral-800 px-1 py-0.5 rounded text-sm" {...rest}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  hr: ({...props}) => <hr className="my-6 border-neutral-700" {...props} />,
+                  img: ({src, alt, ...props}) => <img className="max-w-full h-auto my-4 rounded" src={src} alt={alt || ''} {...props} />,
+                  strong: ({children, ...props}) => <strong className="font-bold" {...props}>{children}</strong>,
+                  em: ({children, ...props}) => <em className="italic" {...props}>{children}</em>
+                }}
+              >
                 {result.content}
               </ReactMarkdown>
             </div>
