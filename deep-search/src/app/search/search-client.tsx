@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchResult, Source, SearchImage } from '@/lib/types';
 import SearchResultComponent from '@/components/SearchResult';
+import ReactMarkdown from 'react-markdown';
 
 interface SearchClientProps {
   query: string;
@@ -82,10 +83,22 @@ export default function SearchClient({ query, provider = 'OpenAI', deep = false 
         if (reader) {
           setIsLoading(false);
           
+          let buffer = '';
+          
           while (true) {
             const { done, value } = await reader.read();
             
             if (done) {
+              // Process any remaining buffer content when stream ends
+              if (buffer.length > 0) {
+                setSearchResult(prevResult => {
+                  if (!prevResult) return null;
+                  return {
+                    ...prevResult,
+                    content: prevResult.content + buffer
+                  };
+                });
+              }
               break;
             }
             
@@ -99,18 +112,80 @@ export default function SearchClient({ query, provider = 'OpenAI', deep = false 
                   const data = JSON.parse(line.slice(5));
                   
                   if (data.done === true) {
+                    // Process any remaining buffer content when stream ends
+                    if (buffer.length > 0) {
+                      setSearchResult(prevResult => {
+                        if (!prevResult) return null;
+                        return {
+                          ...prevResult,
+                          content: prevResult.content + buffer
+                        };
+                      });
+                    }
                     // Stream is complete
                     break;
                   }
                   
-                  // Append new content to the result
-                  setSearchResult(prevResult => {
-                    if (!prevResult) return null;
-                    return {
-                      ...prevResult,
-                      content: prevResult.content + data.data
-                    };
-                  });
+                  // Add to buffer
+                  buffer += data.data;
+                  
+                  // Improved text processing logic
+                  // Look for natural break points (end of sentences or paragraphs)
+                  // This regex matches sentence endings followed by space or newline characters
+                  const sentenceEndRegex = /[.!?]\s+|\n\n/g;
+                  let match;
+                  let lastIndex = 0;
+                  let matchFound = false;
+                  
+                  // Find the last complete sentence or paragraph in the buffer
+                  while ((match = sentenceEndRegex.exec(buffer)) !== null) {
+                    lastIndex = match.index + match[0].length;
+                    matchFound = true;
+                  }
+                  
+                  // If we have complete sentences, append them to the result
+                  if (matchFound && lastIndex > 0) {
+                    const completeText = buffer.substring(0, lastIndex);
+                    buffer = buffer.substring(lastIndex);
+                    
+                    // Append complete text to the result
+                    setSearchResult(prevResult => {
+                      if (!prevResult) return null;
+                      return {
+                        ...prevResult,
+                        content: prevResult.content + completeText
+                      };
+                    });
+                  } 
+                  // If buffer gets too large without finding sentence breaks,
+                  // Look for word boundaries instead to avoid cutting words
+                  else if (buffer.length > 80) {
+                    // Find the last space character to avoid breaking words
+                    const lastSpaceIndex = buffer.lastIndexOf(' ');
+                    
+                    if (lastSpaceIndex > 0) {
+                      const completeText = buffer.substring(0, lastSpaceIndex + 1);
+                      buffer = buffer.substring(lastSpaceIndex + 1);
+                      
+                      setSearchResult(prevResult => {
+                        if (!prevResult) return null;
+                        return {
+                          ...prevResult,
+                          content: prevResult.content + completeText
+                        };
+                      });
+                    } else if (buffer.length > 150) {
+                      // If buffer is extremely large with no spaces, flush it anyway
+                      setSearchResult(prevResult => {
+                        if (!prevResult) return null;
+                        return {
+                          ...prevResult,
+                          content: prevResult.content + buffer
+                        };
+                      });
+                      buffer = '';
+                    }
+                  }
                 } catch (e) {
                   console.error('Error parsing stream:', e);
                 }
@@ -168,31 +243,17 @@ export default function SearchClient({ query, provider = 'OpenAI', deep = false 
     );
   }
   
-  // Format content for HTML rendering
-  const formattedContent = searchResult.content
-    // Convert markdown headings to HTML
-    .replace(/## (.*?)\n/g, '<h2 class="text-2xl font-semibold mb-3 mt-6">$1</h2>\n')
-    .replace(/# (.*?)\n/g, '<h1 class="text-3xl font-bold mb-4">$1</h1>\n')
-    // Convert markdown bold to HTML
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    // Convert markdown italic to HTML
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    // Convert markdown links to HTML
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-teal-500 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>')
-    // Convert line breaks to paragraphs
-    .replace(/\n\n/g, '</p><p class="mb-4">')
-    // Convert horizontal rules
-    .replace(/---/g, '<hr class="my-4 border-neutral-700"/>')
-    // Wrap everything in a paragraph if not already
-    .replace(/^(?!<h|<p|<ul|<ol|<hr)(.+)/gm, '<p class="mb-4">$1</p>');
-  
   return (
     <SearchResultComponent
       query={query}
       result={{
-        content: formattedContent,
+        content: searchResult.content,
         sources: searchResult.sources,
-        images: searchResult.images
+        images: searchResult.images?.map(image => ({
+          url: image.url,
+          alt: image.alt,
+          sourceId: image.sourceId || ''  // Ensure sourceId is always provided
+        }))
       }}
       isLoading={isLoading}
     />

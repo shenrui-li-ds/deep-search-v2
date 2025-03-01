@@ -28,12 +28,16 @@ ${summarizeSearchResultsPrompt(query, currentDate)}
 <searchResults>
 ${formattedResults}
 </searchResults>
+
+Your response must be well-formatted in Markdown syntax. Use appropriate headers, bullet points, 
+and formatting. Ensure sentences are properly constructed and complete. Do not split words or 
+sentences mid-way. Output complete, coherent paragraphs with proper spacing.
 `;
 
     const messages: OpenAIMessage[] = [
       { 
         role: 'system', 
-        content: 'You are DeepSearch, an AI specialized in summarizing search results into comprehensive, well-structured content with proper citations.'
+        content: 'You are DeepSearch, an AI specialized in summarizing search results into comprehensive, well-structured content with proper citations. Always format your response in Markdown.'
       },
       { role: 'user', content: completePrompt }
     ];

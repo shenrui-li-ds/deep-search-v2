@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import SearchBox from './SearchBox';
 import SourcesList from './SourcesList';
+import ReactMarkdown from 'react-markdown';
 
 interface Source {
   id: string;
@@ -51,24 +52,44 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
       <div className="flex flex-col-reverse md:flex-row gap-6">
         <div className="md:w-3/4">
           <div className="prose prose-invert max-w-none">
-            <div dangerouslySetInnerHTML={{ __html: result.content }} />
-          </div>
-          
-          {result.images && result.images.length > 0 && (
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {result.images.map((image, index) => (
-                <div key={index} className="relative h-48 rounded-lg overflow-hidden bg-neutral-800">
-                  <Image
-                    src={image.url}
-                    alt={image.alt}
-                    fill
-                    style={{ objectFit: 'cover' }}
-                    unoptimized
-                  />
-                </div>
-              ))}
+            <div className="markdown-content">
+              <ReactMarkdown>
+                {result.content}
+              </ReactMarkdown>
             </div>
-          )}
+            
+            {result.images && result.images.length > 0 && (
+              <div className="mt-6 mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <h3 className="text-xl font-semibold col-span-full mb-2">Relevant Images</h3>
+                {result.images.map((image, index) => (
+                  <div key={index} className="relative h-48 rounded-lg overflow-hidden bg-neutral-800 border border-neutral-700 shadow-md">
+                    {image.url && image.url.trim() !== '' ? (
+                      <Image
+                        src={image.url}
+                        alt={image.alt || 'Search result image'}
+                        fill
+                        style={{ objectFit: 'cover' }}
+                        unoptimized
+                        onError={(e) => {
+                          // Replace with placeholder if image fails to load
+                          const target = e.target as HTMLImageElement;
+                          target.onerror = null; // Prevent infinite loop
+                          target.src = "https://via.placeholder.com/300x200?text=Image+Unavailable";
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full w-full bg-neutral-800">
+                        <p className="text-neutral-400 text-sm">Image Unavailable</p>
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-2 text-xs">
+                      {image.alt || 'No description available'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
           <div className="mt-6 flex items-center space-x-4">
             <button 

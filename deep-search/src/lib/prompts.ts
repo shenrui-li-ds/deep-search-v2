@@ -40,18 +40,19 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string)
             <attribute>Informative: Address the query comprehensively using the provided search results</attribute>
             <attribute>Well-structured: Use clear headings and professional formatting</attribute>
             <attribute>Properly cited: Use inline citations [X](URL) where X is the source number</attribute>
-            <attribute>Engaging: Write in a clear, professional tone that's easy to understand</attribute>
+            <attribute>Engaging: Write in a clear, professional tone appropriate for the topic</attribute>
         </summaryAttributes>
     </requirements>
     <formatting>
-        <instruction>Use markdown for structure (##, **, *, >, >>)</instruction>
-        <instruction>Start with a brief introduction</instruction>
-        <instruction>Use headings for different sections</instruction>
-        <instruction>ALWAYS use horizontal lines to separate sections</instruction>
+        <instruction>Use proper Markdown syntax for all formatting</instruction>
+        <instruction>Use ## for main headings and ### for subheadings</instruction>
         <instruction>Highlight key points in **bold**</instruction>
         <instruction>Use *italics* for important terms</instruction>
         <instruction>Include source numbers [X](URL) after each fact or statement</instruction>
         <instruction>Format URLs as [Title](URL)</instruction>
+        <instruction>Use complete, well-formed sentences and proper paragraph spacing</instruction>
+        <instruction>Ensure all text is properly structured in coherent paragraphs</instruction>
+        <instruction>Never split words or sentences mid-way through</instruction>
     </formatting>
     <responseStructure>
         <step>Brief overview of key findings</step>

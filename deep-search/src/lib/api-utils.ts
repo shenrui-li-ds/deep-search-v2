@@ -11,7 +11,7 @@ export const TAVILY_API_URL = 'https://api.tavily.com/search';
 // OpenAI API request
 export async function callOpenAI(
   messages: any[],
-  model: string = 'o3-mini',
+  model: string = 'gpt-4o',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -114,7 +114,13 @@ export async function* streamOpenAIResponse(response: Response) {
   try {
     while (true) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done) {
+        // If there's anything left in the buffer when the stream ends, yield it
+        if (buffer.trim()) {
+          yield buffer.trim();
+        }
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
