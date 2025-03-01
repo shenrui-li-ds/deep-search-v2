@@ -13,6 +13,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({ large = false, initialValue = '' 
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState('OpenAI');
   const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -32,22 +33,55 @@ const SearchBox: React.FC<SearchBoxProps> = ({ large = false, initialValue = '' 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query)}`);
+      performSearch();
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch(e);
+      if (query.trim()) {
+        performSearch();
+      }
+      e.preventDefault();
+    }
+  };
+
+  const performSearch = async () => {
+    if (isSearching || !query.trim()) return;
+
+    try {
+      setIsSearching(true);
+
+      // Step 1: Refine the search query
+      const refineResponse = await fetch('/api/refine', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: query.trim() }),
+      });
+
+      if (!refineResponse.ok) {
+        throw new Error('Failed to refine search query');
+      }
+
+      const refinedData = await refineResponse.json();
+      const refinedQuery = refinedData.refinedQuery || query.trim();
+
+      // Step 2: Navigate to search results page with the refined query
+      router.push(`/search?q=${encodeURIComponent(refinedQuery)}&provider=${encodeURIComponent(selectedProvider)}&deep=${deepResearchEnabled}`);
+    } catch (error) {
+      console.error('Search error:', error);
+      // Fallback to direct navigation if something goes wrong
+      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
+    } finally {
+      setIsSearching(false);
     }
   };
 
   const handleSendRequest = () => {
-    // This will be implemented later when we have a backend
-    console.log(`Sending request with query: ${query}, provider: ${selectedProvider}, deep research: ${deepResearchEnabled}`);
-    // For now, just navigate to the search results page
     if (query.trim()) {
-      router.push(`/search?q=${encodeURIComponent(query)}`);
+      performSearch();
     }
   };
 
@@ -80,62 +114,76 @@ const SearchBox: React.FC<SearchBoxProps> = ({ large = false, initialValue = '' 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
+          disabled={isSearching}
         />
         <button 
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-neutral-400 hover:text-white"
+          className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${isSearching ? 'text-teal-500' : 'text-neutral-400 hover:text-white'}`}
           onClick={handleSendRequest}
+          disabled={isSearching}
         >
-          <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-          </svg>
+          {isSearching ? (
+            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            </svg>
+          )}
         </button>
       </div>
+
       {large && (
-        <div className="flex justify-between items-center mt-2">
-          <div className="flex items-center space-x-2">
-            <div className="relative" ref={dropdownRef}>
-              <button 
-                className="flex items-center text-sm text-neutral-400 hover:text-white bg-neutral-800 px-3 py-1 rounded"
-                onClick={() => setShowDropdown(!showDropdown)}
-              >
-                {selectedProvider}
-                <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path>
-                </svg>
-              </button>
-              {showDropdown && (
-                <div className="absolute left-0 mt-1 w-40 rounded-md shadow-lg bg-neutral-800 ring-1 ring-black ring-opacity-5 z-10">
-                  <div className="py-1" role="menu" aria-orientation="vertical">
-                    {apiProviders.map((provider) => (
-                      <button
-                        key={provider}
-                        className={`block px-4 py-2 text-sm w-full text-left ${
-                          provider === selectedProvider ? 'bg-neutral-700 text-white' : 'text-neutral-300 hover:bg-neutral-700'
-                        }`}
-                        onClick={() => {
-                          setSelectedProvider(provider);
-                          setShowDropdown(false);
-                        }}
-                      >
-                        {provider}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            <button 
-              className={`flex items-center text-sm px-3 py-1 rounded ${
-                deepResearchEnabled 
-                  ? 'bg-teal-600 text-white' 
-                  : 'bg-neutral-800 text-neutral-400 hover:text-white'
-              }`}
-              onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
+        <div className="flex mt-2 items-center text-xs">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              className="px-3 py-1 flex items-center text-neutral-300 hover:text-white bg-neutral-800 rounded-full"
+              onClick={() => setShowDropdown(!showDropdown)}
             >
-              <span className="material-symbols-outlined mr-1" style={{ fontSize: '16px' }}>travel_explore</span>
-              Deep Research {deepResearchEnabled ? 'ON' : 'OFF'}
+              <span>Provider: {selectedProvider}</span>
+              <svg
+                className={`ml-1 h-4 w-4 transform ${showDropdown ? 'rotate-180' : ''}`}
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </button>
+            {showDropdown && (
+              <div className="absolute mt-2 w-40 bg-neutral-800 rounded-md shadow-lg z-10">
+                {apiProviders.map((provider) => (
+                  <button
+                    key={provider}
+                    className="block w-full text-left px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700"
+                    onClick={() => {
+                      setSelectedProvider(provider);
+                      setShowDropdown(false);
+                    }}
+                  >
+                    {provider}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          <label className="inline-flex items-center ml-4 cursor-pointer">
+            <input
+              type="checkbox"
+              className="sr-only peer"
+              checked={deepResearchEnabled}
+              onChange={() => setDeepResearchEnabled(!deepResearchEnabled)}
+            />
+            <div className="relative w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-teal-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all"></div>
+            <span className="ml-2 text-neutral-300">Deep Research</span>
+          </label>
         </div>
       )}
     </div>
