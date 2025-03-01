@@ -58,7 +58,7 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string)
         <step>Brief overview of key findings</step>
         <step>Detailed analysis with proper citations</step>
         <step>Conclusion or next steps if applicable</step>
-        <step>Always list all sources in a **References** section in ordered list format and end with their hyperlink using [Article Title](URL) format</step>
+        <step>DO NOT list any sources or references after the conclusion section</step>
     </responseStructure>
     <citationRequirements>
         <requirement>Link to the sources using **[Title](URL)** notation for web-based sources. If the source is not a website, use the **author's name or organization**.</requirement>
