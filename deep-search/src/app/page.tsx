@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 
@@ -5,7 +6,7 @@ const quickActions = [
   { icon: '⚖️', label: 'Compare', query: 'compare' },
   { icon: '❤️', label: 'Health', query: 'health' },
   { icon: '✓', label: 'Fact Check', query: 'fact check' },
-  { icon: '📚', label: 'Perplexity 101', query: 'how to use perplexity' },
+  { icon: '📚', label: 'Deep Search 101', query: 'how to use deep search' },
   { icon: '📊', label: 'Analyze', query: 'analyze' },
 ];
 
@@ -14,9 +15,16 @@ export default function Home() {
     <MainLayout>
       <div className="flex flex-col items-center justify-center min-h-screen bg-[var(--background)] px-4">
         {/* Logo */}
-        <div className="mb-8">
-          <h1 className="text-4xl md:text-5xl font-serif text-[var(--text-primary)] tracking-tight">
-            perplexity
+        <div className="mb-8 flex items-center gap-3">
+          <Image
+            src="/owl_google.svg"
+            alt="Deep Search"
+            width={48}
+            height={48}
+            className="w-12 h-12"
+          />
+          <h1 className="text-4xl md:text-5xl font-semibold text-[var(--text-primary)] tracking-tight">
+            Deep Search
           </h1>
         </div>
 

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeToggle from './ThemeToggle';
 
 const Sidebar = () => {
@@ -10,9 +11,13 @@ const Sidebar = () => {
       {/* Logo */}
       <Link href="/" className="mb-6">
         <div className="w-10 h-10 flex items-center justify-center">
-          <svg viewBox="0 0 24 24" className="w-7 h-7 text-[var(--text-primary)]" fill="currentColor">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
+          <Image
+            src="/owl_google.svg"
+            alt="Deep Search"
+            width={28}
+            height={28}
+            className="w-7 h-7"
+          />
         </div>
       </Link>
 
