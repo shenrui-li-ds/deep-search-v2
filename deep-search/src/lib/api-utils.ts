@@ -2,15 +2,80 @@
  * Utility functions for API requests
  */
 
-// OpenAI API endpoints
+// Message type for LLM API calls
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'function';
+  content: string;
+}
+
+// Search result type for summarization
+interface SearchResultItem {
+  title: string;
+  url: string;
+  content: string;
+}
+
+// API endpoints
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+export const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
 // Tavily API endpoints
 export const TAVILY_API_URL = 'https://api.tavily.com/search';
 
+// Determine which LLM provider to use based on available API keys
+export function getLLMProvider(): 'openai' | 'deepseek' {
+  // Prefer DeepSeek if available (since OpenAI quota may be exceeded)
+  if (process.env.DEEPSEEK_API_KEY) {
+    return 'deepseek';
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return 'openai';
+  }
+  throw new Error('No LLM API key configured. Please set DEEPSEEK_API_KEY or OPENAI_API_KEY.');
+}
+
+// DeepSeek API request (OpenAI-compatible)
+export async function callDeepSeek(
+  messages: ChatMessage[],
+  model: string = 'deepseek-chat',
+  temperature: number = 0.7,
+  stream: boolean = false
+) {
+  try {
+    const response = await fetch(DEEPSEEK_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        stream,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`DeepSeek API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    if (stream) {
+      return response;
+    } else {
+      const data = await response.json();
+      return data.choices[0].message.content;
+    }
+  } catch (error) {
+    console.error('Error calling DeepSeek API:', error);
+    throw error;
+  }
+}
+
 // OpenAI API request
 export async function callOpenAI(
-  messages: any[],
+  messages: ChatMessage[],
   model: string = 'gpt-4o',
   temperature: number = 0.7,
   stream: boolean = false
@@ -44,6 +109,23 @@ export async function callOpenAI(
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
     throw error;
+  }
+}
+
+// Unified LLM call - automatically selects provider based on available API keys
+export async function callLLM(
+  messages: ChatMessage[],
+  temperature: number = 0.7,
+  stream: boolean = false
+) {
+  const provider = getLLMProvider();
+
+  if (provider === 'deepseek') {
+    console.log('Using DeepSeek API');
+    return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
+  } else {
+    console.log('Using OpenAI API');
+    return callOpenAI(messages, 'gpt-4o', temperature, stream);
   }
 }
 
@@ -82,13 +164,13 @@ export async function callTavily(
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || 'Unknown error';
-      } catch (parseError) {
+      } catch {
         errorMessage = `Error parsing error response: ${response.statusText}`;
       }
-      console.error('Tavily API error details:', { 
-        status: response.status, 
+      console.error('Tavily API error details:', {
+        status: response.status,
         statusText: response.statusText,
-        errorMessage 
+        errorMessage
       });
       throw new Error(`Tavily API error: ${errorMessage}`);
     }
@@ -153,7 +235,7 @@ export async function* streamOpenAIResponse(response: Response) {
 }
 
 // Helper function to format search results for summarization
-export function formatSearchResultsForSummarization(searchResults: any[]) {
+export function formatSearchResultsForSummarization(searchResults: SearchResultItem[]) {
   return searchResults.map((result, index) => {
     return `<result index="${index + 1}">
       <title>${result.title}</title>

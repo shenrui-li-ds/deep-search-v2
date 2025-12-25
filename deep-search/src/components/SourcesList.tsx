@@ -42,12 +42,9 @@ const SourcesList: React.FC<SourcesListProps> = ({
   };
   
   // Filter sources based on expanded state
-  const displayedSources = showAllSources || sources.length <= initialSourcesCount 
-    ? sources 
+  const displayedSources = showAllSources || sources.length <= initialSourcesCount
+    ? sources
     : sources.slice(0, initialSourcesCount);
-  
-  // Always show the button if there are any sources
-  const hasMoreSources = sources.length > 0;
 
   return (
     <div className="bg-neutral-900 p-4 rounded-lg border border-neutral-800">

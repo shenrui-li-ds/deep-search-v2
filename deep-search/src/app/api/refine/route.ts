@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callOpenAI, getCurrentDate, streamOpenAIResponse } from '@/lib/api-utils';
+import { callLLM, getCurrentDate, streamOpenAIResponse } from '@/lib/api-utils';
 import { refineSearchQueryPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 
@@ -16,14 +16,14 @@ export async function POST(req: NextRequest) {
 
     const currentDate = getCurrentDate();
     const prompt = refineSearchQueryPrompt(query, currentDate);
-    
+
     const messages: OpenAIMessage[] = [
       { role: 'system', content: 'You are DeepSearch, an AI specialized in refining search queries.' },
       { role: 'user', content: prompt }
     ];
 
     if (stream) {
-      const response = await callOpenAI(messages, 'gpt-4o', 0.7, true);
+      const response = await callLLM(messages, 0.7, true);
       
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
         },
       });
     } else {
-      const refinedQuery = await callOpenAI(messages, 'gpt-4o', 0.7, false);
+      const refinedQuery = await callLLM(messages, 0.7, false);
       return NextResponse.json({ refinedQuery });
     }
   } catch (error) {

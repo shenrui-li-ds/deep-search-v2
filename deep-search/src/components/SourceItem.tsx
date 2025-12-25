@@ -28,7 +28,7 @@ const SourceItem: React.FC<SourceItemProps> = ({
   let domain = '';
   try {
     domain = new URL(url).hostname.replace('www.', '');
-  } catch (e) {
+  } catch {
     domain = url.split('/')[0];
   }
 

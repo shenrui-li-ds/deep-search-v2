@@ -37,16 +37,17 @@ const mockRelatedResources = [
 ];
 
 interface SearchPageProps {
-  searchParams: { 
+  searchParams: Promise<{
     q?: string;
     provider?: string;
     deep?: string;
-  };
+  }>;
 }
 
 export async function generateMetadata({ searchParams }: SearchPageProps) {
-  const query = searchParams.q || '';
-  
+  const params = await searchParams;
+  const query = params.q || '';
+
   return {
     title: query ? `${query} - DeepSearch` : 'DeepSearch',
     description: `Search results for "${query}"`,
@@ -54,9 +55,10 @@ export async function generateMetadata({ searchParams }: SearchPageProps) {
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
-  const query = searchParams.q || '';
-  const provider = searchParams.provider || 'OpenAI';
-  const deep = searchParams.deep === 'true';
+  const params = await searchParams;
+  const query = params.q || '';
+  const provider = params.provider || 'OpenAI';
+  const deep = params.deep === 'true';
   
   if (!query) {
     notFound();

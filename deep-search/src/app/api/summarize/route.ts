@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  callOpenAI,
+  callLLM,
   getCurrentDate,
   formatSearchResultsForSummarization,
   streamOpenAIResponse
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const currentDate = getCurrentDate();
     const formattedResults = formatSearchResultsForSummarization(results);
-    
+
     // Create the complete prompt with query, date, and search results
     const completePrompt = `
 ${summarizeSearchResultsPrompt(query, currentDate)}
@@ -29,21 +29,21 @@ ${summarizeSearchResultsPrompt(query, currentDate)}
 ${formattedResults}
 </searchResults>
 
-Your response must be well-formatted in Markdown syntax. Use appropriate headers, bullet points, 
-and formatting. Ensure sentences are properly constructed and complete. Do not split words or 
+Your response must be well-formatted in Markdown syntax. Use appropriate headers, bullet points,
+and formatting. Ensure sentences are properly constructed and complete. Do not split words or
 sentences mid-way. Output complete, coherent paragraphs with proper spacing.
 `;
 
     const messages: OpenAIMessage[] = [
-      { 
-        role: 'system', 
+      {
+        role: 'system',
         content: 'You are DeepSearch, an AI specialized in summarizing search results into comprehensive, well-structured content with proper citations. Always format your response in Markdown.'
       },
       { role: 'user', content: completePrompt }
     ];
 
     if (stream) {
-      const response = await callOpenAI(messages, 'gpt-4o', 0.7, true);
+      const response = await callLLM(messages, 0.7, true);
       
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
@@ -68,7 +68,7 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
         },
       });
     } else {
-      const summary = await callOpenAI(messages, 'gpt-4o', 0.7, false);
+      const summary = await callLLM(messages, 0.7, false);
       return NextResponse.json({ summary });
     }
   } catch (error) {

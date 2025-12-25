@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callTavily } from '@/lib/api-utils';
-import { v4 as uuidv4 } from 'uuid';
 import { Source, SearchImage, TavilySearchResult } from '@/lib/types';
 
 // Helper function to convert Tavily results to our Source format

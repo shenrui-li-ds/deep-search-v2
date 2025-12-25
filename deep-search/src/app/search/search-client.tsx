@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchResult, Source, SearchImage } from '@/lib/types';
 import SearchResultComponent from '@/components/SearchResult';
-import ReactMarkdown from 'react-markdown';
+import SearchLoading from '@/components/SearchLoading';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 
 interface SearchClientProps {
   query: string;
@@ -206,39 +208,42 @@ export default function SearchClient({ query, provider = 'OpenAI', deep = false 
   
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto p-6 text-center">
-        <h2 className="text-xl text-red-500 mb-4">{error}</h2>
-        <button 
-          className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
-          onClick={() => router.push('/')}
-        >
-          Try a different search
-        </button>
-      </div>
-    );
-  }
-  
-  if (!searchResult && isLoading) {
-    return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="flex flex-col items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500 mb-4"></div>
-          <p className="text-neutral-400">Searching and analyzing results...</p>
-        </div>
+        <Card className="p-8 text-center">
+          <div className="mb-4">
+            <svg className="w-12 h-12 mx-auto text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Something went wrong</h2>
+          <p className="text-[var(--text-muted)] mb-6">{error}</p>
+          <Button onClick={() => router.push('/')}>
+            Try a different search
+          </Button>
+        </Card>
       </div>
     );
   }
-  
+
+  if (!searchResult && isLoading) {
+    return <SearchLoading query={query} />;
+  }
+
   if (!searchResult) {
     return (
-      <div className="max-w-4xl mx-auto p-6 text-center">
-        <h2 className="text-xl text-red-500 mb-4">No results found</h2>
-        <button 
-          className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700"
-          onClick={() => router.push('/')}
-        >
-          Try a different search
-        </button>
+      <div className="max-w-4xl mx-auto p-6">
+        <Card className="p-8 text-center">
+          <div className="mb-4">
+            <svg className="w-12 h-12 mx-auto text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">No results found</h2>
+          <p className="text-[var(--text-muted)] mb-6">We couldn&apos;t find any results for your search. Try different keywords.</p>
+          <Button onClick={() => router.push('/')}>
+            Try a different search
+          </Button>
+        </Card>
       </div>
     );
   }

@@ -1,13 +1,17 @@
 "use client";
 
-import React, { useState } from 'react';
-import Image from 'next/image';
-import SearchBox from './SearchBox';
-import SourcesList from './SourcesList';
+import React, { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import SearchLoading from './SearchLoading';
 
 interface Source {
   id: string;
@@ -17,6 +21,7 @@ interface Source {
   author?: string;
   timeAgo?: string;
   readTime?: string;
+  snippet?: string;
 }
 
 interface SearchResultProps {
@@ -34,174 +39,362 @@ interface SearchResultProps {
 }
 
 const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = false }) => {
-  const [showSources, setShowSources] = useState(false);
-  
+  const [sourcesExpanded, setSourcesExpanded] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const getDomain = (url: string) => {
+    try {
+      return new URL(url).hostname.replace('www.', '');
+    } catch {
+      return url;
+    }
+  };
+
+  const processContent = (content: string) => {
+    return content;
+  };
+
   if (isLoading) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
-        </div>
-      </div>
-    );
+    return <SearchLoading query={query} />;
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="mb-8">
-        <SearchBox initialValue={query} />
-      </div>
-      
-      <div className="flex flex-col-reverse md:flex-row gap-6">
-        <div className="md:w-3/4">
-          <div className="prose prose-invert max-w-none">
-            <div className="markdown-content mx-auto my-6 text-base">
+    <TooltipProvider>
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        {/* Tabs */}
+        <Tabs defaultValue="answer" className="w-full">
+          <div className="flex items-center justify-between mb-6 border-b border-[var(--border)]">
+            <TabsList className="bg-transparent h-auto p-0 gap-6">
+              <TabsTrigger
+                value="answer"
+                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-3 px-0 text-sm font-medium transition-colors relative rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent)] data-[state=active]:text-[var(--accent)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              >
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Answer
+                </span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="links"
+                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-3 px-0 text-sm font-medium transition-colors relative rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent)] data-[state=active]:text-[var(--accent)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              >
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Links
+                </span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="images"
+                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-3 px-0 text-sm font-medium transition-colors relative rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent)] data-[state=active]:text-[var(--accent)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              >
+                <span className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Images
+                </span>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Share button */}
+            <Button size="sm" className="rounded-full">
+              <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Share
+            </Button>
+          </div>
+
+          <TabsContent value="answer" className="mt-0">
+            {/* Query Title */}
+            <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-4">{query}</h1>
+
+            {/* Sources Pills */}
+            <div className="mb-6">
+              <button
+                onClick={() => setSourcesExpanded(!sourcesExpanded)}
+                className="flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                <span>Reviewed {result.sources.length} sources</span>
+                <svg
+                  className={`w-4 h-4 transition-transform ${sourcesExpanded ? 'rotate-180' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {sourcesExpanded && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {result.sources.slice(0, 10).map((source, index) => (
+                    <Tooltip key={source.id}>
+                      <TooltipTrigger asChild>
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-3 py-1.5 bg-[var(--card)] border border-[var(--border)] rounded-lg text-sm text-[var(--text-secondary)] hover:bg-[var(--card-hover)] transition-colors"
+                        >
+                          <Badge variant="outline" className="h-5 w-5 p-0 flex items-center justify-center text-xs">
+                            {index + 1}
+                          </Badge>
+                          <img
+                            src={source.iconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(source.url)}&sz=16`}
+                            alt=""
+                            className="w-4 h-4 rounded"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                          <span className="truncate max-w-[150px]">{getDomain(source.url)}</span>
+                        </a>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <p className="font-medium text-sm">{source.title}</p>
+                        {source.snippet && (
+                          <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2">{source.snippet}</p>
+                        )}
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Answer Content */}
+            <div ref={contentRef} className="markdown-content">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
                 components={{
-                  h1: ({children, ...props}) => <h1 className="text-3xl font-bold mb-4 mt-6" {...props}>{children}</h1>,
-                  h2: ({children, ...props}) => <h2 className="text-2xl font-semibold mb-3 mt-5" {...props}>{children}</h2>,
-                  h3: ({children, ...props}) => <h3 className="text-xl font-semibold mb-2 mt-4" {...props}>{children}</h3>,
-                  h4: ({children, ...props}) => <h4 className="text-lg font-medium mb-2 mt-3" {...props}>{children}</h4>,
-                  p: ({children, ...props}) => <p className="mb-4" {...props}>{children}</p>,
-                  ul: ({children, ...props}) => <ul className="list-disc ml-5 mb-4" {...props}>{children}</ul>,
-                  ol: ({children, ...props}) => <ol className="list-decimal ml-5 mb-4" {...props}>{children}</ol>,
-                  li: ({children, ...props}) => <li className="mb-1" {...props}>{children}</li>,
-                  a: ({children, href, ...props}) => <a className="text-teal-500 hover:underline" href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>,
-                  blockquote: ({children, ...props}) => <blockquote className="border-l-4 border-neutral-500 pl-4 italic my-4" {...props}>{children}</blockquote>,
-                  code: (props: any) => {
+                  h1: ({children, ...props}) => <h1 className="text-xl font-semibold mb-3 mt-6 text-[var(--text-primary)]" {...props}>{children}</h1>,
+                  h2: ({children, ...props}) => <h2 className="text-lg font-semibold mb-2 mt-5 text-[var(--text-primary)]" {...props}>{children}</h2>,
+                  h3: ({children, ...props}) => <h3 className="text-base font-semibold mb-2 mt-4 text-[var(--text-primary)]" {...props}>{children}</h3>,
+                  p: ({children, ...props}) => <p className="mb-3 text-[var(--text-secondary)] leading-relaxed" {...props}>{children}</p>,
+                  ul: ({children, ...props}) => <ul className="list-disc ml-5 mb-3 text-[var(--text-secondary)]" {...props}>{children}</ul>,
+                  ol: ({children, ...props}) => <ol className="list-decimal ml-5 mb-3 text-[var(--text-secondary)]" {...props}>{children}</ol>,
+                  li: ({children, ...props}) => <li className="mb-1.5 leading-relaxed" {...props}>{children}</li>,
+                  a: ({children, href, ...props}) => (
+                    <a
+                      className="text-[var(--accent)] hover:underline"
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      {...props}
+                    >
+                      {children}
+                    </a>
+                  ),
+                  blockquote: ({children, ...props}) => (
+                    <blockquote className="border-l-3 border-[var(--border)] pl-4 text-[var(--text-muted)] my-4" {...props}>
+                      {children}
+                    </blockquote>
+                  ),
+                  code: (props: React.HTMLAttributes<HTMLElement> & { inline?: boolean }) => {
                     const {inline, className, children, ...rest} = props;
                     const match = /language-(\w+)/.exec(className || '');
                     return !inline && match ? (
-                      <pre className="bg-neutral-800 p-3 rounded overflow-x-auto mb-4">
-                        <code
-                          className={`language-${match[1]}`}
-                          {...rest}
-                        >
+                      <pre className="bg-[var(--card)] text-[var(--text-primary)] p-4 rounded-lg overflow-x-auto mb-4 text-sm border border-[var(--border)]">
+                        <code className={`language-${match[1]}`} {...rest}>
                           {children}
                         </code>
                       </pre>
                     ) : (
-                      <code className="bg-neutral-800 px-1 py-0.5 rounded text-sm" {...rest}>
+                      <code className="bg-[var(--card)] text-[var(--text-primary)] px-1.5 py-0.5 rounded text-sm" {...rest}>
                         {children}
                       </code>
                     );
                   },
-                  hr: ({...props}) => <hr className="my-6 border-neutral-700" {...props} />,
-                  img: ({src, alt, ...props}) => <img className="max-w-full h-auto my-4 rounded" src={src} alt={alt || ''} {...props} />,
-                  strong: ({children, ...props}) => <strong className="font-bold" {...props}>{children}</strong>,
-                  em: ({children, ...props}) => <em className="italic" {...props}>{children}</em>
+                  strong: ({children, ...props}) => <strong className="font-semibold text-[var(--text-primary)]" {...props}>{children}</strong>,
                 }}
               >
-                {result.content}
+                {processContent(result.content)}
               </ReactMarkdown>
             </div>
-            
-            {result.images && result.images.length > 0 && (
-              <div className="mt-6 mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <h3 className="text-xl font-semibold col-span-full mb-2">Relevant Images</h3>
-                {result.images.map((image, index) => (
-                  <div key={index} className="relative h-48 rounded-lg overflow-hidden bg-neutral-800 border border-neutral-700 shadow-md">
-                    {image.url && image.url.trim() !== '' ? (
-                      <Image
-                        src={image.url}
-                        alt={image.alt || 'Search result image'}
-                        fill
-                        style={{ objectFit: 'cover' }}
-                        unoptimized
+
+            {/* Bottom Action Bar */}
+            <div className="mt-8 pt-4 border-t border-[var(--border)] flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                    </svg>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Like</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+                    </svg>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Dislike</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Rewrite</TooltipContent>
+              </Tooltip>
+
+              <div className="ml-auto flex items-center gap-2 text-sm text-[var(--text-muted)]">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+                <span>{result.sources.length} sources</span>
+              </div>
+            </div>
+
+            {/* Related Questions */}
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Related</h3>
+              <div className="space-y-2">
+                {[
+                  `What are the latest updates about ${query}?`,
+                  `How does ${query} compare to alternatives?`,
+                  `What are the key features of ${query}?`,
+                  `What do experts say about ${query}?`
+                ].map((question, index) => (
+                  <a
+                    key={index}
+                    href={`/search?q=${encodeURIComponent(question)}`}
+                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--card)] transition-colors group"
+                  >
+                    <svg className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{question}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Follow-up Input */}
+            <div className="mt-8 pt-6 border-t border-[var(--border)]">
+              <div className="flex items-center gap-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-2xl">
+                <Input
+                  type="text"
+                  placeholder="Ask a follow-up"
+                  className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+                />
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-[var(--text-muted)]">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-[var(--text-muted)]">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                  </Button>
+                  <Button size="icon" className="h-8 w-8">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="links" className="mt-0">
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Sources</h2>
+            <div className="space-y-4">
+              {result.sources.map((source, index) => (
+                <Card
+                  key={source.id}
+                  className="p-4 hover:border-[var(--accent)] hover:shadow-sm transition-all cursor-pointer"
+                  onClick={() => window.open(source.url, '_blank')}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-[var(--card)] rounded-lg">
+                      <img
+                        src={source.iconUrl || `https://www.google.com/s2/favicons?domain=${getDomain(source.url)}&sz=32`}
+                        alt=""
+                        className="w-5 h-5 rounded"
                         onError={(e) => {
-                          // Replace with placeholder if image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.onerror = null; // Prevent infinite loop
-                          target.src = "https://via.placeholder.com/300x200?text=Image+Unavailable";
+                          (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>';
                         }}
                       />
-                    ) : (
-                      <div className="flex items-center justify-center h-full w-full bg-neutral-800">
-                        <p className="text-neutral-400 text-sm">Image Unavailable</p>
-                      </div>
-                    )}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 p-2 text-xs">
-                      {image.alt || 'No description available'}
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-[var(--text-muted)]">{getDomain(source.url)}</span>
+                        <span className="w-1 h-1 bg-[var(--border)] rounded-full"></span>
+                        <Badge variant="secondary" className="text-xs">Source {index + 1}</Badge>
+                      </div>
+                      <h3 className="font-medium text-[var(--text-primary)] mb-1 line-clamp-2">{source.title}</h3>
+                      {source.snippet && (
+                        <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{source.snippet}</p>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="images" className="mt-0">
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Images</h2>
+            {result.images && result.images.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {result.images.map((image, index) => (
+                  <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-[var(--card)] group">
+                    <img
+                      src={image.url}
+                      alt={image.alt || 'Search result image'}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><rect width="24" height="24" rx="4"/><path fill="%23d1d5db" d="M4 16l4-4 4 4 4-4 4 4v4H4z"/><circle fill="%23d1d5db" cx="8" cy="8" r="2"/></svg>';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                   </div>
                 ))}
               </div>
+            ) : (
+              <div className="text-center py-12 text-[var(--text-muted)]">
+                <svg className="w-12 h-12 mx-auto mb-3 text-[var(--border)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <p>No images found for this search</p>
+              </div>
             )}
-          </div>
-          
-          <div className="mt-6 flex items-center space-x-4">
-            <button 
-              onClick={() => setShowSources(!showSources)}
-              className="flex items-center text-sm text-neutral-400 hover:text-white"
-            >
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className={`h-5 w-5 mr-1 transition-transform ${showSources ? 'rotate-180' : ''}`}
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-              {showSources ? 'Hide' : 'Show'} Sources ({result.sources.length})
-            </button>
-            
-            <button className="flex items-center text-sm text-neutral-400 hover:text-white">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-5 w-5 mr-1" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              Share
-            </button>
-            
-            <button className="flex items-center text-sm text-neutral-400 hover:text-white">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                className="h-5 w-5 mr-1" 
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Follow-up
-            </button>
-          </div>
-          
-          {showSources && (
-            <div className="mt-4">
-              <SourcesList 
-                sources={result.sources} 
-                onSourceClick={(sourceId) => {
-                  // Handle source click
-                  console.log(`Source clicked: ${sourceId}`);
-                }}
-              />
-            </div>
-          )}
-        </div>
-        
-        <div className="md:w-1/4 md:block">
-          <div className="sticky top-6">
-            <SourcesList 
-              sources={result.sources} 
-              onSourceClick={(sourceId) => {
-                // Handle source click
-                console.log(`Source clicked: ${sourceId}`);
-              }}
-              totalSources={result.sources.length}
-            />
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Source Hover Card - Deprecated in favor of Tooltip */}
       </div>
-    </div>
+    </TooltipProvider>
   );
 };
 
