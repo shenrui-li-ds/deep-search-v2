@@ -2,6 +2,14 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SearchResult from '@/components/SearchResult';
 
+// Mock next/navigation
+const mockPush = jest.fn();
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+}));
+
 // Mock react-markdown to simplify testing
 jest.mock('react-markdown', () => {
   return function MockReactMarkdown({ children }: { children: string }) {
@@ -40,6 +48,10 @@ describe('SearchResult', () => {
       sources: mockSources,
     },
   };
+
+  beforeEach(() => {
+    mockPush.mockClear();
+  });
 
   describe('Loading State', () => {
     it('shows loading component when isLoading is true', () => {
@@ -159,7 +171,7 @@ describe('SearchResult', () => {
     });
 
     it('related searches are clickable links with correct URLs', () => {
-      render(<SearchResult {...defaultProps} relatedSearches={mockRelatedSearches} />);
+      render(<SearchResult {...defaultProps} relatedSearches={mockRelatedSearches} provider="deepseek" mode="pro" />);
 
       const relatedLinks = screen.getAllByRole('link').filter(link =>
         link.getAttribute('href')?.includes('/search?q=')
@@ -168,11 +180,11 @@ describe('SearchResult', () => {
       // Should have links for each related search
       expect(relatedLinks.length).toBeGreaterThanOrEqual(mockRelatedSearches.length);
 
-      // First related search link should have correct href
+      // First related search link should have correct href with provider and mode
       const firstSearchLink = relatedLinks.find(link =>
         link.textContent?.includes('Related search 1')
       );
-      expect(firstSearchLink).toHaveAttribute('href', '/search?q=Related%20search%201');
+      expect(firstSearchLink).toHaveAttribute('href', '/search?q=Related%20search%201&provider=deepseek&mode=pro');
     });
   });
 
@@ -198,6 +210,77 @@ describe('SearchResult', () => {
 
       // Collapse
       fireEvent.click(toggleButton);
+    });
+  });
+
+  describe('Follow-up Input', () => {
+    it('renders follow-up input with placeholder', () => {
+      render(<SearchResult {...defaultProps} />);
+      expect(screen.getByPlaceholderText('Ask a follow-up')).toBeInTheDocument();
+    });
+
+    it('allows typing in the follow-up input', () => {
+      render(<SearchResult {...defaultProps} />);
+
+      const input = screen.getByPlaceholderText('Ask a follow-up');
+      fireEvent.change(input, { target: { value: 'My follow-up question' } });
+
+      expect(input).toHaveValue('My follow-up question');
+    });
+
+    it('navigates to search page on submit button click with provider and mode', () => {
+      render(<SearchResult {...defaultProps} provider="deepseek" mode="pro" />);
+
+      const input = screen.getByPlaceholderText('Ask a follow-up');
+      fireEvent.change(input, { target: { value: 'My follow-up question' } });
+
+      // Find and click the submit button (last enabled button)
+      const buttons = screen.getAllByRole('button');
+      const enabledButtons = buttons.filter(btn => !btn.hasAttribute('disabled'));
+      const submitButton = enabledButtons[enabledButtons.length - 1];
+      fireEvent.click(submitButton);
+
+      expect(mockPush).toHaveBeenCalledWith('/search?q=My+follow-up+question&provider=deepseek&mode=pro');
+    });
+
+    it('navigates on Enter key press', () => {
+      render(<SearchResult {...defaultProps} provider="openai" mode="web" />);
+
+      const input = screen.getByPlaceholderText('Ask a follow-up');
+      fireEvent.change(input, { target: { value: 'Another question' } });
+      fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+      expect(mockPush).toHaveBeenCalledWith('/search?q=Another+question&provider=openai&mode=web');
+    });
+
+    it('does not navigate when input is empty', () => {
+      render(<SearchResult {...defaultProps} />);
+
+      const input = screen.getByPlaceholderText('Ask a follow-up');
+      fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('does not navigate when input is only whitespace', () => {
+      render(<SearchResult {...defaultProps} />);
+
+      const input = screen.getByPlaceholderText('Ask a follow-up');
+      fireEvent.change(input, { target: { value: '   ' } });
+      fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('uses default provider and mode when not specified', () => {
+      render(<SearchResult {...defaultProps} />);
+
+      const input = screen.getByPlaceholderText('Ask a follow-up');
+      fireEvent.change(input, { target: { value: 'test query' } });
+      fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
+
+      // Default provider is 'deepseek' and mode is 'web'
+      expect(mockPush).toHaveBeenCalledWith('/search?q=test+query&provider=deepseek&mode=web');
     });
   });
 });

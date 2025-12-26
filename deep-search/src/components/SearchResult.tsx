@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -36,6 +37,8 @@ interface SearchResultProps {
     }[];
   };
   relatedSearches?: string[];
+  provider?: string;
+  mode?: string;
   isLoading?: boolean;
   isSearching?: boolean;
   isStreaming?: boolean;
@@ -43,9 +46,30 @@ interface SearchResultProps {
   isTransitioning?: boolean;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
+  const [followUpQuery, setFollowUpQuery] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  const handleFollowUp = useCallback(() => {
+    const trimmedQuery = followUpQuery.trim();
+    if (!trimmedQuery) return;
+
+    const params = new URLSearchParams({
+      q: trimmedQuery,
+      provider: provider,
+      mode: mode
+    });
+    router.push(`/search?${params.toString()}`);
+  }, [followUpQuery, provider, mode, router]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleFollowUp();
+    }
+  }, [handleFollowUp]);
 
   const getDomain = (url: string) => {
     try {
@@ -297,20 +321,18 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
                 <Input
                   type="text"
                   placeholder="Ask a follow-up"
+                  value={followUpQuery}
+                  onChange={(e) => setFollowUpQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
                 />
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-[var(--text-muted)]">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-[var(--text-muted)]">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                  </Button>
-                  <Button size="icon" className="h-8 w-8">
+                  <Button
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={handleFollowUp}
+                    disabled={!followUpQuery.trim()}
+                  >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
@@ -327,7 +349,7 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
                   {relatedSearches.map((search, index) => (
                     <a
                       key={index}
-                      href={`/search?q=${encodeURIComponent(search)}`}
+                      href={`/search?q=${encodeURIComponent(search)}&provider=${provider}&mode=${mode}`}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--text-secondary)] bg-[var(--card)] border border-[var(--border)] rounded-full hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

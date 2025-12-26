@@ -36,6 +36,8 @@ Main result display component.
     sources: Source[];
   };
   relatedSearches?: string[];
+  provider?: string;  // LLM provider (deepseek, openai, qwen, claude)
+  mode?: string;      // Search mode (web, focus, pro)
   isLoading?: boolean;
   isSearching?: boolean;
   isStreaming?: boolean;
@@ -49,8 +51,8 @@ Main result display component.
 - Tabbed interface (Answer, Links)
 - Markdown rendering with custom component styling
 - Source pills with tooltips
-- Related searches section (LLM-generated, clickable)
-- Follow-up input
+- Related searches section (LLM-generated, clickable, preserves provider/mode)
+- Follow-up input (functional, navigates to new search with provider/mode preserved)
 
 **Loading states:**
 - `isSearching=true`: Shows "Searching the web..." banner

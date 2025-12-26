@@ -360,6 +360,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         }))
       }}
       relatedSearches={relatedSearches}
+      provider={provider}
+      mode={mode}
       isLoading={false}
       isSearching={loadingStage === 'searching'}
       isStreaming={loadingStage === 'summarizing'}
