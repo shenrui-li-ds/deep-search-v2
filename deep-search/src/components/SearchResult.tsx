@@ -36,9 +36,11 @@ interface SearchResultProps {
     }[];
   };
   isLoading?: boolean;
+  isStreaming?: boolean;
+  isPolishing?: boolean;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = false }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = false, isStreaming = false, isPolishing = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +63,19 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
   return (
     <TooltipProvider>
       <div className="max-w-4xl mx-auto px-6 py-8">
+        {/* Status Banner - shown during streaming/polishing */}
+        {isStreaming && (
+          <div className="mb-4 p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-lg flex items-center gap-3">
+            <svg className="animate-spin w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="text-sm font-medium text-[var(--accent)]">
+              {isPolishing ? 'Polishing response...' : 'Generating response...'}
+            </span>
+          </div>
+        )}
+
         {/* Tabs */}
         <Tabs defaultValue="answer" className="w-full">
           <div className="flex items-center justify-between mb-6 border-b border-[var(--border)]">
@@ -174,13 +189,13 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
                 remarkPlugins={[remarkGfm]}
                 rehypePlugins={[rehypeRaw, rehypeSanitize]}
                 components={{
-                  h1: ({children, ...props}) => <h1 className="text-xl font-semibold mb-3 mt-6 text-[var(--text-primary)]" {...props}>{children}</h1>,
-                  h2: ({children, ...props}) => <h2 className="text-lg font-semibold mb-2 mt-5 text-[var(--text-primary)]" {...props}>{children}</h2>,
-                  h3: ({children, ...props}) => <h3 className="text-base font-semibold mb-2 mt-4 text-[var(--text-primary)]" {...props}>{children}</h3>,
-                  p: ({children, ...props}) => <p className="mb-3 text-[var(--text-secondary)] leading-relaxed" {...props}>{children}</p>,
-                  ul: ({children, ...props}) => <ul className="list-disc ml-5 mb-3 text-[var(--text-secondary)]" {...props}>{children}</ul>,
-                  ol: ({children, ...props}) => <ol className="list-decimal ml-5 mb-3 text-[var(--text-secondary)]" {...props}>{children}</ol>,
-                  li: ({children, ...props}) => <li className="mb-1.5 leading-relaxed" {...props}>{children}</li>,
+                  h1: ({children, ...props}) => <h1 className="text-xl font-semibold mb-4 mt-8 text-[var(--text-primary)] first:mt-0" {...props}>{children}</h1>,
+                  h2: ({children, ...props}) => <h2 className="text-lg font-semibold mb-3 mt-6 text-[var(--text-primary)] first:mt-0" {...props}>{children}</h2>,
+                  h3: ({children, ...props}) => <h3 className="text-base font-semibold mb-2 mt-5 text-[var(--text-primary)]" {...props}>{children}</h3>,
+                  p: ({children, ...props}) => <p className="mb-4 text-[var(--text-secondary)] leading-relaxed" {...props}>{children}</p>,
+                  ul: ({children, ...props}) => <ul className="list-disc ml-5 mb-4 text-[var(--text-secondary)] space-y-1" {...props}>{children}</ul>,
+                  ol: ({children, ...props}) => <ol className="list-decimal ml-5 mb-4 text-[var(--text-secondary)] space-y-1" {...props}>{children}</ol>,
+                  li: ({children, ...props}) => <li className="leading-relaxed" {...props}>{children}</li>,
                   a: ({children, href, ...props}) => (
                     <a
                       className="text-[var(--accent)] hover:underline"
@@ -193,7 +208,7 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
                     </a>
                   ),
                   blockquote: ({children, ...props}) => (
-                    <blockquote className="border-l-3 border-[var(--border)] pl-4 text-[var(--text-muted)] my-4" {...props}>
+                    <blockquote className="border-l-3 border-[var(--border)] pl-4 text-[var(--text-muted)] my-5" {...props}>
                       {children}
                     </blockquote>
                   ),
@@ -201,7 +216,7 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
                     const {inline, className, children, ...rest} = props;
                     const match = /language-(\w+)/.exec(className || '');
                     return !inline && match ? (
-                      <pre className="bg-[var(--card)] text-[var(--text-primary)] p-4 rounded-lg overflow-x-auto mb-4 text-sm border border-[var(--border)]">
+                      <pre className="bg-[var(--card)] text-[var(--text-primary)] p-4 rounded-lg overflow-x-auto mb-5 text-sm border border-[var(--border)]">
                         <code className={`language-${match[1]}`} {...rest}>
                           {children}
                         </code>
@@ -217,6 +232,11 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
               >
                 {processContent(result.content)}
               </ReactMarkdown>
+
+              {/* Streaming cursor */}
+              {isStreaming && !isPolishing && (
+                <span className="inline-block w-2 h-5 bg-[var(--accent)] animate-pulse rounded-sm ml-1"></span>
+              )}
             </div>
 
             {/* Bottom Action Bar */}

@@ -7,7 +7,7 @@ import ThemeToggle from './ThemeToggle';
 
 const Sidebar = () => {
   return (
-    <div className="w-16 min-h-screen bg-[var(--background)] border-r border-[var(--border)] flex flex-col items-center py-4">
+    <div className="w-16 h-screen bg-[var(--background)] border-r border-[var(--border)] flex flex-col items-center py-4 fixed left-0 top-0 z-50">
       {/* Logo */}
       <Link href="/" className="mb-6">
         <div className="w-10 h-10 flex items-center justify-center">

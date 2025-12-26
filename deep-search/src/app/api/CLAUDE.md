@@ -1,0 +1,105 @@
+# API Routes
+
+This directory contains Next.js API routes that handle the search pipeline.
+
+## Routes Overview
+
+### `/api/search` - Web Search
+Wraps the Tavily search API.
+
+**Request:**
+```json
+{
+  "query": "search query",
+  "searchDepth": "basic" | "advanced",
+  "maxResults": 10
+}
+```
+
+**Response:**
+```json
+{
+  "sources": [{ "id", "title", "url", "iconUrl", "snippet" }],
+  "images": [{ "url", "alt", "sourceId" }],
+  "rawResults": { "results": [...] }
+}
+```
+
+### `/api/refine` - Query Refinement
+Optionally refines the user's query before search.
+
+**Request:**
+```json
+{
+  "query": "user query",
+  "provider": "deepseek" | "openai" | "qwen" | "claude"
+}
+```
+
+**Response:**
+```json
+{
+  "refinedQuery": "improved query"
+}
+```
+
+### `/api/summarize` - LLM Summarization
+Streams an LLM-generated summary of search results.
+
+**Request:**
+```json
+{
+  "query": "search query",
+  "results": [...],
+  "stream": true,
+  "provider": "deepseek"
+}
+```
+
+**Response:** Server-Sent Events (SSE)
+```
+data: {"data": "chunk of text"}
+data: {"data": "more text"}
+data: {"done": true}
+```
+
+### `/api/proofread` - Content Proofreading
+Cleans up and polishes content. Used in Pro Search mode.
+
+**Request:**
+```json
+{
+  "content": "markdown content",
+  "mode": "quick" | "paragraph" | "full",
+  "provider": "deepseek"
+}
+```
+
+**Response:**
+```json
+{
+  "proofread": "cleaned content",
+  "mode": "full"
+}
+```
+
+**Modes:**
+- `quick`: Regex-based cleanup only (no LLM)
+- `paragraph`: Light LLM pass on single paragraph
+- `full`: Full LLM proofreading (used by Pro Search)
+
+## Provider Handling
+
+All LLM-powered routes accept a `provider` parameter:
+- Routes call `callLLM(messages, temperature, stream, provider)`
+- If provider is unavailable, falls back to auto-detection based on available API keys
+- Provider priority: DeepSeek > OpenAI > Qwen > Claude
+
+## Error Handling
+
+All routes return appropriate HTTP status codes:
+- `200` - Success
+- `400` - Bad request (missing/invalid params)
+- `500` - Internal error (API failures)
+
+Errors are logged to console with context for debugging.

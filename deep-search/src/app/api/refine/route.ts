@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, getCurrentDate, streamOpenAIResponse } from '@/lib/api-utils';
+import { callLLM, getCurrentDate, getStreamParser, LLMProvider } from '@/lib/api-utils';
 import { refineSearchQueryPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, stream = false } = await req.json();
+    const { query, stream = false, provider } = await req.json();
+    const llmProvider = provider as LLMProvider | undefined;
 
     if (!query) {
       return NextResponse.json(
@@ -23,13 +24,14 @@ export async function POST(req: NextRequest) {
     ];
 
     if (stream) {
-      const response = await callLLM(messages, 0.7, true);
-      
+      const response = await callLLM(messages, 0.7, true, llmProvider);
+      const streamParser = getStreamParser(llmProvider || 'openai');
+
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
-            for await (const chunk of streamOpenAIResponse(response)) {
+            for await (const chunk of streamParser(response)) {
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
         },
       });
     } else {
-      const refinedQuery = await callLLM(messages, 0.7, false);
+      const refinedQuery = await callLLM(messages, 0.7, false, llmProvider);
       return NextResponse.json({ refinedQuery });
     }
   } catch (error) {

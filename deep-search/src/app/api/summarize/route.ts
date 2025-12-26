@@ -3,14 +3,16 @@ import {
   callLLM,
   getCurrentDate,
   formatSearchResultsForSummarization,
-  streamOpenAIResponse
+  getStreamParser,
+  LLMProvider
 } from '@/lib/api-utils';
 import { summarizeSearchResultsPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, results, stream = true } = await req.json();
+    const { query, results, stream = true, provider } = await req.json();
+    const llmProvider = provider as LLMProvider | undefined;
 
     if (!query || !results || !Array.isArray(results)) {
       return NextResponse.json(
@@ -43,13 +45,14 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
     ];
 
     if (stream) {
-      const response = await callLLM(messages, 0.7, true);
-      
+      const response = await callLLM(messages, 0.7, true, llmProvider);
+      const streamParser = getStreamParser(llmProvider || 'openai');
+
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
-            for await (const chunk of streamOpenAIResponse(response)) {
+            for await (const chunk of streamParser(response)) {
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
@@ -68,7 +71,7 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
         },
       });
     } else {
-      const summary = await callLLM(messages, 0.7, false);
+      const summary = await callLLM(messages, 0.7, false, llmProvider);
       return NextResponse.json({ summary });
     }
   } catch (error) {

@@ -1,0 +1,140 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { callLLM, LLMProvider } from '@/lib/api-utils';
+import { proofreadContentPrompt, proofreadParagraphPrompt } from '@/lib/prompts';
+import { OpenAIMessage } from '@/lib/types';
+
+/**
+ * Lightweight text cleanup without LLM
+ * Fixes common formatting issues quickly
+ */
+function quickCleanup(text: string): string {
+  let cleaned = text;
+
+  // Remove gibberish patterns (random alphanumeric strings in brackets)
+  cleaned = cleaned.replace(/\[[A-Za-z0-9_-]{20,}\]/g, '');
+
+  // Fix broken markdown links - convert [text](url) mid-sentence to just text
+  cleaned = cleaned.replace(/\[([^\]]+)\]\(https?:\/\/[^\)]+\)/g, '$1');
+
+  // Remove raw URLs that appear in text
+  cleaned = cleaned.replace(/(?<![(\[])(https?:\/\/[^\s<>\])"]+)(?![)\]])/g, '');
+
+  // Fix unclosed bold markers
+  const boldCount = (cleaned.match(/\*\*/g) || []).length;
+  if (boldCount % 2 !== 0) {
+    // Find the last ** and remove it if unclosed
+    const lastBold = cleaned.lastIndexOf('**');
+    if (lastBold !== -1) {
+      cleaned = cleaned.slice(0, lastBold) + cleaned.slice(lastBold + 2);
+    }
+  }
+
+  // Fix unclosed italic markers (single *)
+  // This is tricky because * can be used for lists
+  const lines = cleaned.split('\n');
+  cleaned = lines.map(line => {
+    // Skip list items
+    if (line.trim().startsWith('- ') || line.trim().startsWith('* ') || /^\d+\.\s/.test(line.trim())) {
+      return line;
+    }
+    // Count single * that are for italics (not ** for bold)
+    const italicMatches = line.match(/(?<!\*)\*(?!\*)/g) || [];
+    if (italicMatches.length % 2 !== 0) {
+      // Remove the last unmatched *
+      const lastItalic = line.lastIndexOf('*');
+      if (lastItalic !== -1 && line[lastItalic - 1] !== '*' && line[lastItalic + 1] !== '*') {
+        line = line.slice(0, lastItalic) + line.slice(lastItalic + 1);
+      }
+    }
+    return line;
+  }).join('\n');
+
+  // Fix headers that don't have space after #
+  cleaned = cleaned.replace(/^(#{1,6})([^#\s])/gm, '$1 $2');
+
+  // Ensure headers have blank lines before them (except at start)
+  cleaned = cleaned.replace(/([^\n])\n(#{1,6}\s)/g, '$1\n\n$2');
+
+  // Remove multiple consecutive blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+
+  // Trim whitespace from each line
+  cleaned = cleaned.split('\n').map(line => line.trimEnd()).join('\n');
+
+  // Ensure proper ending
+  cleaned = cleaned.trim();
+
+  return cleaned;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { content, mode = 'quick', provider, paragraphIndex } = await req.json();
+    const llmProvider = provider as LLMProvider | undefined;
+
+    if (!content || typeof content !== 'string') {
+      return NextResponse.json(
+        { error: 'Content parameter is required and must be a string' },
+        { status: 400 }
+      );
+    }
+
+    // Quick mode: just use regex-based cleanup
+    if (mode === 'quick') {
+      const cleaned = quickCleanup(content);
+      return NextResponse.json({
+        proofread: cleaned,
+        mode: 'quick',
+        paragraphIndex
+      });
+    }
+
+    // Paragraph mode: lightweight LLM proofreading for a single paragraph
+    if (mode === 'paragraph') {
+      const messages: OpenAIMessage[] = [
+        {
+          role: 'system',
+          content: proofreadParagraphPrompt()
+        },
+        {
+          role: 'user',
+          content: content
+        }
+      ];
+
+      const proofread = await callLLM(messages, 0.2, false, llmProvider);
+
+      return NextResponse.json({
+        proofread,
+        mode: 'paragraph',
+        paragraphIndex
+      });
+    }
+
+    // Full mode: use LLM for thorough proofreading of entire content
+    const messages: OpenAIMessage[] = [
+      {
+        role: 'system',
+        content: proofreadContentPrompt()
+      },
+      {
+        role: 'user',
+        content: `Please proofread and clean up the following content:\n\n${content}`
+      }
+    ];
+
+    const proofread = await callLLM(messages, 0.3, false, llmProvider);
+
+    return NextResponse.json({
+      proofread,
+      mode: 'full',
+      paragraphIndex
+    });
+  } catch (error) {
+    console.error('Error in proofread API:', error);
+    return NextResponse.json(
+      { error: 'Failed to proofread content' },
+      { status: 500 }
+    );
+  }
+}
