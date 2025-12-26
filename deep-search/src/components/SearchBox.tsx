@@ -43,10 +43,10 @@ const searchModes = [
 ];
 
 const modelProviders = [
-  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'Fast & efficient' },
-  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4o' },
-  { id: 'qwen' as ModelProvider, label: 'Qwen', description: 'Alibaba Cloud' },
-  { id: 'claude' as ModelProvider, label: 'Claude', description: 'Anthropic' },
+  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat' },
+  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-5 mini' },
+  { id: 'qwen' as ModelProvider, label: 'Qwen', description: 'Qwen Plus' },
+  { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5' },
 ];
 
 const SearchBox: React.FC<SearchBoxProps> = ({

@@ -101,8 +101,9 @@ describe('SearchBox', () => {
       await user.keyboard('{Enter}');
 
       await waitFor(() => {
+        // URLSearchParams encodes spaces as + not %20
         expect(mockPush).toHaveBeenCalledWith(
-          expect.stringContaining('/search?q=test%20query')
+          expect.stringContaining('/search?q=test+query')
         );
       });
     });
@@ -151,7 +152,7 @@ describe('SearchBox', () => {
         expect(global.fetch).toHaveBeenCalledWith(
           '/api/refine',
           expect.objectContaining({
-            body: JSON.stringify({ query: 'test query' }),
+            body: JSON.stringify({ query: 'test query', provider: 'deepseek' }),
           })
         );
       });

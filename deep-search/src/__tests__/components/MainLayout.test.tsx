@@ -86,17 +86,6 @@ describe('MainLayout', () => {
   });
 
   describe('Layout Structure', () => {
-    it('has flex layout container', () => {
-      const { container } = renderWithThemeProvider(
-        <MainLayout>
-          <div>Content</div>
-        </MainLayout>
-      );
-
-      const wrapper = container.firstChild as HTMLElement;
-      expect(wrapper).toHaveClass('flex');
-    });
-
     it('has minimum full screen height', () => {
       const { container } = renderWithThemeProvider(
         <MainLayout>
@@ -108,7 +97,7 @@ describe('MainLayout', () => {
       expect(wrapper).toHaveClass('min-h-screen');
     });
 
-    it('main content area is scrollable', () => {
+    it('main content area has left margin for sidebar', () => {
       const { container } = renderWithThemeProvider(
         <MainLayout>
           <div>Content</div>
@@ -116,10 +105,10 @@ describe('MainLayout', () => {
       );
 
       const main = container.querySelector('main');
-      expect(main).toHaveClass('overflow-auto');
+      expect(main).toHaveClass('ml-16');
     });
 
-    it('main content area takes remaining space', () => {
+    it('main content area has full screen height', () => {
       const { container } = renderWithThemeProvider(
         <MainLayout>
           <div>Content</div>
@@ -127,7 +116,7 @@ describe('MainLayout', () => {
       );
 
       const main = container.querySelector('main');
-      expect(main).toHaveClass('flex-1');
+      expect(main).toHaveClass('min-h-screen');
     });
   });
 

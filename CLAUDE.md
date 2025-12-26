@@ -41,10 +41,10 @@ Required in `deep-search/.env.local`:
 - `TAVILY_API_KEY` - Tavily API key for web search (required)
 
 At least one LLM provider key:
-- `DEEPSEEK_API_KEY` - DeepSeek API (preferred, cost-effective)
-- `OPENAI_API_KEY` - OpenAI API for GPT-4o
-- `QWEN_API_KEY` - Alibaba Qwen API
-- `ANTHROPIC_API_KEY` - Anthropic Claude API
+- `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
+- `OPENAI_API_KEY` - OpenAI GPT-5 mini
+- `QWEN_API_KEY` - Alibaba Qwen Plus
+- `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 
 ## Architecture
 

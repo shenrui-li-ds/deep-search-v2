@@ -103,7 +103,7 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-4o',
+  model: string = 'gpt-5-mini',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -181,7 +181,7 @@ export async function callQwen(
 // Claude API request (Anthropic format)
 export async function callClaude(
   messages: ChatMessage[],
-  model: string = 'claude-sonnet-4-20250514',
+  model: string = 'claude-haiku-4-5',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -313,13 +313,13 @@ function callLLMForProvider(
       return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
     case 'openai':
       console.log('Using OpenAI API');
-      return callOpenAI(messages, 'gpt-4o', temperature, stream);
+      return callOpenAI(messages, 'gpt-5-mini', temperature, stream);
     case 'qwen':
       console.log('Using Qwen API');
       return callQwen(messages, 'qwen-plus', temperature, stream);
     case 'claude':
       console.log('Using Claude API');
-      return callClaude(messages, 'claude-sonnet-4-20250514', temperature, stream);
+      return callClaude(messages, 'claude-haiku-4-5', temperature, stream);
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }

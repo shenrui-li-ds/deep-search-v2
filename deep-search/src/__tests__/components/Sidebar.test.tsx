@@ -53,7 +53,8 @@ describe('Sidebar', () => {
   describe('Rendering', () => {
     it('renders the sidebar container', () => {
       const { container } = renderWithThemeProvider(<Sidebar />);
-      expect(container.querySelector('.min-h-screen')).toBeInTheDocument();
+      // Sidebar uses h-screen (full height) and fixed positioning
+      expect(container.querySelector('.h-screen')).toBeInTheDocument();
     });
 
     it('renders the logo link to home', () => {

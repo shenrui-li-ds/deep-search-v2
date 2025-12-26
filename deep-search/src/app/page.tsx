@@ -3,11 +3,10 @@ import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 
 const quickActions = [
-  { icon: '⚖️', label: 'Compare', query: 'compare' },
-  { icon: '❤️', label: 'Health', query: 'health' },
-  { icon: '✓', label: 'Fact Check', query: 'fact check' },
-  { icon: '📚', label: 'Deep Search 101', query: 'how to use deep search' },
-  { icon: '📊', label: 'Analyze', query: 'analyze' },
+  { icon: '⚖️', label: 'React vs Vue', query: 'Compare React and Vue for building a new web app in 2025' },
+  { icon: '🧠', label: 'AI Explained', query: 'Explain how large language models work in simple terms' },
+  { icon: '🚀', label: 'Startup Ideas', query: 'What are the most promising AI startup ideas for 2025?' },
+  { icon: '📈', label: 'Learn Investing', query: 'How should a beginner start investing in index funds?' },
 ];
 
 export default function Home() {
