@@ -34,25 +34,29 @@ Main result display component.
   result: {
     content: string;
     sources: Source[];
-    images?: { url, alt, sourceId }[];
   };
+  relatedSearches?: string[];
   isLoading?: boolean;
+  isSearching?: boolean;
   isStreaming?: boolean;
   isPolishing?: boolean;
+  isTransitioning?: boolean;
 }
 ```
 
 **Features:**
-- Status banner (shown during streaming/polishing)
-- Tabbed interface (Answer, Links, Images)
+- Status banner (shown during searching/streaming/polishing)
+- Tabbed interface (Answer, Links)
 - Markdown rendering with custom component styling
 - Source pills with tooltips
-- Related questions section
+- Related searches section (LLM-generated, clickable)
 - Follow-up input
 
-**Streaming states:**
-- `isStreaming=true, isPolishing=false`: Shows "Generating response..." banner + cursor
-- `isStreaming=true, isPolishing=true`: Shows "Polishing response..." banner
+**Loading states:**
+- `isSearching=true`: Shows "Searching the web..." banner
+- `isStreaming=true`: Shows "Generating response..." banner + cursor
+- `isPolishing=true`: Shows "Polishing response..." banner
+- `isTransitioning=true`: Fades content during proofreading transition
 
 ### `SearchLoading.tsx`
 Loading skeleton for search results.
@@ -93,14 +97,12 @@ MainLayout
 ├── Sidebar (fixed)
 └── main content
     └── SearchClient (in /search)
-        ├── Loading Card (searching stage)
-        └── SearchResult (summarizing/complete)
-            ├── Status Banner (streaming)
+        └── SearchResult (all stages after landing)
+            ├── Status Banner (searching/streaming/polishing)
             ├── Tabs
             │   ├── Answer (markdown + sources)
-            │   ├── Links (source cards)
-            │   └── Images (image grid)
+            │   └── Links (source cards)
             ├── Action Bar
-            ├── Related Questions
-            └── Follow-up Input
+            ├── Follow-up Input
+            └── Related Searches (LLM-generated pills)
 ```

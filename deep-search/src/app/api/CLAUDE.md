@@ -88,6 +88,32 @@ Cleans up and polishes content. Used in Pro Search mode.
 - `paragraph`: Light LLM pass on single paragraph
 - `full`: Full LLM proofreading (used by Pro Search)
 
+### `/api/related-searches` - Related Search Suggestions
+Generates related search queries based on the original query and content.
+
+**Request:**
+```json
+{
+  "query": "original query",
+  "content": "summary content (optional, first 1000 chars used)",
+  "provider": "deepseek"
+}
+```
+
+**Response:**
+```json
+{
+  "relatedSearches": ["query 1", "query 2", "query 3", ...]
+}
+```
+
+**Features:**
+- Generates 5-6 diverse related queries
+- Preserves original query language (Chinese → Chinese suggestions)
+- Uses `generateRelatedSearchesPrompt` for structured output
+- Handles markdown code blocks in LLM response
+- Limits output to 6 queries max
+
 ## Provider Handling
 
 All LLM-powered routes accept a `provider` parameter:

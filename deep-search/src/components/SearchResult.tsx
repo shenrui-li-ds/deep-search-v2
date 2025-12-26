@@ -35,6 +35,7 @@ interface SearchResultProps {
       sourceId: string;
     }[];
   };
+  relatedSearches?: string[];
   isLoading?: boolean;
   isSearching?: boolean;
   isStreaming?: boolean;
@@ -42,7 +43,7 @@ interface SearchResultProps {
   isTransitioning?: boolean;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -106,21 +107,10 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
                   Links
                 </span>
               </TabsTrigger>
-              <TabsTrigger
-                value="images"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-3 px-0 text-sm font-medium transition-colors relative rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent)] data-[state=active]:text-[var(--accent)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              >
-                <span className="flex items-center gap-1.5">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Images
-                </span>
-              </TabsTrigger>
             </TabsList>
 
             {/* Share button */}
-            <Button size="sm" className="rounded-full">
+            <Button variant="ghost" size="sm" className="h-8 text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
               <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
               </svg>
@@ -301,30 +291,6 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
               </div>
             </div>
 
-            {/* Related Questions */}
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Related</h3>
-              <div className="space-y-2">
-                {[
-                  `What are the latest updates about ${query}?`,
-                  `How does ${query} compare to alternatives?`,
-                  `What are the key features of ${query}?`,
-                  `What do experts say about ${query}?`
-                ].map((question, index) => (
-                  <a
-                    key={index}
-                    href={`/search?q=${encodeURIComponent(question)}`}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--card)] transition-colors group"
-                  >
-                    <svg className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    <span className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">{question}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-
             {/* Follow-up Input */}
             <div className="mt-8 pt-6 border-t border-[var(--border)]">
               <div className="flex items-center gap-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-2xl">
@@ -352,6 +318,27 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
                 </div>
               </div>
             </div>
+
+            {/* Related Searches */}
+            {relatedSearches.length > 0 && (
+              <div className="mt-8">
+                <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Related searches</h3>
+                <div className="flex flex-wrap gap-2">
+                  {relatedSearches.map((search, index) => (
+                    <a
+                      key={index}
+                      href={`/search?q=${encodeURIComponent(search)}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--text-secondary)] bg-[var(--card)] border border-[var(--border)] rounded-full hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      {search}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="links" className="mt-0">
@@ -391,33 +378,6 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, isLoading = 
             </div>
           </TabsContent>
 
-          <TabsContent value="images" className="mt-0">
-            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Images</h2>
-            {result.images && result.images.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {result.images.map((image, index) => (
-                  <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-[var(--card)] group">
-                    <img
-                      src={image.url}
-                      alt={image.alt || 'Search result image'}
-                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><rect width="24" height="24" rx="4"/><path fill="%23d1d5db" d="M4 16l4-4 4 4 4-4 4 4v4H4z"/><circle fill="%23d1d5db" cx="8" cy="8" r="2"/></svg>';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-[var(--text-muted)]">
-                <svg className="w-12 h-12 mx-auto mb-3 text-[var(--border)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <p>No images found for this search</p>
-              </div>
-            )}
-          </TabsContent>
         </Tabs>
 
         {/* Source Hover Card - Deprecated in favor of Tooltip */}

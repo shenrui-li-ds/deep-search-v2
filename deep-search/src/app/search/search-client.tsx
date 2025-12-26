@@ -23,6 +23,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [sources, setSources] = useState<Source[]>([]);
   const [images, setImages] = useState<SearchImage[]>([]);
+  const [relatedSearches, setRelatedSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const router = useRouter();
@@ -119,6 +120,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       contentRef.current = '';
       setSources([]);
       setImages([]);
+      setRelatedSearches([]);
       setIsTransitioning(false);
 
       try {
@@ -202,6 +204,27 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Apply cleanup
         const cleanedContent = cleanupFinalContent(summarizedContent);
+
+        // Fetch related searches in background (non-blocking)
+        fetch('/api/related-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            content: cleanedContent.substring(0, 1000), // First 1000 chars as context
+            provider
+          }),
+          signal: abortController.signal
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (isActive && data.relatedSearches) {
+              setRelatedSearches(data.relatedSearches);
+            }
+          })
+          .catch(() => {
+            // Silently fail - related searches are not critical
+          });
 
         if (useProofread) {
           // PRO MODE: Proofread in background, then smooth transition
@@ -336,6 +359,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           sourceId: image.sourceId || ''
         }))
       }}
+      relatedSearches={relatedSearches}
       isLoading={false}
       isSearching={loadingStage === 'searching'}
       isStreaming={loadingStage === 'summarizing'}

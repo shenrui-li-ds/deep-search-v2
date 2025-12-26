@@ -27,9 +27,10 @@ describe('SearchResult', () => {
     { id: '3', title: 'Source 3', url: 'https://example3.com', iconUrl: 'https://example3.com/icon.png' },
   ];
 
-  const mockImages = [
-    { url: 'https://example.com/image1.jpg', alt: 'Image 1', sourceId: '1' },
-    { url: 'https://example.com/image2.jpg', alt: 'Image 2', sourceId: '2' },
+  const mockRelatedSearches = [
+    'Related search 1',
+    'Related search 2',
+    'Related search 3',
   ];
 
   const defaultProps = {
@@ -37,7 +38,6 @@ describe('SearchResult', () => {
     result: {
       content: '# Test Content\n\nThis is a test answer with **bold** text.',
       sources: mockSources,
-      images: mockImages,
     },
   };
 
@@ -55,11 +55,10 @@ describe('SearchResult', () => {
   });
 
   describe('Tabs', () => {
-    it('renders all three tabs', () => {
+    it('renders Answer and Links tabs', () => {
       render(<SearchResult {...defaultProps} />);
       expect(screen.getByText('Answer')).toBeInTheDocument();
       expect(screen.getByText('Links')).toBeInTheDocument();
-      expect(screen.getByText('Images')).toBeInTheDocument();
     });
 
     it('shows Answer tab content by default', () => {
@@ -72,11 +71,9 @@ describe('SearchResult', () => {
 
       // Verify tabs are rendered as buttons with tab role
       const linksTab = screen.getByRole('tab', { name: /Links/i });
-      const imagesTab = screen.getByRole('tab', { name: /Images/i });
       const answerTab = screen.getByRole('tab', { name: /Answer/i });
 
       expect(linksTab).toBeInTheDocument();
-      expect(imagesTab).toBeInTheDocument();
       expect(answerTab).toBeInTheDocument();
     });
 
@@ -110,11 +107,6 @@ describe('SearchResult', () => {
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument();
     });
 
-    it('displays related questions', () => {
-      render(<SearchResult {...defaultProps} />);
-      expect(screen.getByText('Related')).toBeInTheDocument();
-    });
-
     it('shows follow-up input', () => {
       render(<SearchResult {...defaultProps} />);
       expect(screen.getByPlaceholderText('Ask a follow-up')).toBeInTheDocument();
@@ -143,25 +135,44 @@ describe('SearchResult', () => {
     });
   });
 
-  // Note: Links and Images tab content tests are simplified because Radix UI tabs
+  // Note: Links tab content tests are simplified because Radix UI tabs
   // don't switch content properly in jsdom environment.
   // Full tab content switching should be tested via E2E tests.
 
-  describe('Related Questions', () => {
-    it('generates related questions based on query', () => {
-      render(<SearchResult {...defaultProps} />);
-
-      // Related questions should contain the query
-      expect(screen.getByText(/latest updates about Test query/)).toBeInTheDocument();
+  describe('Related Searches', () => {
+    it('does not show related searches section when empty', () => {
+      render(<SearchResult {...defaultProps} relatedSearches={[]} />);
+      expect(screen.queryByText('Related searches')).not.toBeInTheDocument();
     });
 
-    it('related questions are clickable links', () => {
-      render(<SearchResult {...defaultProps} />);
+    it('shows related searches when provided', () => {
+      render(<SearchResult {...defaultProps} relatedSearches={mockRelatedSearches} />);
+      expect(screen.getByText('Related searches')).toBeInTheDocument();
+    });
+
+    it('displays all related search queries', () => {
+      render(<SearchResult {...defaultProps} relatedSearches={mockRelatedSearches} />);
+
+      mockRelatedSearches.forEach(search => {
+        expect(screen.getByText(search)).toBeInTheDocument();
+      });
+    });
+
+    it('related searches are clickable links with correct URLs', () => {
+      render(<SearchResult {...defaultProps} relatedSearches={mockRelatedSearches} />);
 
       const relatedLinks = screen.getAllByRole('link').filter(link =>
         link.getAttribute('href')?.includes('/search?q=')
       );
-      expect(relatedLinks.length).toBeGreaterThan(0);
+
+      // Should have links for each related search
+      expect(relatedLinks.length).toBeGreaterThanOrEqual(mockRelatedSearches.length);
+
+      // First related search link should have correct href
+      const firstSearchLink = relatedLinks.find(link =>
+        link.textContent?.includes('Related search 1')
+      );
+      expect(firstSearchLink).toHaveAttribute('href', '/search?q=Related%20search%201');
     });
   });
 
