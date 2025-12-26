@@ -24,6 +24,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [sources, setSources] = useState<Source[]>([]);
   const [images, setImages] = useState<SearchImage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const router = useRouter();
 
   // Ref to track content for batched updates
@@ -33,44 +34,82 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   // Pro Search mode uses full LLM-based proofreading
   const useProofread = mode === 'pro';
 
-  // Proofread full content
-  const proofreadContent = useCallback(async (content: string): Promise<string> => {
-    try {
-      const response = await fetch('/api/proofread', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content,
-          mode: 'full',
-          provider
-        }),
-      });
-
-      if (!response.ok) {
-        console.error('Proofread API failed, using original content');
-        return content;
-      }
-
-      const data = await response.json();
-      return data.proofread || content;
-    } catch (err) {
-      console.error('Error proofreading:', err);
-      return content;
-    }
-  }, [provider]);
-
-  // Batched update function to reduce re-renders
+  // Batched update function to reduce re-renders (50ms for smooth streaming)
   const scheduleContentUpdate = useCallback(() => {
-    if (updateTimeoutRef.current) return; // Already scheduled
+    if (updateTimeoutRef.current) return;
 
     updateTimeoutRef.current = setTimeout(() => {
       setStreamingContent(contentRef.current);
       updateTimeoutRef.current = null;
-    }, 50); // Update every 50ms max
+    }, 50);
   }, []);
+
+  // Stream content from a response
+  const streamResponse = useCallback(async (
+    response: Response,
+    onChunk: (content: string) => void,
+    onComplete: (fullContent: string) => void
+  ) => {
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let fullContent = '';
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(5));
+              if (data.done === true) break;
+              fullContent += data.data;
+              onChunk(fullContent);
+            } catch (e) {
+              console.error('Error parsing stream:', e);
+            }
+          }
+        }
+      }
+    }
+
+    onComplete(fullContent);
+    return fullContent;
+  }, []);
+
+  // Smooth transition to new content
+  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[]) => {
+    // Start fade out
+    setIsTransitioning(true);
+
+    // After fade out, update content and fade in
+    setTimeout(() => {
+      setStreamingContent(newContent);
+      setSearchResult({
+        query,
+        content: newContent,
+        sources: fetchedSources,
+        images: fetchedImages
+      });
+      setLoadingStage('complete');
+
+      // Small delay before starting fade in
+      setTimeout(() => {
+        setIsTransitioning(false);
+      }, 50);
+    }, 200); // Duration of fade out
+  }, [query]);
 
   useEffect(() => {
     if (!query) return;
+
+    // AbortController to cancel in-flight requests on cleanup (prevents React StrictMode double-execution issues)
+    const abortController = new AbortController();
+    let isActive = true; // Flag to prevent state updates from stale requests
 
     const performSearch = async () => {
       setLoadingStage('searching');
@@ -80,6 +119,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       contentRef.current = '';
       setSources([]);
       setImages([]);
+      setIsTransitioning(false);
 
       try {
         // Step 1: Perform search via Tavily
@@ -91,7 +131,10 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             searchDepth: deep ? 'advanced' : 'basic',
             maxResults: deep ? 15 : 10
           }),
+          signal: abortController.signal
         });
+
+        if (!isActive) return; // Check if effect was cleaned up
 
         if (!searchResponse.ok) {
           throw new Error('Search failed');
@@ -101,17 +144,18 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         const fetchedSources: Source[] = searchData.sources || [];
         const fetchedImages: SearchImage[] = searchData.images || [];
 
+        if (!isActive) return;
+
         if (fetchedSources.length === 0) {
           setError('No search results found');
           setLoadingStage('complete');
           return;
         }
 
-        // Store sources and images for display
         setSources(fetchedSources);
         setImages(fetchedImages);
 
-        // Step 2: Summarize search results with streaming
+        // Step 2: Summarize search results (stream for all modes)
         setLoadingStage('summarizing');
 
         const summarizeResponse = await fetch('/api/summarize', {
@@ -123,73 +167,93 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             stream: true,
             provider
           }),
+          signal: abortController.signal
         });
+
+        if (!isActive) return;
 
         if (!summarizeResponse.ok) {
           throw new Error('Summarization failed');
         }
 
-        // Stream content with batched updates
-        const reader = summarizeResponse.body?.getReader();
-        const decoder = new TextDecoder();
-
-        if (reader) {
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n\n');
-
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(5));
-
-                  if (data.done === true) {
-                    break;
-                  }
-
-                  // Accumulate content in ref (doesn't trigger re-render)
-                  contentRef.current += data.data;
-                  // Schedule batched update
-                  scheduleContentUpdate();
-
-                } catch (e) {
-                  console.error('Error parsing stream:', e);
-                }
-              }
+        // Stream summarization to UI
+        let summarizedContent = '';
+        await streamResponse(
+          summarizeResponse,
+          (content) => {
+            if (!isActive) return;
+            contentRef.current = content;
+            scheduleContentUpdate();
+          },
+          (fullContent) => {
+            if (!isActive) return;
+            // Clear any pending timeout
+            if (updateTimeoutRef.current) {
+              clearTimeout(updateTimeoutRef.current);
+              updateTimeoutRef.current = null;
             }
+            summarizedContent = fullContent;
+            const cleanedContent = cleanupFinalContent(fullContent);
+            setStreamingContent(cleanedContent);
           }
-        }
+        );
 
-        // Clear any pending timeout and do final update
-        if (updateTimeoutRef.current) {
-          clearTimeout(updateTimeoutRef.current);
-          updateTimeoutRef.current = null;
-        }
-        setStreamingContent(contentRef.current);
+        if (!isActive) return;
 
-        // Apply client-side cleanup
-        let finalContent = cleanupFinalContent(contentRef.current);
+        // Apply cleanup
+        const cleanedContent = cleanupFinalContent(summarizedContent);
 
-        // Step 3: Proofread if Pro Search mode
-        if (useProofread && finalContent.length > 0) {
+        if (useProofread) {
+          // PRO MODE: Proofread in background, then smooth transition
           setLoadingStage('proofreading');
-          finalContent = await proofreadContent(finalContent);
-        }
 
-        // Step 4: Set final result
-        setSearchResult({
-          query,
-          content: finalContent,
-          sources: fetchedSources,
-          images: fetchedImages
-        });
-        setLoadingStage('complete');
+          const proofreadResponse = await fetch('/api/proofread', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: cleanedContent,
+              mode: 'full',
+              provider,
+              stream: false // Non-streaming for simplicity
+            }),
+            signal: abortController.signal
+          });
+
+          if (!isActive) return;
+
+          if (!proofreadResponse.ok) {
+            // Fallback: use summarized content
+            console.error('Proofread API failed, using summarized content');
+            transitionToContent(cleanedContent, fetchedSources, fetchedImages);
+            return;
+          }
+
+          const proofreadData = await proofreadResponse.json();
+          const proofreadContent = proofreadData.proofread || cleanedContent;
+
+          if (!isActive) return;
+
+          // Smooth transition to proofread content
+          transitionToContent(proofreadContent, fetchedSources, fetchedImages);
+
+        } else {
+          // NON-PRO MODE: Just set final result
+          if (!isActive) return;
+          setSearchResult({
+            query,
+            content: cleanedContent,
+            sources: fetchedSources,
+            images: fetchedImages
+          });
+          setLoadingStage('complete');
+        }
 
       } catch (err) {
+        // Ignore abort errors (expected when effect is cleaned up)
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if (!isActive) return;
         console.error('Search error:', err);
         setError('An error occurred while processing your search');
         setLoadingStage('complete');
@@ -198,66 +262,14 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
     performSearch();
 
-    // Cleanup timeout on unmount
     return () => {
+      isActive = false;
+      abortController.abort();
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [query, provider, mode, deep, useProofread, proofreadContent, scheduleContentUpdate]);
-
-  // Show search stage loading
-  if (loadingStage === 'searching') {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <Card className="p-8">
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-6">{query}</h1>
-
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-[var(--accent)] text-white">
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-            <span className="text-sm text-[var(--text-primary)] font-medium">
-              Searching the web...
-            </span>
-          </div>
-
-          <div className="mt-6 flex items-center gap-2 text-[var(--text-muted)]">
-            <div className="flex gap-1">
-              <span className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-2 h-2 bg-[var(--accent)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-            </div>
-            <span className="text-sm">Finding relevant sources...</span>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  // Show streaming content during summarizing or proofreading
-  if (loadingStage === 'summarizing' || loadingStage === 'proofreading') {
-    return (
-      <SearchResultComponent
-        query={query}
-        result={{
-          content: streamingContent,
-          sources: sources,
-          images: images.map(image => ({
-            url: image.url,
-            alt: image.alt,
-            sourceId: image.sourceId || ''
-          }))
-        }}
-        isLoading={false}
-        isStreaming={true}
-        isPolishing={loadingStage === 'proofreading'}
-      />
-    );
-  }
+  }, [query, provider, mode, deep, useProofread, scheduleContentUpdate, streamResponse, transitionToContent]);
 
   if (error) {
     return (
@@ -278,7 +290,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     );
   }
 
-  if (!searchResult) {
+  // Show "no results" only when complete and no result/sources
+  if (loadingStage === 'complete' && !searchResult && sources.length === 0) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <Card className="p-8 text-center">
@@ -297,19 +310,37 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     );
   }
 
+  // Use a single SearchResultComponent for summarizing, proofreading, and complete stages
+  // This prevents component remounting which causes visual flash
+  const displayContent = loadingStage === 'complete' && searchResult
+    ? searchResult.content
+    : streamingContent;
+
+  const displaySources = loadingStage === 'complete' && searchResult
+    ? searchResult.sources
+    : sources;
+
+  const displayImages = loadingStage === 'complete' && searchResult
+    ? searchResult.images
+    : images;
+
   return (
     <SearchResultComponent
       query={query}
       result={{
-        content: searchResult.content,
-        sources: searchResult.sources,
-        images: searchResult.images?.map(image => ({
+        content: displayContent,
+        sources: displaySources,
+        images: displayImages?.map(image => ({
           url: image.url,
           alt: image.alt,
           sourceId: image.sourceId || ''
         }))
       }}
       isLoading={false}
+      isSearching={loadingStage === 'searching'}
+      isStreaming={loadingStage === 'summarizing'}
+      isPolishing={loadingStage === 'proofreading'}
+      isTransitioning={isTransitioning}
     />
   );
 }

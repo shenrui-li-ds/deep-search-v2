@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, LLMProvider } from '@/lib/api-utils';
+import { callLLM, LLMProvider, getStreamParser } from '@/lib/api-utils';
 import { proofreadContentPrompt, proofreadParagraphPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 
@@ -69,7 +69,7 @@ function quickCleanup(text: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { content, mode = 'quick', provider, paragraphIndex } = await req.json();
+    const { content, mode = 'quick', provider, paragraphIndex, stream = false } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     if (!content || typeof content !== 'string') {
@@ -123,6 +123,35 @@ export async function POST(req: NextRequest) {
       }
     ];
 
+    // Streaming mode for full proofreading
+    if (stream && mode === 'full') {
+      const response = await callLLM(messages, 0.3, true, llmProvider);
+      const streamParser = getStreamParser(llmProvider || 'deepseek');
+
+      const readableStream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const chunk of streamParser(response)) {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
+            }
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        }
+      });
+
+      return new NextResponse(readableStream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+    // Non-streaming mode
     const proofread = await callLLM(messages, 0.3, false, llmProvider);
 
     return NextResponse.json({
