@@ -21,8 +21,8 @@ interface SearchBoxProps {
   autoFocus?: boolean;
 }
 
-type SearchMode = 'web' | 'focus' | 'pro';
-type ModelProvider = 'openai' | 'deepseek' | 'qwen' | 'claude';
+type SearchMode = 'web' | 'pro' | 'brainstorm';
+type ModelProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
 
 const searchModes = [
   { id: 'web' as SearchMode, label: 'Web Search', icon: (
@@ -30,23 +30,31 @@ const searchModes = [
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   )},
-  { id: 'focus' as SearchMode, label: 'Focus', icon: (
+  { id: 'pro' as SearchMode, label: 'Research', icon: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
   )},
-  { id: 'pro' as SearchMode, label: 'Pro Search', icon: (
+  { id: 'brainstorm' as SearchMode, label: 'Brainstorm', icon: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
     </svg>
   )},
 ];
 
 const modelProviders = [
   { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat' },
-  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-5 mini' },
+  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4o mini' },
   { id: 'qwen' as ModelProvider, label: 'Qwen', description: 'Qwen Plus' },
   { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5' },
+  { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 2.5 Flash' },
+];
+
+const quickActions = [
+  { icon: '⚖️', label: 'React vs Vue', query: 'Compare React and Vue for building a new web app in 2025' },
+  { icon: '🧠', label: 'AI Explained', query: 'Explain how large language models work in simple terms' },
+  { icon: '🚀', label: 'Startup Ideas', query: 'What are the most promising AI startup ideas for 2025?' },
+  { icon: '📈', label: 'Learn Investing', query: 'How should a beginner start investing in index funds?' },
 ];
 
 const SearchBox: React.FC<SearchBoxProps> = ({
@@ -124,6 +132,15 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   };
 
   const currentModel = modelProviders.find(m => m.id === selectedModel);
+
+  const buildSearchUrl = (queryText: string) => {
+    const params = new URLSearchParams({
+      q: queryText,
+      provider: selectedModel,
+      mode: searchMode
+    });
+    return `/search?${params.toString()}`;
+  };
 
   return (
     <TooltipProvider>
@@ -255,6 +272,22 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Quick Action Tags - only show on large (home page) variant */}
+        {large && (
+          <div className="flex flex-wrap justify-center gap-2 mt-6">
+            {quickActions.map((action) => (
+              <a
+                key={action.label}
+                href={buildSearchUrl(action.query)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-full text-sm text-[var(--text-secondary)] hover:bg-[var(--card)] hover:border-[var(--accent)] transition-colors"
+              >
+                <span>{action.icon}</span>
+                <span>{action.label}</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </TooltipProvider>
   );

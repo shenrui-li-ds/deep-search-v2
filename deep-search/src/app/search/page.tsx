@@ -7,7 +7,7 @@ interface SearchPageProps {
   searchParams: Promise<{
     q?: string;
     provider?: string;
-    mode?: string;  // 'web' | 'focus' | 'pro'
+    mode?: string;  // 'web' | 'pro' | 'brainstorm'
     deep?: string;
   }>;
 }
@@ -26,7 +26,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const query = params.q || '';
   const provider = params.provider || 'deepseek';
-  const mode = (params.mode || 'web') as 'web' | 'focus' | 'pro';
+  const mode = (params.mode || 'web') as 'web' | 'pro' | 'brainstorm';
   const deep = params.deep === 'true' || mode === 'pro';  // Pro mode enables deep search
 
   if (!query) {

@@ -86,7 +86,71 @@ Cleans up and polishes content. Used in Pro Search mode.
 **Modes:**
 - `quick`: Regex-based cleanup only (no LLM)
 - `paragraph`: Light LLM pass on single paragraph
-- `full`: Full LLM proofreading (used by Pro Search)
+- `full`: Full LLM proofreading (used by web search with pro features)
+- `research`: Research-specific proofreading (preserves depth, improves flow)
+
+### `/api/research/plan` - Research Planning
+Generates a multi-angle research plan for comprehensive topic coverage.
+
+**Request:**
+```json
+{
+  "query": "research topic",
+  "provider": "deepseek"
+}
+```
+
+**Response:**
+```json
+{
+  "originalQuery": "research topic",
+  "plan": [
+    { "aspect": "fundamentals", "query": "topic basics explained" },
+    { "aspect": "applications", "query": "topic real world uses" },
+    { "aspect": "comparison", "query": "topic vs alternatives" },
+    { "aspect": "current state", "query": "topic latest developments 2024" }
+  ]
+}
+```
+
+**Features:**
+- Generates 2-4 distinct research angles
+- Preserves original query language
+- Falls back to single query on parse errors
+- Limits to 4 queries maximum
+
+### `/api/research/synthesize` - Research Synthesis
+Synthesizes multiple search results into a comprehensive research document.
+
+**Request:**
+```json
+{
+  "query": "original research topic",
+  "aspectResults": [
+    {
+      "aspect": "fundamentals",
+      "query": "search query used",
+      "results": [{ "title", "url", "content" }]
+    }
+  ],
+  "stream": true,
+  "provider": "deepseek"
+}
+```
+
+**Response:** Server-Sent Events (SSE) when `stream=true`
+```
+data: {"data": "## Research Summary\n\n"}
+data: {"data": "Quantum computing..."}
+data: {"done": true}
+```
+
+**Features:**
+- Integrates results from multiple research angles
+- Assigns consistent global source indices across all aspects
+- Targets 600-800 words for comprehensive coverage
+- Includes Key Takeaways section
+- Supports both streaming and non-streaming modes
 
 ### `/api/related-searches` - Related Search Suggestions
 Generates related search queries based on the original query and content.

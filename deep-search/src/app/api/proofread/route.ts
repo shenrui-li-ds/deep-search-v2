@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, LLMProvider, getStreamParser } from '@/lib/api-utils';
-import { proofreadContentPrompt, proofreadParagraphPrompt } from '@/lib/prompts';
+import { proofreadContentPrompt, proofreadParagraphPrompt, researchProofreadPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 
 /**
@@ -107,6 +107,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         proofread,
         mode: 'paragraph',
+        paragraphIndex
+      });
+    }
+
+    // Research mode: specialized proofreading for research documents
+    if (mode === 'research') {
+      const messages: OpenAIMessage[] = [
+        {
+          role: 'system',
+          content: researchProofreadPrompt()
+        },
+        {
+          role: 'user',
+          content: `Please proofread and polish the following research document:\n\n${content}`
+        }
+      ];
+
+      const proofread = await callLLM(messages, 0.3, false, llmProvider);
+
+      return NextResponse.json({
+        proofread,
+        mode: 'research',
         paragraphIndex
       });
     }

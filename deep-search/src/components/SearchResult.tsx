@@ -25,6 +25,8 @@ interface Source {
   snippet?: string;
 }
 
+type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing';
+
 interface SearchResultProps {
   query: string;
   result: {
@@ -39,6 +41,7 @@ interface SearchResultProps {
   relatedSearches?: string[];
   provider?: string;
   mode?: string;
+  loadingStage?: LoadingStage;
   isLoading?: boolean;
   isSearching?: boolean;
   isStreaming?: boolean;
@@ -46,7 +49,7 @@ interface SearchResultProps {
   isTransitioning?: boolean;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
@@ -101,7 +104,13 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
           <span className="text-sm font-medium text-[var(--accent)]">
-            {isSearching ? 'Searching the web...' : isPolishing ? 'Polishing response...' : 'Generating response...'}
+            {loadingStage === 'planning' ? 'Planning research approach...' :
+             loadingStage === 'researching' ? 'Searching multiple sources...' :
+             loadingStage === 'synthesizing' ? 'Synthesizing findings...' :
+             loadingStage === 'proofreading' ? 'Polishing response...' :
+             loadingStage === 'summarizing' ? 'Generating response...' :
+             isSearching ? 'Searching the web...' :
+             isPolishing ? 'Polishing response...' : 'Generating response...'}
           </span>
         </div>
 

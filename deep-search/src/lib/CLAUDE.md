@@ -8,7 +8,7 @@ Core utilities, types, and helpers.
 
 **LLM Provider Support:**
 ```typescript
-type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude';
+type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
 ```
 
 **Key Functions:**
@@ -20,11 +20,13 @@ type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude';
 | `callOpenAI(messages, model, temp, stream)` | OpenAI API |
 | `callQwen(messages, model, temp, stream)` | Qwen/DashScope API (OpenAI-compatible) |
 | `callClaude(messages, model, temp, stream)` | Anthropic Claude API |
+| `callGemini(messages, model, temp, stream)` | Google Gemini API |
 | `callTavily(query, includeImages, depth, max)` | Tavily search API |
 | `getLLMProvider()` | Auto-detect available provider from env |
 | `isProviderAvailable(provider)` | Check if provider has API key |
 | `streamOpenAIResponse(response)` | Generator for OpenAI-format SSE |
 | `streamClaudeResponse(response)` | Generator for Anthropic-format SSE |
+| `streamGeminiResponse(response)` | Generator for Gemini-format streaming |
 | `getStreamParser(provider)` | Get appropriate stream parser |
 
 **API Endpoints:**
@@ -33,6 +35,7 @@ OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
 DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 QWEN_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
 CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
+GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 TAVILY_API_URL = 'https://api.tavily.com/search'
 ```
 
@@ -40,13 +43,33 @@ TAVILY_API_URL = 'https://api.tavily.com/search'
 
 XML-structured prompts for consistent LLM behavior.
 
+**Web Search Prompts:**
+
 | Prompt | Purpose |
 |--------|---------|
 | `refineSearchQueryPrompt(query, date)` | Optimize search query |
-| `summarizeSearchResultsPrompt(query, date)` | Generate cited summary |
+| `summarizeSearchResultsPrompt(query, date)` | Generate cited summary (concise, 2-3 sentences per paragraph) |
 | `proofreadContentPrompt()` | Full content proofreading |
 | `proofreadParagraphPrompt()` | Light paragraph cleanup |
 | `generateRelatedSearchesPrompt(query, topics)` | Generate related queries |
+
+**Research Pipeline Prompts:**
+
+| Prompt | Purpose |
+|--------|---------|
+| `researchPlannerPrompt(query, date)` | Generate 2-4 research angles for comprehensive topic coverage |
+| `researchSynthesizerPrompt(query, date)` | Synthesize multi-source research into 600-800 word document |
+| `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
+
+**Key Differences: Summarize vs Synthesize**
+
+| Aspect | summarizeSearchResultsPrompt | researchSynthesizerPrompt |
+|--------|------------------------------|---------------------------|
+| Length | 2-3 sentences per paragraph | 4-6 sentences allowed |
+| Output | 200-300 words | 600-800 words |
+| Input | Single search result set | Multiple aspect-based result sets |
+| Depth | Quick scannable answer | Comprehensive research document |
+| Structure | Direct answer + sections | Executive summary + sections + Key Takeaways |
 
 **Prompt Design Principles:**
 - Use XML tags for structure (`<description>`, `<rules>`, etc.)

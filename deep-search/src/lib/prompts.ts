@@ -170,6 +170,168 @@ export const proofreadParagraphPrompt = () => `
 </proofreadParagraph>
 `;
 
+// Research Pipeline Prompts
+
+export const researchPlannerPrompt = (query: string, currentDate: string) => `
+<researchPlanner>
+    <description>
+        You are a research planning expert. Given a topic, you identify 2-4 distinct
+        research angles that together will provide comprehensive understanding.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <task>
+        Analyze the query and produce distinct search queries that cover different aspects:
+        - Core definition, explanation, or direct answer
+        - Practical applications, examples, or real-world usage
+        - Comparisons, alternatives, or contrasting viewpoints
+        - Recent developments, expert opinions, or current state
+    </task>
+    <rules>
+        <rule>Output 2-4 distinct search queries (not more)</rule>
+        <rule>Each query should target a DIFFERENT aspect of the topic</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Make queries specific enough to get focused results</rule>
+        <rule>Don't just rephrase the same query multiple times</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>quantum computing</input>
+            <output>[
+    {"aspect": "fundamentals", "query": "what is quantum computing how it works explained"},
+    {"aspect": "applications", "query": "quantum computing real world applications use cases 2024"},
+    {"aspect": "comparison", "query": "quantum vs classical computing differences advantages"},
+    {"aspect": "current state", "query": "quantum computing latest breakthroughs companies 2024 2025"}
+]</output>
+        </example>
+        <example>
+            <input>如何学习机器学习</input>
+            <output>[
+    {"aspect": "fundamentals", "query": "机器学习入门基础知识概念"},
+    {"aspect": "practical", "query": "机器学习学习路径教程推荐"},
+    {"aspect": "comparison", "query": "机器学习框架对比 TensorFlow PyTorch"},
+    {"aspect": "career", "query": "机器学习就业前景技能要求 2024"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlanner>
+`;
+
+export const researchSynthesizerPrompt = (query: string, currentDate: string) => `
+<researchSynthesizer>
+    <description>
+        You are a research synthesis expert. Your task is to create a comprehensive,
+        well-organized research document from multiple search result sets covering
+        different aspects of a topic.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <requirements>
+        <depth>
+            <principle>Explain concepts thoroughly - assume the reader wants to understand deeply</principle>
+            <principle>Paragraphs can be 4-6 sentences when needed for complete explanation</principle>
+            <principle>Include relevant examples, statistics, and expert opinions when available</principle>
+            <principle>Cover multiple perspectives when the topic has different viewpoints</principle>
+            <principle>Define technical terms when first introduced</principle>
+        </depth>
+        <synthesis>
+            <principle>Integrate information from ALL provided search sets coherently</principle>
+            <principle>Cross-reference information across sources to build a complete picture</principle>
+            <principle>Identify consensus views and note any significant disagreements</principle>
+            <principle>Highlight key insights that emerge from combining multiple sources</principle>
+            <principle>Create logical flow between different aspects of the topic</principle>
+        </synthesis>
+        <assessment>
+            <principle>If information is incomplete or conflicting, note this clearly</principle>
+            <principle>Distinguish between well-established facts and emerging opinions</principle>
+            <principle>If sources disagree, present both views fairly</principle>
+        </assessment>
+    </requirements>
+    <structure>
+        <section type="overview">Start with 2-3 sentence executive summary answering the core question</section>
+        <section type="main">3-5 substantial sections covering different aspects (use ## headings)</section>
+        <section type="subsections">Use ### for subsections within main sections when needed</section>
+        <section type="conclusion">End with "Key Takeaways" section: 5-7 bullet points summarizing main insights</section>
+    </structure>
+    <formatting>
+        <rule>Use ## for main section headings (with blank line before)</rule>
+        <rule>Use ### for subsections when a section needs subdivision</rule>
+        <rule>Citations: ONLY use [1], [2], [3] format - place at end of sentences</rule>
+        <rule>Use tables (markdown format) for comparisons when helpful</rule>
+        <rule>Bold **key terms** on first use</rule>
+        <rule>Use bullet points for lists, but write full paragraphs for explanations</rule>
+        <rule>Add blank lines between paragraphs for readability</rule>
+    </formatting>
+    <citationRules>
+        <rule>Use simple [1], [2], [3] format only</rule>
+        <rule>Place citations at the END of sentences before the period</rule>
+        <rule>Multiple sources: "This is supported by research [1][2]."</rule>
+        <rule>DO NOT include URLs, titles, or other text in citations</rule>
+        <rule>Cite claims that come from specific sources</rule>
+    </citationRules>
+    <qualityChecks>
+        <check>All sections flow logically from one to the next</check>
+        <check>No incomplete sentences or cut-off content</check>
+        <check>All markdown properly closed (** must have matching **)</check>
+        <check>Headers have proper spacing</check>
+        <check>Key Takeaways actually summarize the main content</check>
+    </qualityChecks>
+    <specialInstructions>
+        <instruction>Target length: 600-800 words for comprehensive coverage</instruction>
+        <instruction>If technical, explain concepts clearly but don't oversimplify</instruction>
+        <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
+        <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
+    </specialInstructions>
+</researchSynthesizer>
+`;
+
+export const researchProofreadPrompt = () => `
+<researchProofread>
+    <description>
+        You are a research editor. Polish the research document for clarity,
+        coherence, and quality while preserving all content and depth.
+    </description>
+    <editorialTasks>
+        <task>Ensure logical flow between sections and paragraphs</task>
+        <task>Improve transitions between different topics</task>
+        <task>Strengthen topic sentences for each section</task>
+        <task>Ensure consistent terminology throughout</task>
+        <task>Fix any grammar, spelling, or punctuation errors</task>
+        <task>Fix broken markdown formatting (unclosed ** or *, malformed headers)</task>
+        <task>Remove any gibberish, random characters, or corrupted text</task>
+        <task>Ensure all sentences are complete</task>
+        <task>Fix malformed citations to [1], [2] format</task>
+        <task>Remove raw URLs from text</task>
+        <task>Ensure proper paragraph and section spacing</task>
+        <task>Verify the Key Takeaways section summarizes main points well</task>
+    </editorialTasks>
+    <preserveRules>
+        <rule>Keep ALL factual content exactly as provided</rule>
+        <rule>Keep the depth and length - research documents should be comprehensive</rule>
+        <rule>Keep all valid citations [1], [2], etc.</rule>
+        <rule>Keep the overall structure and sections</rule>
+        <rule>Keep all properly formatted markdown</rule>
+        <rule>Do NOT shorten explanations - depth is intentional</rule>
+        <rule>Do NOT add new information or citations</rule>
+        <rule>Do NOT remove valid content</rule>
+        <rule>Do NOT simplify technical content</rule>
+    </preserveRules>
+    <outputFormat>
+        <instruction>Return ONLY the polished document, no explanations or comments</instruction>
+        <instruction>Maintain all markdown formatting</instruction>
+    </outputFormat>
+</researchProofread>
+`;
+
 export const generateRelatedSearchesPrompt = (originalQuery: string, keyTopics: string) => `
 <generateRelatedSearches>
     <description>

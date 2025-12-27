@@ -16,13 +16,14 @@ interface SearchResultItem {
 }
 
 // LLM Provider type - matches the frontend ModelProvider type
-export type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude';
+export type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
 
 // API endpoints
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 export const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 export const QWEN_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
 export const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+export const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Tavily API endpoints
 export const TAVILY_API_URL = 'https://api.tavily.com/search';
@@ -42,7 +43,10 @@ export function getLLMProvider(): LLMProvider {
   if (process.env.ANTHROPIC_API_KEY) {
     return 'claude';
   }
-  throw new Error('No LLM API key configured. Please set DEEPSEEK_API_KEY, OPENAI_API_KEY, QWEN_API_KEY, or ANTHROPIC_API_KEY.');
+  if (process.env.GEMINI_API_KEY) {
+    return 'gemini';
+  }
+  throw new Error('No LLM API key configured. Please set DEEPSEEK_API_KEY, OPENAI_API_KEY, QWEN_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.');
 }
 
 // Check if a specific provider has an API key configured
@@ -56,6 +60,8 @@ export function isProviderAvailable(provider: LLMProvider): boolean {
       return !!process.env.QWEN_API_KEY;
     case 'claude':
       return !!process.env.ANTHROPIC_API_KEY;
+    case 'gemini':
+      return !!process.env.GEMINI_API_KEY;
     default:
       return false;
   }
@@ -103,7 +109,7 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-5-mini',
+  model: string = 'gpt-4o-mini',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -229,6 +235,68 @@ export async function callClaude(
   }
 }
 
+// Gemini API request (Google AI format)
+export async function callGemini(
+  messages: ChatMessage[],
+  model: string = 'gemini-2.5-flash',
+  temperature: number = 0.7,
+  stream: boolean = false
+) {
+  try {
+    // Convert OpenAI message format to Gemini format
+    const systemMessage = messages.find(m => m.role === 'system')?.content || '';
+    const geminiContents = messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+    const endpoint = stream ? 'streamGenerateContent' : 'generateContent';
+    // Use alt=sse for streaming to get Server-Sent Events format (easier to parse)
+    const sseParam = stream ? '&alt=sse' : '';
+    const url = `${GEMINI_API_URL}/${model}:${endpoint}?key=${process.env.GEMINI_API_KEY}${sseParam}`;
+
+    const requestBody: Record<string, unknown> = {
+      contents: geminiContents,
+      generationConfig: {
+        temperature,
+        maxOutputTokens: 4096,
+      },
+    };
+
+    // Add system instruction if present
+    if (systemMessage) {
+      requestBody.systemInstruction = {
+        parts: [{ text: systemMessage }]
+      };
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Gemini API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    if (stream) {
+      return response;
+    } else {
+      const data = await response.json();
+      return data.candidates[0]?.content?.parts[0]?.text || '';
+    }
+  } catch (error) {
+    console.error('Error calling Gemini API:', error);
+    throw error;
+  }
+}
+
 // Helper function to parse stream response from Claude (Anthropic format)
 export async function* streamClaudeResponse(response: Response) {
   if (!response.body) {
@@ -279,6 +347,55 @@ export async function* streamClaudeResponse(response: Response) {
   }
 }
 
+// Helper function to parse stream response from Gemini (SSE format with alt=sse)
+export async function* streamGeminiResponse(response: Response) {
+  if (!response.body) {
+    throw new Error('Response body is null');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        // SSE format: "data: {json}"
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data.trim() === '[DONE]') {
+            return;
+          }
+          try {
+            const parsed = JSON.parse(data);
+            // Gemini uses candidates[0].content.parts[0].text
+            const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (content) {
+              yield content;
+            }
+          } catch {
+            // Ignore parse errors for non-JSON lines
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error reading Gemini stream:', error);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 // Unified LLM call - routes to the specified provider or auto-selects based on available API keys
 export async function callLLM(
   messages: ChatMessage[],
@@ -313,13 +430,16 @@ function callLLMForProvider(
       return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
     case 'openai':
       console.log('Using OpenAI API');
-      return callOpenAI(messages, 'gpt-5-mini', temperature, stream);
+      return callOpenAI(messages, 'gpt-4o-mini', temperature, stream);
     case 'qwen':
       console.log('Using Qwen API');
       return callQwen(messages, 'qwen-plus', temperature, stream);
     case 'claude':
       console.log('Using Claude API');
       return callClaude(messages, 'claude-haiku-4-5', temperature, stream);
+    case 'gemini':
+      console.log('Using Gemini API');
+      return callGemini(messages, 'gemini-2.5-flash', temperature, stream);
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }
@@ -329,6 +449,9 @@ function callLLMForProvider(
 export function getStreamParser(provider: LLMProvider) {
   if (provider === 'claude') {
     return streamClaudeResponse;
+  }
+  if (provider === 'gemini') {
+    return streamGeminiResponse;
   }
   // OpenAI, DeepSeek, and Qwen all use OpenAI-compatible streaming
   return streamOpenAIResponse;

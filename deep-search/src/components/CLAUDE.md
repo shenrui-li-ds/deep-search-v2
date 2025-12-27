@@ -20,7 +20,7 @@ Fixed navigation sidebar.
 ### `SearchBox.tsx`
 Main search input component on the landing page.
 - Model selector dropdown (DeepSeek, OpenAI, Qwen, Claude)
-- Search mode toggle (Web, Focus, Pro)
+- Search mode toggle (Web Search, Research, Brainstorm)
 - Handles query refinement before navigation
 - Passes provider and mode via URL params
 
@@ -37,27 +37,42 @@ Main result display component.
   };
   relatedSearches?: string[];
   provider?: string;  // LLM provider (deepseek, openai, qwen, claude)
-  mode?: string;      // Search mode (web, focus, pro)
+  mode?: string;      // Search mode (web, pro, brainstorm)
+  loadingStage?: LoadingStage;  // Current stage in pipeline
   isLoading?: boolean;
-  isSearching?: boolean;
-  isStreaming?: boolean;
-  isPolishing?: boolean;
+  isSearching?: boolean;   // True for: searching, planning, researching
+  isStreaming?: boolean;   // True for: summarizing, synthesizing
+  isPolishing?: boolean;   // True for: proofreading
   isTransitioning?: boolean;
 }
+
+type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
+                  | 'planning' | 'researching' | 'synthesizing';
 ```
 
 **Features:**
-- Status banner (shown during searching/streaming/polishing)
+- Status banner (shown during all loading stages)
 - Tabbed interface (Answer, Links)
 - Markdown rendering with custom component styling
 - Source pills with tooltips
 - Related searches section (LLM-generated, clickable, preserves provider/mode)
 - Follow-up input (functional, navigates to new search with provider/mode preserved)
 
-**Loading states:**
-- `isSearching=true`: Shows "Searching the web..." banner
-- `isStreaming=true`: Shows "Generating response..." banner + cursor
-- `isPolishing=true`: Shows "Polishing response..." banner
+**Loading States by Mode:**
+
+*Web Search Mode:*
+- `searching`: "Searching the web..."
+- `summarizing`: "Generating response..." + cursor
+- `complete`: No banner
+
+*Research Mode:*
+- `planning`: "Planning research approach..."
+- `researching`: "Searching multiple sources..."
+- `synthesizing`: "Synthesizing findings..." + cursor
+- `proofreading`: "Polishing response..."
+- `complete`: No banner
+
+**Transition:**
 - `isTransitioning=true`: Fades content during proofreading transition
 
 ### `SearchLoading.tsx`

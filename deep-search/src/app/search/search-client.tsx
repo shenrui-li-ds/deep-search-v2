@@ -11,11 +11,11 @@ import { cleanupFinalContent } from '@/lib/text-cleanup';
 interface SearchClientProps {
   query: string;
   provider?: string;
-  mode?: 'web' | 'focus' | 'pro';
+  mode?: 'web' | 'pro' | 'brainstorm';
   deep?: boolean;
 }
 
-type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete';
+type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing';
 
 export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
@@ -31,9 +31,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   // Ref to track content for batched updates
   const contentRef = useRef<string>('');
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Pro Search mode uses full LLM-based proofreading
-  const useProofread = mode === 'pro';
 
   // Batched update function to reduce re-renders (50ms for smooth streaming)
   const scheduleContentUpdate = useCallback(() => {
@@ -112,6 +109,219 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const abortController = new AbortController();
     let isActive = true; // Flag to prevent state updates from stale requests
 
+    // Research pipeline for Pro mode
+    const performResearch = async () => {
+      setLoadingStage('planning');
+      setError(null);
+      setSearchResult(null);
+      setStreamingContent('');
+      contentRef.current = '';
+      setSources([]);
+      setImages([]);
+      setRelatedSearches([]);
+      setIsTransitioning(false);
+
+      try {
+        // Step 1: Create research plan
+        const planResponse = await fetch('/api/research/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, provider }),
+          signal: abortController.signal
+        });
+
+        if (!isActive) return;
+
+        if (!planResponse.ok) {
+          throw new Error('Research planning failed');
+        }
+
+        const planData = await planResponse.json();
+        const researchPlan = planData.plan || [{ aspect: 'general', query }];
+
+        // Step 2: Execute multiple searches in parallel
+        setLoadingStage('researching');
+
+        const searchPromises = researchPlan.map((planItem: { aspect: string; query: string }) =>
+          fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: planItem.query,
+              searchDepth: 'advanced',
+              maxResults: 10 // 10 per aspect, total ~40 sources
+            }),
+            signal: abortController.signal
+          }).then(res => res.json()).then(data => ({
+            aspect: planItem.aspect,
+            query: planItem.query,
+            ...data
+          }))
+        );
+
+        const searchResults = await Promise.all(searchPromises);
+
+        if (!isActive) return;
+
+        // Aggregate sources and images, deduplicating by URL
+        const seenUrls = new Set<string>();
+        const allSources: Source[] = [];
+        const allImages: SearchImage[] = [];
+        const aspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
+        let sourceIndex = 1; // Global counter for unique source IDs
+
+        for (const result of searchResults) {
+          const sources = result.sources || [];
+          const images = result.images || [];
+          const rawResults = result.rawResults?.results || [];
+
+          // Collect unique sources with new unique IDs
+          for (const source of sources) {
+            if (!seenUrls.has(source.url)) {
+              seenUrls.add(source.url);
+              // Assign a new unique ID to avoid duplicates across search results
+              allSources.push({
+                ...source,
+                id: `s${sourceIndex++}`
+              });
+            }
+          }
+
+          // Collect images
+          for (const image of images) {
+            if (!allImages.some(i => i.url === image.url)) {
+              allImages.push(image);
+            }
+          }
+
+          // Prepare aspect results for synthesizer
+          aspectResults.push({
+            aspect: result.aspect,
+            query: result.query,
+            results: rawResults.map((r: { title: string; url: string; content: string }) => ({
+              title: r.title,
+              url: r.url,
+              content: r.content
+            }))
+          });
+        }
+
+        if (allSources.length === 0) {
+          setError('No search results found');
+          setLoadingStage('complete');
+          return;
+        }
+
+        setSources(allSources);
+        setImages(allImages);
+
+        // Step 3: Synthesize research results
+        setLoadingStage('synthesizing');
+
+        const synthesizeResponse = await fetch('/api/research/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            aspectResults,
+            stream: true,
+            provider
+          }),
+          signal: abortController.signal
+        });
+
+        if (!isActive) return;
+
+        if (!synthesizeResponse.ok) {
+          throw new Error('Research synthesis failed');
+        }
+
+        // Stream synthesis to UI
+        let synthesizedContent = '';
+        await streamResponse(
+          synthesizeResponse,
+          (content) => {
+            if (!isActive) return;
+            contentRef.current = content;
+            scheduleContentUpdate();
+          },
+          (fullContent) => {
+            if (!isActive) return;
+            if (updateTimeoutRef.current) {
+              clearTimeout(updateTimeoutRef.current);
+              updateTimeoutRef.current = null;
+            }
+            synthesizedContent = fullContent;
+            const cleanedContent = cleanupFinalContent(fullContent);
+            setStreamingContent(cleanedContent);
+          }
+        );
+
+        if (!isActive) return;
+
+        const cleanedContent = cleanupFinalContent(synthesizedContent);
+
+        // Fetch related searches in background
+        fetch('/api/related-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            content: cleanedContent.substring(0, 1000),
+            provider
+          }),
+          signal: abortController.signal
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (isActive && data.relatedSearches) {
+              setRelatedSearches(data.relatedSearches);
+            }
+          })
+          .catch(() => {});
+
+        // Step 4: Proofread research document
+        setLoadingStage('proofreading');
+
+        const proofreadResponse = await fetch('/api/proofread', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: cleanedContent,
+            mode: 'research', // Use research-specific proofreading
+            provider,
+            stream: false
+          }),
+          signal: abortController.signal
+        });
+
+        if (!isActive) return;
+
+        if (!proofreadResponse.ok) {
+          console.error('Proofread API failed, using synthesized content');
+          transitionToContent(cleanedContent, allSources, allImages);
+          return;
+        }
+
+        const proofreadData = await proofreadResponse.json();
+        const proofreadContent = proofreadData.proofread || cleanedContent;
+
+        if (!isActive) return;
+
+        transitionToContent(proofreadContent, allSources, allImages);
+
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if (!isActive) return;
+        console.error('Research error:', err);
+        setError('An error occurred while processing your research');
+        setLoadingStage('complete');
+      }
+    };
+
+    // Standard web search pipeline
     const performSearch = async () => {
       setLoadingStage('searching');
       setError(null);
@@ -136,7 +346,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           signal: abortController.signal
         });
 
-        if (!isActive) return; // Check if effect was cleaned up
+        if (!isActive) return;
 
         if (!searchResponse.ok) {
           throw new Error('Search failed');
@@ -189,7 +399,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           },
           (fullContent) => {
             if (!isActive) return;
-            // Clear any pending timeout
             if (updateTimeoutRef.current) {
               clearTimeout(updateTimeoutRef.current);
               updateTimeoutRef.current = null;
@@ -202,7 +411,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!isActive) return;
 
-        // Apply cleanup
         const cleanedContent = cleanupFinalContent(summarizedContent);
 
         // Fetch related searches in background (non-blocking)
@@ -211,7 +419,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query,
-            content: cleanedContent.substring(0, 1000), // First 1000 chars as context
+            content: cleanedContent.substring(0, 1000),
             provider
           }),
           signal: abortController.signal
@@ -222,57 +430,19 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               setRelatedSearches(data.relatedSearches);
             }
           })
-          .catch(() => {
-            // Silently fail - related searches are not critical
-          });
+          .catch(() => {});
 
-        if (useProofread) {
-          // PRO MODE: Proofread in background, then smooth transition
-          setLoadingStage('proofreading');
-
-          const proofreadResponse = await fetch('/api/proofread', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              content: cleanedContent,
-              mode: 'full',
-              provider,
-              stream: false // Non-streaming for simplicity
-            }),
-            signal: abortController.signal
-          });
-
-          if (!isActive) return;
-
-          if (!proofreadResponse.ok) {
-            // Fallback: use summarized content
-            console.error('Proofread API failed, using summarized content');
-            transitionToContent(cleanedContent, fetchedSources, fetchedImages);
-            return;
-          }
-
-          const proofreadData = await proofreadResponse.json();
-          const proofreadContent = proofreadData.proofread || cleanedContent;
-
-          if (!isActive) return;
-
-          // Smooth transition to proofread content
-          transitionToContent(proofreadContent, fetchedSources, fetchedImages);
-
-        } else {
-          // NON-PRO MODE: Just set final result
-          if (!isActive) return;
-          setSearchResult({
-            query,
-            content: cleanedContent,
-            sources: fetchedSources,
-            images: fetchedImages
-          });
-          setLoadingStage('complete');
-        }
+        // NON-PRO MODE: Just set final result (no proofreading)
+        if (!isActive) return;
+        setSearchResult({
+          query,
+          content: cleanedContent,
+          sources: fetchedSources,
+          images: fetchedImages
+        });
+        setLoadingStage('complete');
 
       } catch (err) {
-        // Ignore abort errors (expected when effect is cleaned up)
         if (err instanceof Error && err.name === 'AbortError') {
           return;
         }
@@ -283,7 +453,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       }
     };
 
-    performSearch();
+    // Choose pipeline based on mode
+    if (mode === 'pro') {
+      performResearch();
+    } else {
+      performSearch();
+    }
 
     return () => {
       isActive = false;
@@ -292,7 +467,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [query, provider, mode, deep, useProofread, scheduleContentUpdate, streamResponse, transitionToContent]);
+  }, [query, provider, mode, deep, scheduleContentUpdate, streamResponse, transitionToContent]);
 
   if (error) {
     return (
@@ -347,6 +522,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     ? searchResult.images
     : images;
 
+  // Determine loading state indicators
+  const isSearching = loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching';
+  const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing';
+  const isPolishing = loadingStage === 'proofreading';
+
   return (
     <SearchResultComponent
       query={query}
@@ -362,10 +542,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       relatedSearches={relatedSearches}
       provider={provider}
       mode={mode}
+      loadingStage={loadingStage}
       isLoading={false}
-      isSearching={loadingStage === 'searching'}
-      isStreaming={loadingStage === 'summarizing'}
-      isPolishing={loadingStage === 'proofreading'}
+      isSearching={isSearching}
+      isStreaming={isStreaming}
+      isPolishing={isPolishing}
       isTransitioning={isTransitioning}
     />
   );

@@ -5,10 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 DeepSearch is an AI-powered search application that provides a Perplexity-like search experience with:
-- Multi-provider LLM support (DeepSeek, OpenAI, Qwen, Claude)
+- Multi-provider LLM support (DeepSeek, OpenAI, Qwen, Claude, Gemini)
 - Tavily-powered web search
 - Streamed, cited summaries with markdown rendering
-- Three search modes: Web, Focus, and Pro (with proofreading)
+- Three search modes: Web, Pro (with proofreading), and Brainstorm
 
 ## Commands
 
@@ -42,9 +42,10 @@ Required in `deep-search/.env.local`:
 
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
-- `OPENAI_API_KEY` - OpenAI GPT-5 mini
+- `OPENAI_API_KEY` - OpenAI GPT-4o mini
 - `QWEN_API_KEY` - Alibaba Qwen Plus
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
+- `GEMINI_API_KEY` - Google Gemini 2.5 Flash
 
 ## Architecture
 
@@ -58,15 +59,45 @@ At least one LLM provider key:
 
 ### Search Modes
 
-- **Web**: Standard search with streaming summary
-- **Focus**: Same as Web (reserved for future features)
-- **Pro**: Deep search (15 results vs 10) + LLM proofreading pass
+- **Web**: Standard search with streaming summary (single search → summarize)
+- **Brainstorm**: Reserved for brainstorming/ideation features
+- **Research** (Pro mode): Multi-angle research pipeline with comprehensive synthesis
+
+### Research Pipeline (Pro/Research Mode)
+
+The Research mode uses a sophisticated agentic pipeline for in-depth research:
+
+```
+User Query
+    ↓
+1. Planning: /api/research/plan
+   → Generates 2-4 research angles (fundamentals, applications, comparison, current state)
+    ↓
+2. Parallel Search: /api/search × 2-4
+   → Executes multiple searches concurrently (10 results each)
+    ↓
+3. Synthesis: /api/research/synthesize (streaming)
+   → Combines all search results into 600-800 word research document
+    ↓
+4. Proofreading: /api/proofread (mode='research')
+   → Research-specific polish (preserves depth, improves flow)
+    ↓
+5. Display
+```
+
+**Key Differences from Web Search:**
+- Multi-angle research instead of single query
+- Longer, more comprehensive output (600-800 words vs 200-300)
+- Synthesizes from 30-40 sources vs 10-15
+- Research-specific proofreading that preserves depth
 
 ### Provider Selection
 
 The model selector in the UI controls which LLM provider is used for:
 - Query refinement (`/api/refine`)
 - Summarization (`/api/summarize`)
+- Research planning (`/api/research/plan`)
+- Research synthesis (`/api/research/synthesize`)
 - Proofreading (`/api/proofread`)
 
 Provider is passed via URL params and request body throughout the pipeline.

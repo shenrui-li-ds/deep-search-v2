@@ -71,7 +71,7 @@ describe('API Utils', () => {
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
 
-      expect(body.model).toBe('gpt-5-mini');
+      expect(body.model).toBe('gpt-4o-mini');
       expect(body.temperature).toBe(0.7);
       expect(body.stream).toBe(false);
     });
@@ -89,7 +89,7 @@ describe('API Utils', () => {
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
 
-      expect(body.model).toBe('gpt-5-mini');
+      expect(body.model).toBe('gpt-4o-mini');
       expect(body.temperature).toBe(0.5);
     });
 
