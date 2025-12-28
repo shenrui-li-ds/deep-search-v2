@@ -280,7 +280,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           })
           .catch(() => {});
 
-        // Step 4: Proofread research document
+        // Step 4: Quick proofread (regex-only, no LLM) to avoid content shrinkage
         setLoadingStage('proofreading');
 
         const proofreadResponse = await fetch('/api/proofread', {
@@ -288,8 +288,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             content: cleanedContent,
-            mode: 'research', // Use research-specific proofreading
-            provider,
+            mode: 'quick', // Use regex-only cleanup to preserve synthesized content
             stream: false
           }),
           signal: abortController.signal

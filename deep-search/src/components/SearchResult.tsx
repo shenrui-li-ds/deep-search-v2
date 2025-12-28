@@ -4,8 +4,11 @@ import React, { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
 import rehypeSanitize from 'rehype-sanitize';
+import 'katex/dist/katex.min.css';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -217,8 +220,8 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
               style={{ opacity: isTransitioning ? 0 : 1 }}
             >
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[rehypeRaw, rehypeSanitize]}
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeKatex]}
                 components={{
                   h1: ({children, ...props}) => <h1 className="text-xl font-semibold mb-4 mt-8 text-[var(--text-primary)] first:mt-0" {...props}>{children}</h1>,
                   h2: ({children, ...props}) => <h2 className="text-lg font-semibold mb-3 mt-6 text-[var(--text-primary)] first:mt-0" {...props}>{children}</h2>,

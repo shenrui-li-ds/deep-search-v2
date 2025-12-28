@@ -15,7 +15,7 @@ export default function Home() {
             height={48}
             className="w-12 h-12"
           />
-          <h1 className="text-4xl md:text-5xl font-medium text-[var(--foreground)] tracking-tight" style={{ fontFamily: 'var(--font-lora)' }}>
+          <h1 className="text-4xl md:text-5xl font-medium text-[var(--text-secondary)] tracking-tight" style={{ fontFamily: 'var(--font-lora)' }}>
             Deep Search
           </h1>
         </div>

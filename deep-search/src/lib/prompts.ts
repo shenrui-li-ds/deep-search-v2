@@ -56,6 +56,14 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string)
         <currentDate>${currentDate}</currentDate>
         <query>${query}</query>
     </context>
+    <languageConsistency>
+        <rule>Detect the language of the query above</rule>
+        <rule>Write the ENTIRE response in that SAME language</rule>
+        <rule>This includes: section headers (##), body paragraphs, bullet points, Key Takeaways</rule>
+        <rule>Only exception: technical terms, proper nouns, and citations may remain in original form</rule>
+        <example>If query is "什么是量子计算" → write in Chinese with headers like "## 关键概念"</example>
+        <example>If query is "what is quantum computing" → write in English</example>
+    </languageConsistency>
     <requirements>
         <summaryAttributes>
             <attribute>Scannable: Use clear headings and short paragraphs for easy reading</attribute>
@@ -235,6 +243,14 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string) =>
         <currentDate>${currentDate}</currentDate>
         <researchTopic>${query}</researchTopic>
     </context>
+    <languageConsistency>
+        <rule>Detect the language of the researchTopic above</rule>
+        <rule>Write the ENTIRE response in that SAME language</rule>
+        <rule>This includes: section headers (##), body paragraphs, bullet points, Key Takeaways</rule>
+        <rule>Only exception: technical terms, proper nouns, and citations may remain in original form</rule>
+        <example>If researchTopic is "什么是机器学习" → write in Chinese with headers like "## 核心概念"</example>
+        <example>If researchTopic is "what is machine learning" → write in English</example>
+    </languageConsistency>
     <requirements>
         <depth>
             <principle>Explain concepts thoroughly - assume the reader wants to understand deeply</principle>
@@ -297,38 +313,32 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string) =>
 export const researchProofreadPrompt = () => `
 <researchProofread>
     <description>
-        You are a research editor. Polish the research document for clarity,
-        coherence, and quality while preserving all content and depth.
+        You are a minimal copy editor. Your ONLY job is to fix typos and obvious grammar errors.
+        You must NOT change the content, structure, or length in any way.
     </description>
-    <editorialTasks>
-        <task>Ensure logical flow between sections and paragraphs</task>
-        <task>Improve transitions between different topics</task>
-        <task>Strengthen topic sentences for each section</task>
-        <task>Ensure consistent terminology throughout</task>
-        <task>Fix any grammar, spelling, or punctuation errors</task>
-        <task>Fix broken markdown formatting (unclosed ** or *, malformed headers)</task>
-        <task>Remove any gibberish, random characters, or corrupted text</task>
-        <task>Ensure all sentences are complete</task>
-        <task>Fix malformed citations to [1], [2] format</task>
-        <task>Remove raw URLs from text</task>
-        <task>Ensure proper paragraph and section spacing</task>
-        <task>Verify the Key Takeaways section summarizes main points well</task>
-    </editorialTasks>
-    <preserveRules>
-        <rule>Keep ALL factual content exactly as provided</rule>
-        <rule>Keep the depth and length - research documents should be comprehensive</rule>
-        <rule>Keep all valid citations [1], [2], etc.</rule>
-        <rule>Keep the overall structure and sections</rule>
-        <rule>Keep all properly formatted markdown</rule>
-        <rule>Do NOT shorten explanations - depth is intentional</rule>
-        <rule>Do NOT add new information or citations</rule>
-        <rule>Do NOT remove valid content</rule>
-        <rule>Do NOT simplify technical content</rule>
-    </preserveRules>
-    <outputFormat>
-        <instruction>Return ONLY the polished document, no explanations or comments</instruction>
-        <instruction>Maintain all markdown formatting</instruction>
-    </outputFormat>
+    <allowedEdits>
+        <edit>Fix spelling mistakes (e.g., "teh" → "the")</edit>
+        <edit>Fix obvious grammar errors (e.g., "he go" → "he goes")</edit>
+        <edit>Fix punctuation errors (e.g., missing periods, double spaces)</edit>
+    </allowedEdits>
+    <strictProhibitions>
+        <prohibition>Do NOT rephrase or reword ANY sentence</prohibition>
+        <prohibition>Do NOT restructure paragraphs or sections</prohibition>
+        <prohibition>Do NOT remove ANY content, even if it seems redundant</prohibition>
+        <prohibition>Do NOT shorten or condense ANY explanation</prohibition>
+        <prohibition>Do NOT merge or split paragraphs</prohibition>
+        <prohibition>Do NOT add new content or transitions</prohibition>
+        <prohibition>Do NOT change markdown formatting (headers, lists, bold, etc.)</prohibition>
+        <prohibition>Do NOT touch citations [1], [2], etc.</prohibition>
+    </strictProhibitions>
+    <lengthRequirement>
+        Your output MUST be at least 95% of the input length.
+        If your output is significantly shorter, you have violated these rules.
+    </lengthRequirement>
+    <output>
+        Return the document with ONLY typo/grammar fixes applied.
+        No explanations, no comments, just the corrected document.
+    </output>
 </researchProofread>
 `;
 
