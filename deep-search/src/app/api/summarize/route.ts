@@ -9,11 +9,21 @@ import {
 } from '@/lib/api-utils';
 import { summarizeSearchResultsPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { trackServerApiUsage, estimateTokens, checkServerUsageLimits } from '@/lib/supabase/usage-tracking';
 
 export async function POST(req: NextRequest) {
   try {
     const { query, results, stream = true, provider } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
+
+    // Check usage limits
+    const limitCheck = await checkServerUsageLimits();
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        { error: limitCheck.reason || 'Usage limit exceeded' },
+        { status: 429 }
+      );
+    }
 
     if (!query || !results || !Array.isArray(results)) {
       return NextResponse.json(
@@ -53,15 +63,28 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
       const response = await callLLM(messages, 0.7, true, llmProvider);
       const streamParser = getStreamParser(llmProvider || 'openai');
 
+      // Track total output for usage tracking
+      let totalOutput = '';
+      const inputTokens = estimateTokens(completePrompt);
+
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
             for await (const chunk of streamParser(response)) {
+              totalOutput += chunk;
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
+
+            // Track API usage after stream completes
+            const outputTokens = estimateTokens(totalOutput);
+            trackServerApiUsage({
+              provider: llmProvider || 'auto',
+              tokens_used: inputTokens + outputTokens,
+              request_type: 'summarize'
+            }).catch(err => console.error('Failed to track API usage:', err));
           } catch (error) {
             controller.error(error);
           }
@@ -77,6 +100,16 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
       });
     } else {
       const summary = await callLLM(messages, 0.7, false, llmProvider);
+
+      // Track API usage (non-streaming)
+      const inputTokens = estimateTokens(completePrompt);
+      const outputTokens = estimateTokens(summary);
+      trackServerApiUsage({
+        provider: llmProvider || 'auto',
+        tokens_used: inputTokens + outputTokens,
+        request_type: 'summarize'
+      }).catch(err => console.error('Failed to track API usage:', err));
+
       return NextResponse.json({ summary });
     }
   } catch (error) {

@@ -7,7 +7,7 @@ import SearchResultComponent from '@/components/SearchResult';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
-import { addSearchToHistory } from '@/lib/db/hooks';
+import { addSearchToHistory, canPerformSearch } from '@/lib/supabase/database';
 
 interface SearchClientProps {
   query: string;
@@ -101,8 +101,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         query,
         provider: searchProvider,
         mode: searchMode,
-        sourcesCount: fetchedSources.length,
-        createdAt: new Date()
+        sources_count: fetchedSources.length
       }).catch(err => console.error('Failed to save to history:', err));
 
       // Small delay before starting fade in
@@ -132,6 +131,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
 
       try {
+        // Check usage limits before researching
+        const limitCheck = await canPerformSearch();
+        if (!limitCheck.allowed) {
+          setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          setLoadingStage('complete');
+          return;
+        }
         // Step 1: Create research plan
         const planResponse = await fetch('/api/research/plan', {
           method: 'POST',
@@ -343,6 +349,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
 
       try {
+        // Check usage limits before searching
+        const limitCheck = await canPerformSearch();
+        if (!limitCheck.allowed) {
+          setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          setLoadingStage('complete');
+          return;
+        }
         // Step 1: Perform search via Tavily
         const searchResponse = await fetch('/api/search', {
           method: 'POST',
@@ -456,8 +469,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           query,
           provider,
           mode: mode as 'web' | 'pro' | 'brainstorm',
-          sourcesCount: fetchedSources.length,
-          createdAt: new Date()
+          sources_count: fetchedSources.length
         }).catch(err => console.error('Failed to save to history:', err));
 
       } catch (err) {

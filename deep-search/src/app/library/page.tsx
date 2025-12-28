@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import MainLayout from '@/components/MainLayout';
 import {
-  useSearchInHistory,
-  useSearchHistoryCount,
-  deleteSearchHistoryEntry,
+  getSearchHistory,
+  searchHistory as searchHistoryFn,
+  deleteSearchFromHistory,
   clearSearchHistory,
+  getSearchHistoryCount,
   type SearchHistoryEntry
-} from '@/lib/db/hooks';
+} from '@/lib/supabase/database';
 
-function formatTimeAgo(date: Date): string {
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -48,7 +50,7 @@ function getModeColor(mode: string): string {
 
 interface HistoryItemProps {
   entry: SearchHistoryEntry;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
 }
 
 function HistoryItem({ entry, onDelete }: HistoryItemProps) {
@@ -81,11 +83,11 @@ function HistoryItem({ entry, onDelete }: HistoryItemProps) {
             {getModeLabel(entry.mode)}
           </span>
           <span className="text-xs text-[var(--text-muted)]">
-            {entry.sourcesCount} sources
+            {entry.sources_count} sources
           </span>
           <span className="text-xs text-[var(--text-muted)]">•</span>
           <span className="text-xs text-[var(--text-muted)]">
-            {formatTimeAgo(new Date(entry.createdAt))}
+            {entry.created_at ? formatTimeAgo(entry.created_at) : ''}
           </span>
         </div>
       </div>
@@ -112,16 +114,59 @@ function HistoryItem({ entry, onDelete }: HistoryItemProps) {
 
 export default function LibraryPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const history = useSearchInHistory(searchTerm, 100);
-  const totalCount = useSearchHistoryCount();
+  const [history, setHistory] = useState<SearchHistoryEntry[] | undefined>(undefined);
+  const [totalCount, setTotalCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleDelete = async (id: number) => {
-    await deleteSearchHistoryEntry(id);
+  const loadHistory = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (searchTerm) {
+        const results = await searchHistoryFn(searchTerm, 100);
+        setHistory(results);
+      } else {
+        const [results, count] = await Promise.all([
+          getSearchHistory(100),
+          getSearchHistoryCount()
+        ]);
+        setHistory(results);
+        setTotalCount(count);
+      }
+    } catch (err) {
+      console.error('Error loading history:', err);
+      setError('Failed to load search history. Please try again.');
+      setHistory([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteSearchFromHistory(id);
+      // Refresh the list
+      loadHistory();
+    } catch (err) {
+      console.error('Error deleting entry:', err);
+    }
   };
 
   const handleClearAll = async () => {
     if (window.confirm('Are you sure you want to clear all search history? This cannot be undone.')) {
-      await clearSearchHistory();
+      try {
+        await clearSearchHistory();
+        setHistory([]);
+        setTotalCount(0);
+      } catch (err) {
+        console.error('Error clearing history:', err);
+      }
     }
   };
 
@@ -167,12 +212,19 @@ export default function LibraryPage() {
           />
         </div>
 
+        {/* Error message */}
+        {error && (
+          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500">
+            {error}
+          </div>
+        )}
+
         {/* History list */}
-        {history === undefined ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]"></div>
           </div>
-        ) : history.length === 0 ? (
+        ) : history && history.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -202,7 +254,7 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="space-y-1">
-            {history.map((entry) => (
+            {history?.map((entry) => (
               <HistoryItem
                 key={entry.id}
                 entry={entry}
