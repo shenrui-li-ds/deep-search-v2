@@ -64,33 +64,41 @@ describe('Sidebar', () => {
       expect(logoLink).toBeInTheDocument();
     });
 
-    it('renders navigation links', () => {
+    it('renders navigation links with text labels', () => {
       renderWithThemeProvider(<Sidebar />);
 
-      const homeLink = screen.getByTitle('Home');
-      const discoverLink = screen.getByTitle('Discover');
-      const spacesLink = screen.getByTitle('Spaces');
-      const libraryLink = screen.getByTitle('Library');
-
-      expect(homeLink).toBeInTheDocument();
-      expect(discoverLink).toBeInTheDocument();
-      expect(spacesLink).toBeInTheDocument();
-      expect(libraryLink).toBeInTheDocument();
+      // New sidebar uses text labels below icons
+      expect(screen.getByText('Home')).toBeInTheDocument();
+      expect(screen.getByText('Library')).toBeInTheDocument();
     });
 
-    it('renders account button', () => {
+    it('does not render Discover and Spaces (removed)', () => {
       renderWithThemeProvider(<Sidebar />);
-      const accountButton = screen.getByTitle('Account');
-      expect(accountButton).toBeInTheDocument();
+
+      expect(screen.queryByText('Discover')).not.toBeInTheDocument();
+      expect(screen.queryByText('Spaces')).not.toBeInTheDocument();
+    });
+
+    it('renders New search button', () => {
+      renderWithThemeProvider(<Sidebar />);
+      expect(screen.getByText('New')).toBeInTheDocument();
+    });
+
+    it('renders account link', () => {
+      renderWithThemeProvider(<Sidebar />);
+      expect(screen.getByText('Account')).toBeInTheDocument();
     });
 
     it('has correct link destinations', () => {
       renderWithThemeProvider(<Sidebar />);
 
-      expect(screen.getByTitle('Home').closest('a')).toHaveAttribute('href', '/');
-      expect(screen.getByTitle('Discover').closest('a')).toHaveAttribute('href', '/discover');
-      expect(screen.getByTitle('Spaces').closest('a')).toHaveAttribute('href', '/spaces');
-      expect(screen.getByTitle('Library').closest('a')).toHaveAttribute('href', '/library');
+      const homeLink = screen.getByText('Home').closest('a');
+      const libraryLink = screen.getByText('Library').closest('a');
+      const accountLink = screen.getByText('Account').closest('a');
+
+      expect(homeLink).toHaveAttribute('href', '/');
+      expect(libraryLink).toHaveAttribute('href', '/library');
+      expect(accountLink).toHaveAttribute('href', '/account');
     });
 
     it('renders theme toggle button', () => {
@@ -98,6 +106,11 @@ describe('Sidebar', () => {
       // Theme toggle should have aria-label
       const themeToggle = screen.getByLabelText(/switch to (dark|light) mode/i);
       expect(themeToggle).toBeInTheDocument();
+    });
+
+    it('renders Theme label below toggle', () => {
+      renderWithThemeProvider(<Sidebar />);
+      expect(screen.getByText('Theme')).toBeInTheDocument();
     });
   });
 
@@ -108,26 +121,30 @@ describe('Sidebar', () => {
       expect(sidebar).toHaveClass('border-r');
     });
 
-    it('has correct width', () => {
+    it('has correct width (72px)', () => {
       const { container } = renderWithThemeProvider(<Sidebar />);
       const sidebar = container.firstChild as HTMLElement;
-      expect(sidebar).toHaveClass('w-16');
+      expect(sidebar).toHaveClass('w-[72px]');
     });
   });
 
   describe('Accessibility', () => {
-    it('navigation links have title attributes for accessibility', () => {
+    it('navigation items have visible text labels', () => {
       renderWithThemeProvider(<Sidebar />);
 
-      const navLinks = ['Home', 'Discover', 'Spaces', 'Library'];
-      navLinks.forEach(title => {
-        expect(screen.getByTitle(title)).toBeInTheDocument();
+      // Text labels provide accessibility without needing title attributes
+      const navLabels = ['Home', 'Library', 'Account', 'Theme'];
+      navLabels.forEach(label => {
+        expect(screen.getByText(label)).toBeInTheDocument();
       });
     });
 
-    it('buttons have title attributes for accessibility', () => {
+    it('all navigation links are accessible via role', () => {
       renderWithThemeProvider(<Sidebar />);
-      expect(screen.getByTitle('Account')).toBeInTheDocument();
+
+      const links = screen.getAllByRole('link');
+      // Should have: logo, New, Home, Library, Account = 5 links
+      expect(links.length).toBeGreaterThanOrEqual(5);
     });
   });
 });

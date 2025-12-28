@@ -85,7 +85,7 @@ describe('API Utils', () => {
         }),
       });
 
-      await callOpenAI(mockMessages, 'gpt-5-mini', 0.5);
+      await callOpenAI(mockMessages, 'gpt-4o-mini', 0.5);
 
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
@@ -111,7 +111,7 @@ describe('API Utils', () => {
       const mockResponse = { ok: true, body: {} };
       (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
 
-      const result = await callOpenAI(mockMessages, 'gpt-5-mini', 0.7, true);
+      const result = await callOpenAI(mockMessages, 'gpt-4o-mini', 0.7, true);
 
       expect(result).toBe(mockResponse);
     });

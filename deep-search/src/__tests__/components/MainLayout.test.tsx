@@ -69,8 +69,8 @@ describe('MainLayout', () => {
         </MainLayout>
       );
 
-      // Sidebar should render navigation items
-      expect(screen.getByTitle('Home')).toBeInTheDocument();
+      // Sidebar should render navigation items with text labels
+      expect(screen.getByText('Home')).toBeInTheDocument();
     });
 
     it('renders main content area', () => {
@@ -105,7 +105,7 @@ describe('MainLayout', () => {
       );
 
       const main = container.querySelector('main');
-      expect(main).toHaveClass('ml-16');
+      expect(main).toHaveClass('ml-[72px]');
     });
 
     it('main content area has full screen height', () => {

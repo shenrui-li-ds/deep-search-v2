@@ -130,6 +130,19 @@ Client-side text cleanup utilities.
 
 Shared utility functions (e.g., `cn()` for className merging).
 
+### `supabase/` - Supabase Integration
+
+See `supabase/CLAUDE.md` for detailed documentation.
+
+| File | Purpose |
+|------|---------|
+| `client.ts` | Browser-side Supabase client |
+| `server.ts` | Server-side Supabase client (API routes, server components) |
+| `middleware.ts` | Auth session refresh + route protection |
+| `auth-context.tsx` | React context for auth state (`useAuth` hook) |
+| `database.ts` | Database operations (search history, limits) |
+| `usage-tracking.ts` | Server-side API usage tracking |
+
 ## Adding a New Provider
 
 1. Add API URL constant

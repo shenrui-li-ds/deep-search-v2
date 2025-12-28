@@ -47,6 +47,13 @@ At least one LLM provider key:
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 - `GEMINI_API_KEY` - Google Gemini 2.5 Flash
 
+Supabase (for auth and database):
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon/public key
+
+Development only:
+- `SKIP_AUTH=true` - Skip authentication (only works in development)
+
 ## Architecture
 
 ### Search Flow
@@ -107,15 +114,30 @@ Provider is passed via URL params and request body throughout the pipeline.
 ### `src/app/api/` - API Routes
 See `src/app/api/CLAUDE.md` for detailed API documentation.
 
+### `src/app/auth/` - Authentication Pages
+- `login/page.tsx` - Email/password login
+- `signup/page.tsx` - User registration with email confirmation
+- `callback/route.ts` - Handles email verification redirect
+- `error/page.tsx` - Authentication error display
+
 ### `src/components/` - React Components
 See `src/components/CLAUDE.md` for component documentation.
 
 ### `src/lib/` - Core Library
 See `src/lib/CLAUDE.md` for utility and type documentation.
 
+### `src/lib/supabase/` - Supabase Integration
+See `src/lib/supabase/CLAUDE.md` for auth and database documentation.
+
 ### `src/app/search/` - Search Page
 - `page.tsx` - Server component, reads URL params
 - `search-client.tsx` - Client component, orchestrates search flow with streaming
+
+### `src/app/library/` - Search History
+- `page.tsx` - Displays user's search history from Supabase
+
+### `src/app/account/` - Account Management
+- `page.tsx` - User account info and sign-out
 
 ## Tech Stack
 
@@ -124,6 +146,34 @@ See `src/lib/CLAUDE.md` for utility and type documentation.
 - Tailwind CSS 4
 - react-markdown with remark-gfm for GFM support
 - shadcn/ui components
+- Supabase (Auth + PostgreSQL database)
+
+## Authentication
+
+Uses Supabase Auth with email/password authentication.
+
+### Auth Flow
+1. User visits protected route → middleware redirects to `/auth/login`
+2. User signs up → email confirmation sent → clicks link → `/auth/callback`
+3. Session stored in cookies, managed by Supabase SSR
+
+### Route Protection
+- Middleware (`src/middleware.ts`) checks auth on every request
+- Public routes: `/auth/*`
+- All other routes require authentication
+
+### Database (Supabase)
+- `search_history` - User search history with RLS
+- `api_usage` - Token usage tracking per request
+- `user_limits` - Per-user quotas (daily searches, monthly tokens)
+
+### Row Level Security (RLS)
+Each user can only see/modify their own data. Policies enforce `auth.uid() = user_id`.
+
+### Usage Limits (Guard Rails)
+- 50 searches per day (resets at midnight)
+- 500,000 tokens per month (resets on 1st)
+- Limits checked client-side before search and server-side in API routes
 
 ## Path Alias
 

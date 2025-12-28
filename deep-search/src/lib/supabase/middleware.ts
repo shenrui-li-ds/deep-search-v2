@@ -39,14 +39,8 @@ export async function updateSession(request: NextRequest) {
   const publicRoutes = ['/auth/login', '/auth/signup', '/auth/callback', '/auth/error'];
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
 
-  // DEV ONLY: Skip auth in development mode
-  // SECURITY: This ONLY works when NODE_ENV is 'development' (localhost)
-  // In production builds, NODE_ENV is always 'production'
-  const isDev = process.env.NODE_ENV === 'development';
-  const skipAuth = isDev && process.env.SKIP_AUTH === 'true';
-
   // If user is not logged in and trying to access protected route, redirect to login
-  if (!user && !isPublicRoute && !skipAuth) {
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/auth/login';
     url.searchParams.set('redirectTo', request.nextUrl.pathname);
