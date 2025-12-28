@@ -9,6 +9,7 @@ export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string)
     </context>
     <rules>
         <rule>PRESERVE the user's original language (if query is in Chinese, output in Chinese; if in English, output in English)</rule>
+        <rule>Output the refined query in ALL LOWERCASE (except for proper nouns like brand names, e.g., "iPhone", "Tesla")</rule>
         <rule>Keep queries concise - ideally 5-15 words</rule>
         <rule>If the query is already specific and clear, return it unchanged or with minimal changes</rule>
         <rule>Add temporal context only when the query implies recency (e.g., "latest", "new", "current")</rule>
@@ -36,8 +37,12 @@ export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string)
             <output>什么是量子计算 原理 应用</output>
         </example>
         <example>
-            <input>how to make pasta</input>
+            <input>How To Make Pasta</input>
             <output>how to make pasta recipe</output>
+        </example>
+        <example>
+            <input>WHAT IS React</input>
+            <output>what is React javascript library</output>
         </example>
     </examples>
     <output>
@@ -116,6 +121,27 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string,
         <instruction>If information is uncertain or conflicting, acknowledge this clearly</instruction>
         <instruction>If no relevant information is found, respond: "I couldn't find specific information about this topic. Could you try rephrasing your question or asking about a related topic?"</instruction>
     </specialInstructions>
+    <mathAndScience>
+        <description>For STEM topics (math, physics, chemistry, engineering, computer science), use LaTeX notation to express formulas clearly.</description>
+        <syntax>
+            <inline>Use single dollar signs for inline math: $E = mc^2$</inline>
+            <block>Use double dollar signs for block equations: $$\\frac{a}{b}$$</block>
+        </syntax>
+        <examples>
+            <example>Inline: "The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$"</example>
+            <example>Block equation:
+$$
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+$$</example>
+            <example>Common notations: $\\sum_{i=1}^{n}$, $\\alpha$, $\\beta$, $\\sqrt{x}$, $x^2$, $\\log$, $\\sin$, $\\cos$</example>
+        </examples>
+        <guidelines>
+            <guideline>Use LaTeX when formulas add clarity, not just for decoration</guideline>
+            <guideline>Prefer inline math for simple expressions within sentences</guideline>
+            <guideline>Use block equations for complex multi-line formulas</guideline>
+            <guideline>Always explain what the variables represent</guideline>
+        </guidelines>
+    </mathAndScience>
     <CRITICAL_LANGUAGE_REQUIREMENT>
         You MUST write your ENTIRE response in ${language}.
         This includes ALL headers (##), body text, bullet points, and Key Takeaways.
@@ -300,6 +326,27 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
         <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
     </specialInstructions>
+    <mathAndScience>
+        <description>For STEM topics (math, physics, chemistry, engineering, computer science), use LaTeX notation to express formulas clearly.</description>
+        <syntax>
+            <inline>Use single dollar signs for inline math: $E = mc^2$</inline>
+            <block>Use double dollar signs for block equations: $$\\frac{a}{b}$$</block>
+        </syntax>
+        <examples>
+            <example>Inline: "The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$"</example>
+            <example>Block equation:
+$$
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+$$</example>
+            <example>Common notations: $\\sum_{i=1}^{n}$, $\\alpha$, $\\beta$, $\\sqrt{x}$, $x^2$, $\\log$, $\\sin$, $\\cos$</example>
+        </examples>
+        <guidelines>
+            <guideline>Use LaTeX when formulas add clarity, not just for decoration</guideline>
+            <guideline>Prefer inline math for simple expressions within sentences</guideline>
+            <guideline>Use block equations for complex multi-line formulas</guideline>
+            <guideline>Always explain what the variables represent</guideline>
+        </guidelines>
+    </mathAndScience>
     <CRITICAL_LANGUAGE_REQUIREMENT>
         You MUST write your ENTIRE response in ${language}.
         This includes ALL headers (##), body text, bullet points, and Key Takeaways.

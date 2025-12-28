@@ -73,6 +73,22 @@ describe('Prompts', () => {
       const prompt = summarizeSearchResultsPrompt('test', 'date');
       expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
     });
+
+    it('includes LaTeX math instructions for STEM topics', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date');
+      expect(prompt).toContain('<mathAndScience>');
+      expect(prompt).toContain('LaTeX notation');
+      expect(prompt).toContain('$E = mc^2$');
+      expect(prompt).toContain('$$');
+    });
+
+    it('provides LaTeX syntax examples', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date');
+      expect(prompt).toContain('\\frac{');
+      expect(prompt).toContain('\\sqrt{');
+      expect(prompt).toContain('\\int');
+      expect(prompt).toContain('\\sum');
+    });
   });
 
   describe('proofreadContentPrompt', () => {
@@ -222,6 +238,22 @@ describe('Prompts', () => {
     it('defaults to English when language not specified', () => {
       const prompt = researchSynthesizerPrompt('test', 'date');
       expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
+    });
+
+    it('includes LaTeX math instructions for STEM topics', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('<mathAndScience>');
+      expect(prompt).toContain('LaTeX notation');
+      expect(prompt).toContain('$E = mc^2$');
+      expect(prompt).toContain('$$');
+    });
+
+    it('provides LaTeX syntax examples', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('\\frac{');
+      expect(prompt).toContain('\\sqrt{');
+      expect(prompt).toContain('\\int');
+      expect(prompt).toContain('\\sum');
     });
   });
 
