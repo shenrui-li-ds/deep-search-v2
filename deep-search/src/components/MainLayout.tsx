@@ -11,7 +11,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <Sidebar />
-      <main className="ml-16 min-h-screen">
+      <main className="ml-[72px] min-h-screen">
         {children}
       </main>
     </div>

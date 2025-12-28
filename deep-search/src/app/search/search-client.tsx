@@ -7,6 +7,7 @@ import SearchResultComponent from '@/components/SearchResult';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
+import { addSearchToHistory } from '@/lib/db/hooks';
 
 interface SearchClientProps {
   query: string;
@@ -80,7 +81,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   }, []);
 
   // Smooth transition to new content
-  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[]) => {
+  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[], searchMode: 'web' | 'pro' | 'brainstorm', searchProvider: string) => {
     // Start fade out
     setIsTransitioning(true);
 
@@ -94,6 +95,15 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         images: fetchedImages
       });
       setLoadingStage('complete');
+
+      // Save to search history
+      addSearchToHistory({
+        query,
+        provider: searchProvider,
+        mode: searchMode,
+        sourcesCount: fetchedSources.length,
+        createdAt: new Date()
+      }).catch(err => console.error('Failed to save to history:', err));
 
       // Small delay before starting fade in
       setTimeout(() => {
@@ -298,7 +308,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!proofreadResponse.ok) {
           console.error('Proofread API failed, using synthesized content');
-          transitionToContent(cleanedContent, allSources, allImages);
+          transitionToContent(cleanedContent, allSources, allImages, mode, provider);
           return;
         }
 
@@ -307,7 +317,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!isActive) return;
 
-        transitionToContent(proofreadContent, allSources, allImages);
+        transitionToContent(proofreadContent, allSources, allImages, mode, provider);
 
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
@@ -440,6 +450,15 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           images: fetchedImages
         });
         setLoadingStage('complete');
+
+        // Save to search history
+        addSearchToHistory({
+          query,
+          provider,
+          mode: mode as 'web' | 'pro' | 'brainstorm',
+          sourcesCount: fetchedSources.length,
+          createdAt: new Date()
+        }).catch(err => console.error('Failed to save to history:', err));
 
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
