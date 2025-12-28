@@ -3,7 +3,8 @@ import {
   callLLM,
   getCurrentDate,
   getStreamParser,
-  LLMProvider
+  LLMProvider,
+  detectLanguage
 } from '@/lib/api-utils';
 import { researchSynthesizerPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
@@ -64,13 +65,17 @@ export async function POST(req: NextRequest) {
 
     const currentDate = getCurrentDate();
 
+    // Detect language from the query to ensure response matches
+    const detectedLanguage = detectLanguage(query);
+    console.log(`Detected research topic language: ${detectedLanguage}`);
+
     // Build a global source index map to ensure consistent citation numbers
     const globalSourceIndex = new Map<string, number>();
     const formattedResults = formatResearchResultsForSynthesis(aspectResults, globalSourceIndex);
 
     // Create the complete prompt
     const completePrompt = `
-${researchSynthesizerPrompt(query, currentDate)}
+${researchSynthesizerPrompt(query, currentDate, detectedLanguage)}
 
 <researchData>
 ${formattedResults}

@@ -5,6 +5,7 @@ import {
   callTavily,
   formatSearchResultsForSummarization,
   getCurrentDate,
+  detectLanguage,
 } from '@/lib/api-utils';
 
 // Mock fetch globally
@@ -263,6 +264,93 @@ describe('API Utils', () => {
       const now = new Date();
 
       expect(result).toContain(now.getFullYear().toString());
+    });
+  });
+
+  describe('detectLanguage', () => {
+    describe('defaults and edge cases', () => {
+      it('returns English for empty string', () => {
+        expect(detectLanguage('')).toBe('English');
+      });
+
+      it('returns English for whitespace only', () => {
+        expect(detectLanguage('   ')).toBe('English');
+      });
+
+      it('returns English for null/undefined input', () => {
+        expect(detectLanguage(null as unknown as string)).toBe('English');
+        expect(detectLanguage(undefined as unknown as string)).toBe('English');
+      });
+    });
+
+    describe('Chinese detection', () => {
+      it('detects Chinese text', () => {
+        expect(detectLanguage('什么是量子计算')).toBe('Chinese');
+      });
+
+      it('detects Chinese with mixed English words', () => {
+        expect(detectLanguage('Python编程入门教程')).toBe('Chinese');
+      });
+
+      it('detects simplified Chinese', () => {
+        expect(detectLanguage('今天天气很好')).toBe('Chinese');
+      });
+
+      it('detects traditional Chinese characters', () => {
+        expect(detectLanguage('學習機器學習')).toBe('Chinese');
+      });
+    });
+
+    describe('Japanese detection', () => {
+      it('detects Japanese hiragana', () => {
+        expect(detectLanguage('こんにちは')).toBe('Japanese');
+      });
+
+      it('detects Japanese katakana', () => {
+        expect(detectLanguage('コンピューター')).toBe('Japanese');
+      });
+
+      it('detects mixed Japanese text', () => {
+        expect(detectLanguage('プログラミングを学ぶ')).toBe('Japanese');
+      });
+    });
+
+    describe('Korean detection', () => {
+      it('detects Korean text', () => {
+        expect(detectLanguage('안녕하세요')).toBe('Korean');
+      });
+
+      it('detects Korean with English', () => {
+        expect(detectLanguage('Python 프로그래밍')).toBe('Korean');
+      });
+    });
+
+    describe('European language detection', () => {
+      it('detects Spanish text', () => {
+        expect(detectLanguage('¿Cómo está el tiempo hoy?')).toBe('Spanish');
+      });
+
+      it('detects French text with accents', () => {
+        expect(detectLanguage('Où est la bibliothèque?')).toBe('French');
+      });
+
+      it('detects German text with umlauts', () => {
+        expect(detectLanguage('Ich möchte ein Bier für das Frühstück')).toBe('German');
+      });
+    });
+
+    describe('English detection', () => {
+      it('detects English text', () => {
+        expect(detectLanguage('What is quantum computing?')).toBe('English');
+      });
+
+      it('detects English with numbers', () => {
+        expect(detectLanguage('Top 10 programming languages 2024')).toBe('English');
+      });
+
+      it('defaults to English for plain ASCII without markers', () => {
+        expect(detectLanguage('hello world')).toBe('English');
+      });
     });
   });
 });

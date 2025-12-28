@@ -582,3 +582,64 @@ export function getCurrentDate() {
     day: 'numeric',
   });
 }
+
+// Language type for response language
+export type ResponseLanguage = 'English' | 'Chinese' | 'Japanese' | 'Korean' | 'Spanish' | 'French' | 'German' | 'Other';
+
+/**
+ * Detect the primary language of a text string.
+ * Used to ensure LLM responses match the user's query language.
+ */
+export function detectLanguage(text: string): ResponseLanguage {
+  if (!text || text.trim().length === 0) {
+    return 'English'; // Default to English
+  }
+
+  // Count character types
+  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
+  const japaneseChars = (text.match(/[\u3040-\u309f\u30a0-\u30ff]/g) || []).length;
+  const koreanChars = (text.match(/[\uac00-\ud7af\u1100-\u11ff]/g) || []).length;
+
+  const totalChars = text.replace(/\s/g, '').length;
+
+  if (totalChars === 0) {
+    return 'English';
+  }
+
+  // Calculate ratios
+  const chineseRatio = chineseChars / totalChars;
+  const japaneseRatio = japaneseChars / totalChars;
+  const koreanRatio = koreanChars / totalChars;
+
+  // Threshold for detection (if more than 20% of characters are from a language)
+  const threshold = 0.2;
+
+  if (chineseRatio > threshold) {
+    return 'Chinese';
+  }
+  if (japaneseRatio > threshold) {
+    return 'Japanese';
+  }
+  if (koreanRatio > threshold) {
+    return 'Korean';
+  }
+
+  // For European languages, check for common patterns
+  // Spanish: common accented characters and patterns
+  if (/[áéíóúüñ¿¡]/i.test(text) && /\b(el|la|los|las|de|en|que|es|un|una)\b/i.test(text)) {
+    return 'Spanish';
+  }
+
+  // French: common accented characters and patterns
+  if (/[àâçéèêëîïôùûü]/i.test(text) && /\b(le|la|les|de|des|en|est|un|une|que)\b/i.test(text)) {
+    return 'French';
+  }
+
+  // German: common patterns and umlauts
+  if (/[äöüß]/i.test(text) && /\b(der|die|das|und|ist|ein|eine|zu|den)\b/i.test(text)) {
+    return 'German';
+  }
+
+  // Default to English for Latin-based text without clear markers
+  return 'English';
+}

@@ -48,6 +48,31 @@ describe('Prompts', () => {
       expect(prompt).toContain('<summarizeSearchResults>');
       expect(prompt).toContain('</summarizeSearchResults>');
     });
+
+    it('includes responseLanguage field in context', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date', 'English');
+      expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
+    });
+
+    it('includes critical language requirement section', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date', 'Chinese');
+      expect(prompt).toContain('<CRITICAL_LANGUAGE_REQUIREMENT>');
+      expect(prompt).toContain('You MUST write your ENTIRE response in Chinese');
+      expect(prompt).toContain('DO NOT mix languages');
+    });
+
+    it('uses provided language parameter in enforcement', () => {
+      const englishPrompt = summarizeSearchResultsPrompt('test', 'date', 'English');
+      expect(englishPrompt).toContain('Your response language is determined ONLY by the responseLanguage field above: English');
+
+      const chinesePrompt = summarizeSearchResultsPrompt('test', 'date', 'Chinese');
+      expect(chinesePrompt).toContain('Your response language is determined ONLY by the responseLanguage field above: Chinese');
+    });
+
+    it('defaults to English when language not specified', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date');
+      expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
+    });
   });
 
   describe('proofreadContentPrompt', () => {
@@ -173,34 +198,67 @@ describe('Prompts', () => {
       expect(prompt).toContain('Key Takeaways');
       expect(prompt).toContain('5-7 bullet points');
     });
+
+    it('includes responseLanguage field in context', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date', 'English');
+      expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
+    });
+
+    it('includes critical language requirement section', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date', 'Chinese');
+      expect(prompt).toContain('<CRITICAL_LANGUAGE_REQUIREMENT>');
+      expect(prompt).toContain('You MUST write your ENTIRE response in Chinese');
+      expect(prompt).toContain('DO NOT mix languages');
+    });
+
+    it('uses provided language parameter in enforcement', () => {
+      const englishPrompt = researchSynthesizerPrompt('test', 'date', 'English');
+      expect(englishPrompt).toContain('Your response language is determined ONLY by the responseLanguage field above: English');
+
+      const japanesePrompt = researchSynthesizerPrompt('test', 'date', 'Japanese');
+      expect(japanesePrompt).toContain('Your response language is determined ONLY by the responseLanguage field above: Japanese');
+    });
+
+    it('defaults to English when language not specified', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
+    });
   });
 
   describe('researchProofreadPrompt', () => {
-    it('includes editorial tasks', () => {
+    it('is minimal and focuses only on typos and grammar', () => {
       const prompt = researchProofreadPrompt();
-      expect(prompt).toContain('logical flow between sections');
-      expect(prompt).toContain('Improve transitions');
-      expect(prompt).toContain('consistent terminology');
+      expect(prompt).toContain('minimal copy editor');
+      expect(prompt).toContain('fix typos and obvious grammar errors');
     });
 
-    it('includes research-specific preserve rules', () => {
+    it('includes allowed edits', () => {
       const prompt = researchProofreadPrompt();
-      expect(prompt).toContain('Do NOT shorten explanations');
-      expect(prompt).toContain('depth is intentional');
-      expect(prompt).toContain('Do NOT simplify technical content');
+      expect(prompt).toContain('<allowedEdits>');
+      expect(prompt).toContain('Fix spelling mistakes');
+      expect(prompt).toContain('Fix obvious grammar errors');
+      expect(prompt).toContain('Fix punctuation errors');
     });
 
-    it('includes Key Takeaways verification', () => {
+    it('includes strict prohibitions against content changes', () => {
       const prompt = researchProofreadPrompt();
-      expect(prompt).toContain('Key Takeaways section');
+      expect(prompt).toContain('<strictProhibitions>');
+      expect(prompt).toContain('Do NOT rephrase or reword');
+      expect(prompt).toContain('Do NOT restructure');
+      expect(prompt).toContain('Do NOT remove ANY content');
+      expect(prompt).toContain('Do NOT shorten or condense');
+    });
+
+    it('includes length requirement', () => {
+      const prompt = researchProofreadPrompt();
+      expect(prompt).toContain('<lengthRequirement>');
+      expect(prompt).toContain('at least 95% of the input length');
     });
 
     it('has proper XML structure', () => {
       const prompt = researchProofreadPrompt();
       expect(prompt).toContain('<researchProofread>');
       expect(prompt).toContain('</researchProofread>');
-      expect(prompt).toContain('<editorialTasks>');
-      expect(prompt).toContain('<preserveRules>');
     });
   });
 

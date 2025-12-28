@@ -4,7 +4,8 @@ import {
   getCurrentDate,
   formatSearchResultsForSummarization,
   getStreamParser,
-  LLMProvider
+  LLMProvider,
+  detectLanguage
 } from '@/lib/api-utils';
 import { summarizeSearchResultsPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
@@ -24,9 +25,13 @@ export async function POST(req: NextRequest) {
     const currentDate = getCurrentDate();
     const formattedResults = formatSearchResultsForSummarization(results);
 
-    // Create the complete prompt with query, date, and search results
+    // Detect language from the query to ensure response matches
+    const detectedLanguage = detectLanguage(query);
+    console.log(`Detected query language: ${detectedLanguage}`);
+
+    // Create the complete prompt with query, date, language, and search results
     const completePrompt = `
-${summarizeSearchResultsPrompt(query, currentDate)}
+${summarizeSearchResultsPrompt(query, currentDate, detectedLanguage)}
 <searchResults>
 ${formattedResults}
 </searchResults>

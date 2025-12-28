@@ -47,7 +47,7 @@ export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string)
 </refineSearchQuery>
 `;
 
-export const summarizeSearchResultsPrompt = (query: string, currentDate: string) => `
+export const summarizeSearchResultsPrompt = (query: string, currentDate: string, language: string = 'English') => `
 <summarizeSearchResults>
     <description>
         You are DeepSearch, an AI model specialized in analyzing search results and crafting clear, scannable summaries. Your goal is to provide informative responses with excellent visual hierarchy.
@@ -55,15 +55,8 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string)
     <context>
         <currentDate>${currentDate}</currentDate>
         <query>${query}</query>
+        <responseLanguage>${language}</responseLanguage>
     </context>
-    <languageConsistency>
-        <rule>Detect the language of the query above</rule>
-        <rule>Write the ENTIRE response in that SAME language</rule>
-        <rule>This includes: section headers (##), body paragraphs, bullet points, Key Takeaways</rule>
-        <rule>Only exception: technical terms, proper nouns, and citations may remain in original form</rule>
-        <example>If query is "什么是量子计算" → write in Chinese with headers like "## 关键概念"</example>
-        <example>If query is "what is quantum computing" → write in English</example>
-    </languageConsistency>
     <requirements>
         <summaryAttributes>
             <attribute>Scannable: Use clear headings and short paragraphs for easy reading</attribute>
@@ -123,6 +116,13 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string)
         <instruction>If information is uncertain or conflicting, acknowledge this clearly</instruction>
         <instruction>If no relevant information is found, respond: "I couldn't find specific information about this topic. Could you try rephrasing your question or asking about a related topic?"</instruction>
     </specialInstructions>
+    <CRITICAL_LANGUAGE_REQUIREMENT>
+        You MUST write your ENTIRE response in ${language}.
+        This includes ALL headers (##), body text, bullet points, and Key Takeaways.
+        The search results may be in different languages - IGNORE their language.
+        Your response language is determined ONLY by the responseLanguage field above: ${language}.
+        DO NOT mix languages. Every word must be in ${language}.
+    </CRITICAL_LANGUAGE_REQUIREMENT>
 </summarizeSearchResults>
 `;
 
@@ -232,7 +232,7 @@ export const researchPlannerPrompt = (query: string, currentDate: string) => `
 </researchPlanner>
 `;
 
-export const researchSynthesizerPrompt = (query: string, currentDate: string) => `
+export const researchSynthesizerPrompt = (query: string, currentDate: string, language: string = 'English') => `
 <researchSynthesizer>
     <description>
         You are a research synthesis expert. Your task is to create a comprehensive,
@@ -242,15 +242,8 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string) =>
     <context>
         <currentDate>${currentDate}</currentDate>
         <researchTopic>${query}</researchTopic>
+        <responseLanguage>${language}</responseLanguage>
     </context>
-    <languageConsistency>
-        <rule>Detect the language of the researchTopic above</rule>
-        <rule>Write the ENTIRE response in that SAME language</rule>
-        <rule>This includes: section headers (##), body paragraphs, bullet points, Key Takeaways</rule>
-        <rule>Only exception: technical terms, proper nouns, and citations may remain in original form</rule>
-        <example>If researchTopic is "什么是机器学习" → write in Chinese with headers like "## 核心概念"</example>
-        <example>If researchTopic is "what is machine learning" → write in English</example>
-    </languageConsistency>
     <requirements>
         <depth>
             <principle>Explain concepts thoroughly - assume the reader wants to understand deeply</principle>
@@ -307,6 +300,13 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string) =>
         <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
         <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
     </specialInstructions>
+    <CRITICAL_LANGUAGE_REQUIREMENT>
+        You MUST write your ENTIRE response in ${language}.
+        This includes ALL headers (##), body text, bullet points, and Key Takeaways.
+        The search results may be in different languages - IGNORE their language.
+        Your response language is determined ONLY by the responseLanguage field above: ${language}.
+        DO NOT mix languages. Every word must be in ${language}.
+    </CRITICAL_LANGUAGE_REQUIREMENT>
 </researchSynthesizer>
 `;
 

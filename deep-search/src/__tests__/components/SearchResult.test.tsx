@@ -18,8 +18,11 @@ jest.mock('react-markdown', () => {
 });
 
 jest.mock('remark-gfm', () => () => {});
+jest.mock('remark-math', () => () => {});
 jest.mock('rehype-raw', () => () => {});
+jest.mock('rehype-katex', () => () => {});
 jest.mock('rehype-sanitize', () => () => {});
+jest.mock('katex/dist/katex.min.css', () => ({}));
 
 // Mock the SearchLoading component
 jest.mock('@/components/SearchLoading', () => {
