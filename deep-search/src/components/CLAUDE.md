@@ -62,6 +62,7 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 **Loading States by Mode:**
 
 *Web Search Mode:*
+- `refining`: "Refining query..."
 - `searching`: "Searching the web..."
 - `summarizing`: "Generating response..." + cursor
 - `complete`: No banner
@@ -79,6 +80,12 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - `ideating`: "Generating ideas..." + cursor
 - `proofreading`: "Polishing response..."
 - `complete`: No banner
+
+**Performance Optimizations:**
+- Landing page navigates immediately (no blocking API calls)
+- Web mode: Query refinement happens on search page
+- Research/Brainstorm modes: Skip refinement (plan/reframe handles it)
+- Limit checks run in parallel with first API call
 
 **Transition:**
 - `isTransitioning=true`: Fades content during proofreading transition

@@ -55,11 +55,18 @@ Supabase (for auth and database):
 
 ### Search Flow
 
-1. User submits query → `/api/refine` optionally refines query
-2. Refined query → `/api/search` calls Tavily API
-3. Search results → `/api/summarize` streams LLM response with citations
-4. (Pro mode only) → `/api/proofread` polishes the final response
+**Web Search Mode:**
+1. User submits query → navigates immediately to search page
+2. Search page: `/api/refine` + limit check run in parallel
+3. Refined query → `/api/search` calls Tavily API
+4. Search results → `/api/summarize` streams LLM response with citations
 5. Frontend renders streamed markdown with react-markdown
+
+**Research/Brainstorm Modes:**
+- Skip `/api/refine` (plan/reframe already optimizes queries)
+- Limit check runs in parallel with plan/reframe API call
+
+This architecture ensures instant navigation from landing page with no blocking API calls.
 
 ### Search Modes
 
@@ -72,37 +79,37 @@ Supabase (for auth and database):
 The Research mode uses a sophisticated agentic pipeline for in-depth research:
 
 ```
-User Query
+User Query → Navigate Immediately
     ↓
-1. Planning: /api/research/plan
+1. Planning + Limit Check (parallel): /api/research/plan
    → Generates 2-4 research angles (fundamentals, applications, comparison, current state)
     ↓
 2. Parallel Search: /api/search × 2-4
    → Executes multiple searches concurrently (10 results each)
     ↓
 3. Synthesis: /api/research/synthesize (streaming)
-   → Combines all search results into 600-800 word research document
+   → Combines all search results into 700-900 word research document
     ↓
-4. Proofreading: /api/proofread (mode='research')
-   → Research-specific polish (preserves depth, improves flow)
+4. Proofreading: /api/proofread (mode='quick')
+   → Quick regex-based cleanup to preserve synthesized content
     ↓
 5. Display
 ```
 
 **Key Differences from Web Search:**
 - Multi-angle research instead of single query
-- Longer, more comprehensive output (600-800 words vs 200-300)
+- Longer, more comprehensive output (700-900 words vs 200-300)
 - Synthesizes from 30-40 sources vs 10-15
-- Research-specific proofreading that preserves depth
+- Skips refine step (plan already optimizes queries)
 
 ### Brainstorm Pipeline
 
 The Brainstorm mode uses lateral thinking and cross-domain inspiration to generate creative ideas:
 
 ```
-User Topic
+User Topic → Navigate Immediately
     ↓
-1. Reframe: /api/brainstorm/reframe
+1. Reframe + Limit Check (parallel): /api/brainstorm/reframe
    → Generates 4-5 creative angles from unexpected domains
    → Examples: nature analogies, game mechanics, contrarian views
     ↓
@@ -110,7 +117,7 @@ User Topic
    → Searches for inspiration in each cross-domain angle (8 results each)
     ↓
 3. Ideation: /api/brainstorm/synthesize (streaming)
-   → Synthesizes cross-domain inspiration into actionable ideas
+   → Synthesizes cross-domain inspiration into 700-900 word document
    → Output: Idea cards, Unexpected Connections, Experiments to Try
     ↓
 4. Proofreading: /api/proofread (mode='quick')
@@ -125,6 +132,7 @@ User Topic
 - Output format: idea cards with actionable experiments
 - Higher temperature (0.8) for more creative outputs
 - Lateral thinking approach (nature, games, art, sports, etc.)
+- Skips refine step (reframe already creates creative angles)
 
 ### Provider Selection
 
@@ -201,9 +209,16 @@ Uses Supabase Auth with email/password authentication.
 Each user can only see/modify their own data. Policies enforce `auth.uid() = user_id`.
 
 ### Usage Limits (Guard Rails)
-- 50 searches per day (resets at midnight)
-- 500,000 tokens per month (resets on 1st)
-- Limits checked client-side before search and server-side in API routes
+
+| Limit | Default | Reset |
+|-------|---------|-------|
+| Daily searches | 50 | Midnight |
+| Daily tokens | 100,000 | Midnight |
+| Monthly searches | 1,000 | 1st of month |
+| Monthly tokens | 500,000 | 1st of month |
+
+- Limits checked in parallel with first API call (no added latency)
+- Functions: `check_and_increment_search()`, `check_token_limits()`, `increment_token_usage()`
 
 ## Path Alias
 
@@ -237,3 +252,53 @@ Edit `src/lib/prompts.ts`. Prompts use XML-structured format for clarity.
 Edit `src/app/search/search-client.tsx`. Key areas:
 - `scheduleContentUpdate` - batching logic
 - `performSearch` - main search orchestration
+
+## Caching
+
+Two-tier caching system reduces API costs:
+
+### Architecture
+```
+Request → Memory Cache (15 min) → Supabase Cache (48 hrs) → API Call
+```
+
+### Cached Endpoints
+| Endpoint | Cache Type | TTL |
+|----------|------------|-----|
+| `/api/search` | Tavily results | 48 hours |
+| `/api/refine` | Query refinements | 48 hours |
+| `/api/related-searches` | Related queries | 48 hours |
+| `/api/research/plan` | Research plans | 48 hours |
+
+### Cache Key Generation
+Keys are MD5 hashes of query + parameters:
+- `search:{query_hash}:{depth}:{maxResults}`
+- `refine:{query_hash}:{provider}`
+- `related:{query_hash}:{content_hash}`
+- `plan:{query_hash}:{provider}`
+
+### Database Cleanup
+Scheduled via pg_cron: `cleanup_expired_cache()` runs daily at 3 AM.
+
+## Provider-Specific Notes
+
+### Gemini
+- `maxOutputTokens`: 8192 (increased from 4096 to prevent truncation in research mode)
+- Finish reason logging: Logs warnings for `MAX_TOKENS` and `SAFETY` truncations
+- Streaming uses SSE format with `alt=sse` parameter
+
+### Claude
+- Uses Anthropic message format (different from OpenAI)
+- Requires `anthropic-version` header
+
+### Grok
+- OpenAI-compatible API at `api.x.ai`
+- Model: `grok-4.1-fast`
+
+## Performance Optimizations
+
+1. **Immediate Navigation**: Landing page navigates instantly (no blocking API calls)
+2. **Parallel Operations**: Limit checks run in parallel with first API call
+3. **Skip Redundant Calls**: Research/Brainstorm skip refine (plan/reframe handles it)
+4. **Batched UI Updates**: 50ms intervals prevent jittery streaming
+5. **Two-Tier Caching**: Reduces repeated API calls for same queries

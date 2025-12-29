@@ -16,7 +16,7 @@ interface SearchClientProps {
   deep?: boolean;
 }
 
-type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
+type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
 
 export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
@@ -131,22 +131,24 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
 
       try {
-        // Check usage limits before researching
-        const limitCheck = await canPerformSearch();
+        // Step 1: Create research plan and check limits in parallel
+        const [planResponse, limitCheck] = await Promise.all([
+          fetch('/api/research/plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, provider }),
+            signal: abortController.signal
+          }),
+          canPerformSearch()
+        ]);
+
+        if (!isActive) return;
+
         if (!limitCheck.allowed) {
           setError(limitCheck.reason || 'Search limit reached. Please try again later.');
           setLoadingStage('complete');
           return;
         }
-        // Step 1: Create research plan
-        const planResponse = await fetch('/api/research/plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, provider }),
-          signal: abortController.signal
-        });
-
-        if (!isActive) return;
 
         if (!planResponse.ok) {
           throw new Error('Research planning failed');
@@ -349,23 +351,24 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
 
       try {
-        // Check usage limits before brainstorming
-        const limitCheck = await canPerformSearch();
+        // Step 1: Generate creative angles and check limits in parallel
+        const [reframeResponse, limitCheck] = await Promise.all([
+          fetch('/api/brainstorm/reframe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, provider }),
+            signal: abortController.signal
+          }),
+          canPerformSearch()
+        ]);
+
+        if (!isActive) return;
+
         if (!limitCheck.allowed) {
           setError(limitCheck.reason || 'Search limit reached. Please try again later.');
           setLoadingStage('complete');
           return;
         }
-
-        // Step 1: Generate creative angles using lateral thinking
-        const reframeResponse = await fetch('/api/brainstorm/reframe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, provider }),
-          signal: abortController.signal
-        });
-
-        if (!isActive) return;
 
         if (!reframeResponse.ok) {
           throw new Error('Failed to generate creative angles');
@@ -556,7 +559,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
     // Standard web search pipeline
     const performSearch = async () => {
-      setLoadingStage('searching');
+      setLoadingStage('refining');
       setError(null);
       setSearchResult(null);
       setStreamingContent('');
@@ -567,19 +570,35 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
 
       try {
-        // Check usage limits before searching
-        const limitCheck = await canPerformSearch();
+        // Step 1: Refine query and check limits in parallel
+        const [refineResult, limitCheck] = await Promise.all([
+          fetch('/api/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, provider }),
+            signal: abortController.signal
+          }).then(res => res.ok ? res.json() : { refinedQuery: query }).catch(() => ({ refinedQuery: query })),
+          canPerformSearch()
+        ]);
+
+        if (!isActive) return;
+
         if (!limitCheck.allowed) {
           setError(limitCheck.reason || 'Search limit reached. Please try again later.');
           setLoadingStage('complete');
           return;
         }
-        // Step 1: Perform search via Tavily
+
+        const refinedQuery = refineResult.refinedQuery || query;
+
+        // Step 2: Perform search via Tavily with refined query
+        setLoadingStage('searching');
+
         const searchResponse = await fetch('/api/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query,
+            query: refinedQuery,
             searchDepth: deep ? 'advanced' : 'basic',
             maxResults: deep ? 15 : 10
           }),
@@ -607,7 +626,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         setSources(fetchedSources);
         setImages(fetchedImages);
 
-        // Step 2: Summarize search results (stream for all modes)
+        // Step 3: Summarize search results (stream for all modes)
         setLoadingStage('summarizing');
 
         const summarizeResponse = await fetch('/api/summarize', {
@@ -773,7 +792,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     : images;
 
   // Determine loading state indicators
-  const isSearching = loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'reframing' || loadingStage === 'exploring';
+  const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'reframing' || loadingStage === 'exploring';
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
 

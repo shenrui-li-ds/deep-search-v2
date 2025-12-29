@@ -89,46 +89,19 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const performSearch = async () => {
     if (isSearching || !query.trim()) return;
 
-    try {
-      setIsSearching(true);
+    // Navigate immediately - refine will happen on search page for web mode
+    // Research and Brainstorm modes skip refine (plan/reframe handles query optimization)
+    setIsSearching(true);
 
-      const refineResponse = await fetch('/api/refine', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: query.trim(),
-          provider: selectedModel  // Pass provider to refine API
-        }),
-      });
+    const searchParams = new URLSearchParams({
+      q: query.trim(),
+      provider: selectedModel,
+      mode: searchMode
+    });
+    router.push(`/search?${searchParams.toString()}`);
 
-      if (!refineResponse.ok) {
-        throw new Error('Failed to refine search query');
-      }
-
-      const refinedData = await refineResponse.json();
-      const refinedQuery = refinedData.refinedQuery || query.trim();
-
-      // Build URL with provider and mode parameters
-      const searchParams = new URLSearchParams({
-        q: refinedQuery,
-        provider: selectedModel,
-        mode: searchMode
-      });
-      router.push(`/search?${searchParams.toString()}`);
-    } catch (error) {
-      console.error('Search error:', error);
-      // Fallback: still include provider and mode in URL
-      const searchParams = new URLSearchParams({
-        q: query.trim(),
-        provider: selectedModel,
-        mode: searchMode
-      });
-      router.push(`/search?${searchParams.toString()}`);
-    } finally {
-      setIsSearching(false);
-    }
+    // Reset after a short delay to handle back navigation
+    setTimeout(() => setIsSearching(false), 500);
   };
 
   const currentModel = modelProviders.find(m => m.id === selectedModel);
