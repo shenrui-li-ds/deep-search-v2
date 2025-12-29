@@ -69,11 +69,19 @@ CREATE POLICY "Users can insert their own API usage"
 -- ============================================
 CREATE TABLE IF NOT EXISTS user_limits (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  -- Daily limits
   daily_search_limit INTEGER DEFAULT 50,
   daily_searches_used INTEGER DEFAULT 0,
+  daily_token_limit INTEGER DEFAULT 100000,
+  daily_tokens_used INTEGER DEFAULT 0,
+  -- Monthly limits
+  monthly_search_limit INTEGER DEFAULT 1000,
+  monthly_searches_used INTEGER DEFAULT 0,
   monthly_token_limit INTEGER DEFAULT 500000,
   monthly_tokens_used INTEGER DEFAULT 0,
-  last_reset_date DATE DEFAULT CURRENT_DATE,
+  -- Tracking
+  last_daily_reset DATE DEFAULT CURRENT_DATE,
+  last_monthly_reset DATE DEFAULT DATE_TRUNC('month', CURRENT_DATE)::DATE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -115,9 +123,10 @@ RETURNS void AS $$
 BEGIN
   UPDATE user_limits
   SET daily_searches_used = 0,
-      last_reset_date = CURRENT_DATE,
+      daily_tokens_used = 0,
+      last_daily_reset = CURRENT_DATE,
       updated_at = NOW()
-  WHERE last_reset_date < CURRENT_DATE;
+  WHERE last_daily_reset < CURRENT_DATE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -126,40 +135,61 @@ CREATE OR REPLACE FUNCTION public.reset_monthly_limits()
 RETURNS void AS $$
 BEGIN
   UPDATE user_limits
-  SET monthly_tokens_used = 0,
-      updated_at = NOW();
+  SET monthly_searches_used = 0,
+      monthly_tokens_used = 0,
+      last_monthly_reset = DATE_TRUNC('month', CURRENT_DATE)::DATE,
+      updated_at = NOW()
+  WHERE last_monthly_reset < DATE_TRUNC('month', CURRENT_DATE)::DATE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to check and increment search usage
+-- Function to check and increment search usage (checks both daily and monthly limits)
 CREATE OR REPLACE FUNCTION public.check_and_increment_search()
 RETURNS BOOLEAN AS $$
 DECLARE
-  current_limit INTEGER;
-  current_used INTEGER;
+  v_daily_limit INTEGER;
+  v_daily_used INTEGER;
+  v_monthly_limit INTEGER;
+  v_monthly_used INTEGER;
 BEGIN
   -- Reset daily counter if needed
   UPDATE user_limits
   SET daily_searches_used = 0,
-      last_reset_date = CURRENT_DATE,
+      daily_tokens_used = 0,
+      last_daily_reset = CURRENT_DATE,
       updated_at = NOW()
   WHERE user_id = auth.uid()
-    AND last_reset_date < CURRENT_DATE;
+    AND last_daily_reset < CURRENT_DATE;
+
+  -- Reset monthly counter if needed
+  UPDATE user_limits
+  SET monthly_searches_used = 0,
+      monthly_tokens_used = 0,
+      last_monthly_reset = DATE_TRUNC('month', CURRENT_DATE)::DATE,
+      updated_at = NOW()
+  WHERE user_id = auth.uid()
+    AND last_monthly_reset < DATE_TRUNC('month', CURRENT_DATE)::DATE;
 
   -- Get current limits
-  SELECT daily_search_limit, daily_searches_used
-  INTO current_limit, current_used
+  SELECT daily_search_limit, daily_searches_used, monthly_search_limit, monthly_searches_used
+  INTO v_daily_limit, v_daily_used, v_monthly_limit, v_monthly_used
   FROM user_limits
   WHERE user_id = auth.uid();
 
-  -- Check if under limit
-  IF current_used >= current_limit THEN
+  -- Check if under daily limit
+  IF v_daily_used >= v_daily_limit THEN
     RETURN FALSE;
   END IF;
 
-  -- Increment usage
+  -- Check if under monthly limit
+  IF v_monthly_used >= v_monthly_limit THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Increment both daily and monthly usage
   UPDATE user_limits
   SET daily_searches_used = daily_searches_used + 1,
+      monthly_searches_used = monthly_searches_used + 1,
       updated_at = NOW()
   WHERE user_id = auth.uid();
 
@@ -183,14 +213,43 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to increment token usage atomically
+-- Function to increment token usage atomically (updates both daily and monthly)
 CREATE OR REPLACE FUNCTION public.increment_token_usage(p_user_id UUID, p_tokens INTEGER)
 RETURNS void AS $$
 BEGIN
   UPDATE user_limits
-  SET monthly_tokens_used = monthly_tokens_used + p_tokens,
+  SET daily_tokens_used = daily_tokens_used + p_tokens,
+      monthly_tokens_used = monthly_tokens_used + p_tokens,
       updated_at = NOW()
   WHERE user_id = p_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to check if user is within token limits (returns TRUE if under limits)
+CREATE OR REPLACE FUNCTION public.check_token_limits(p_user_id UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_daily_limit INTEGER;
+  v_daily_used INTEGER;
+  v_monthly_limit INTEGER;
+  v_monthly_used INTEGER;
+BEGIN
+  SELECT daily_token_limit, daily_tokens_used, monthly_token_limit, monthly_tokens_used
+  INTO v_daily_limit, v_daily_used, v_monthly_limit, v_monthly_used
+  FROM user_limits
+  WHERE user_id = p_user_id;
+
+  -- Check daily limit
+  IF v_daily_used >= v_daily_limit THEN
+    RETURN FALSE;
+  END IF;
+
+  -- Check monthly limit
+  IF v_monthly_used >= v_monthly_limit THEN
+    RETURN FALSE;
+  END IF;
+
+  RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -263,5 +322,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 GRANT EXECUTE ON FUNCTION public.check_and_increment_search() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_old_history() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_token_usage(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_token_limits(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
 

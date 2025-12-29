@@ -261,7 +261,7 @@ export async function callGemini(
       contents: geminiContents,
       generationConfig: {
         temperature,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
       },
     };
 
@@ -377,6 +377,18 @@ export async function* streamGeminiResponse(response: Response) {
           }
           try {
             const parsed = JSON.parse(data);
+
+            // Check for finish reason and log if response was truncated
+            const finishReason = parsed.candidates?.[0]?.finishReason;
+            if (finishReason && finishReason !== 'STOP') {
+              console.warn(`[Gemini] Stream ended with finishReason: ${finishReason}`);
+              if (finishReason === 'MAX_TOKENS') {
+                console.warn('[Gemini] Response was truncated due to max token limit');
+              } else if (finishReason === 'SAFETY') {
+                console.warn('[Gemini] Response was stopped due to safety filters');
+              }
+            }
+
             // Gemini uses candidates[0].content.parts[0].text
             const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (content) {

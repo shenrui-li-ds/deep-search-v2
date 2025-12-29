@@ -58,7 +58,7 @@ XML-structured prompts for consistent LLM behavior.
 | Prompt | Purpose |
 |--------|---------|
 | `researchPlannerPrompt(query, date)` | Generate 2-4 research angles for comprehensive topic coverage |
-| `researchSynthesizerPrompt(query, date)` | Synthesize multi-source research into 600-800 word document |
+| `researchSynthesizerPrompt(query, date)` | Synthesize multi-source research into 700-900 word document |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
 **Brainstorm Pipeline Prompts:**
@@ -84,7 +84,7 @@ XML-structured prompts for consistent LLM behavior.
 | Aspect | summarizeSearchResultsPrompt | researchSynthesizerPrompt |
 |--------|------------------------------|---------------------------|
 | Length | 2-3 sentences per paragraph | 4-6 sentences allowed |
-| Output | 200-300 words | 600-800 words |
+| Output | 200-300 words | 700-900 words |
 | Input | Single search result set | Multiple aspect-based result sets |
 | Depth | Quick scannable answer | Comprehensive research document |
 | Structure | Direct answer + sections | Executive summary + sections + Key Takeaways |

@@ -85,7 +85,7 @@ Important: You have been provided search results from ${aspectResults.length} di
 Synthesize ALL the information into a comprehensive research document.
 Use the source index numbers [1], [2], etc. as shown in the results for your citations.
 Your response must be well-formatted in Markdown syntax with proper headers, sections, and formatting.
-Target length: 600-800 words for comprehensive coverage.
+Target length: 700-900 words for comprehensive coverage.
 `;
 
     const messages: OpenAIMessage[] = [

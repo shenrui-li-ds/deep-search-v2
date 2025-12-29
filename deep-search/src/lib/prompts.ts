@@ -321,7 +321,7 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <check>Key Takeaways actually summarize the main content</check>
     </qualityChecks>
     <specialInstructions>
-        <instruction>Target length: 600-800 words for comprehensive coverage</instruction>
+        <instruction>Target length: 700-900 words for comprehensive coverage</instruction>
         <instruction>If technical, explain concepts clearly but don't oversimplify</instruction>
         <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
         <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
@@ -532,7 +532,7 @@ export const brainstormSynthesizerPrompt = (query: string, currentDate: string, 
         <check>No generic advice - everything should trace back to the cross-domain research</check>
     </qualityChecks>
     <specialInstructions>
-        <instruction>Target length: 600-800 words</instruction>
+        <instruction>Target length: 700-900 words</instruction>
         <instruction>If an angle didn't yield useful inspiration, skip it - don't force it</instruction>
         <instruction>Prioritize quality of ideas over quantity</instruction>
         <instruction>Make it feel like the output of an exciting brainstorm session</instruction>
