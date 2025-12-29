@@ -1,6 +1,6 @@
 # Components
 
-React components for the DeepSearch UI.
+React components for the Athenius UI.
 
 ## Layout Components
 
@@ -47,7 +47,8 @@ Main result display component.
 }
 
 type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
-                  | 'planning' | 'researching' | 'synthesizing';
+                  | 'planning' | 'researching' | 'synthesizing'
+                  | 'reframing' | 'exploring' | 'ideating';
 ```
 
 **Features:**
@@ -69,6 +70,13 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - `planning`: "Planning research approach..."
 - `researching`: "Searching multiple sources..."
 - `synthesizing`: "Synthesizing findings..." + cursor
+- `proofreading`: "Polishing response..."
+- `complete`: No banner
+
+*Brainstorm Mode:*
+- `reframing`: "Finding creative angles..."
+- `exploring`: "Exploring cross-domain inspiration..."
+- `ideating`: "Generating ideas..." + cursor
 - `proofreading`: "Polishing response..."
 - `complete`: No banner
 

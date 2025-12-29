@@ -39,7 +39,7 @@ const Sidebar = () => {
         <div className="w-10 h-10 flex items-center justify-center">
           <Image
             src="/owl_google.svg"
-            alt="Deep Search"
+            alt="Athenius"
             width={28}
             height={28}
             className="w-7 h-7"

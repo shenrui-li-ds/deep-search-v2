@@ -16,7 +16,7 @@ interface SearchClientProps {
   deep?: boolean;
 }
 
-type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing';
+type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
 
 export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
@@ -336,6 +336,224 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       }
     };
 
+    // Brainstorm pipeline for creative ideation
+    const performBrainstorm = async () => {
+      setLoadingStage('reframing');
+      setError(null);
+      setSearchResult(null);
+      setStreamingContent('');
+      contentRef.current = '';
+      setSources([]);
+      setImages([]);
+      setRelatedSearches([]);
+      setIsTransitioning(false);
+
+      try {
+        // Check usage limits before brainstorming
+        const limitCheck = await canPerformSearch();
+        if (!limitCheck.allowed) {
+          setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          setLoadingStage('complete');
+          return;
+        }
+
+        // Step 1: Generate creative angles using lateral thinking
+        const reframeResponse = await fetch('/api/brainstorm/reframe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, provider }),
+          signal: abortController.signal
+        });
+
+        if (!isActive) return;
+
+        if (!reframeResponse.ok) {
+          throw new Error('Failed to generate creative angles');
+        }
+
+        const reframeData = await reframeResponse.json();
+        const creativeAngles = reframeData.angles || [{ angle: 'direct', query }];
+
+        // Step 2: Execute parallel searches for each creative angle
+        setLoadingStage('exploring');
+
+        const searchPromises = creativeAngles.map((angleItem: { angle: string; query: string }) =>
+          fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: angleItem.query,
+              searchDepth: 'basic',
+              maxResults: 8 // 8 per angle, ~40 total sources
+            }),
+            signal: abortController.signal
+          }).then(res => res.json()).then(data => ({
+            angle: angleItem.angle,
+            query: angleItem.query,
+            ...data
+          }))
+        );
+
+        const searchResults = await Promise.all(searchPromises);
+
+        if (!isActive) return;
+
+        // Aggregate sources and images, deduplicating by URL
+        const seenUrls = new Set<string>();
+        const allSources: Source[] = [];
+        const allImages: SearchImage[] = [];
+        const angleResults: { angle: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
+        let sourceIndex = 1;
+
+        for (const result of searchResults) {
+          const sources = result.sources || [];
+          const images = result.images || [];
+          const rawResults = result.rawResults?.results || [];
+
+          // Collect unique sources with new unique IDs
+          for (const source of sources) {
+            if (!seenUrls.has(source.url)) {
+              seenUrls.add(source.url);
+              allSources.push({
+                ...source,
+                id: `s${sourceIndex++}`
+              });
+            }
+          }
+
+          // Collect images
+          for (const image of images) {
+            if (!allImages.some(i => i.url === image.url)) {
+              allImages.push(image);
+            }
+          }
+
+          // Prepare angle results for synthesizer
+          angleResults.push({
+            angle: result.angle,
+            query: result.query,
+            results: rawResults.map((r: { title: string; url: string; content: string }) => ({
+              title: r.title,
+              url: r.url,
+              content: r.content
+            }))
+          });
+        }
+
+        if (allSources.length === 0) {
+          setError('No search results found');
+          setLoadingStage('complete');
+          return;
+        }
+
+        setSources(allSources);
+        setImages(allImages);
+
+        // Step 3: Synthesize cross-domain inspiration into ideas
+        setLoadingStage('ideating');
+
+        const synthesizeResponse = await fetch('/api/brainstorm/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            angleResults,
+            stream: true,
+            provider
+          }),
+          signal: abortController.signal
+        });
+
+        if (!isActive) return;
+
+        if (!synthesizeResponse.ok) {
+          throw new Error('Brainstorm synthesis failed');
+        }
+
+        // Stream synthesis to UI
+        let synthesizedContent = '';
+        await streamResponse(
+          synthesizeResponse,
+          (content) => {
+            if (!isActive) return;
+            contentRef.current = content;
+            scheduleContentUpdate();
+          },
+          (fullContent) => {
+            if (!isActive) return;
+            if (updateTimeoutRef.current) {
+              clearTimeout(updateTimeoutRef.current);
+              updateTimeoutRef.current = null;
+            }
+            synthesizedContent = fullContent;
+            const cleanedContent = cleanupFinalContent(fullContent);
+            setStreamingContent(cleanedContent);
+          }
+        );
+
+        if (!isActive) return;
+
+        const cleanedContent = cleanupFinalContent(synthesizedContent);
+
+        // Fetch related searches in background
+        fetch('/api/related-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            content: cleanedContent.substring(0, 1000),
+            provider
+          }),
+          signal: abortController.signal
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (isActive && data.relatedSearches) {
+              setRelatedSearches(data.relatedSearches);
+            }
+          })
+          .catch(() => {});
+
+        // Step 4: Quick proofread (regex-only)
+        setLoadingStage('proofreading');
+
+        const proofreadResponse = await fetch('/api/proofread', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: cleanedContent,
+            mode: 'quick',
+            stream: false
+          }),
+          signal: abortController.signal
+        });
+
+        if (!isActive) return;
+
+        if (!proofreadResponse.ok) {
+          console.error('Proofread API failed, using synthesized content');
+          transitionToContent(cleanedContent, allSources, allImages, mode, provider);
+          return;
+        }
+
+        const proofreadData = await proofreadResponse.json();
+        const proofreadContent = proofreadData.proofread || cleanedContent;
+
+        if (!isActive) return;
+
+        transitionToContent(proofreadContent, allSources, allImages, mode, provider);
+
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        if (!isActive) return;
+        console.error('Brainstorm error:', err);
+        setError('An error occurred while brainstorming ideas');
+        setLoadingStage('complete');
+      }
+    };
+
     // Standard web search pipeline
     const performSearch = async () => {
       setLoadingStage('searching');
@@ -486,6 +704,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     // Choose pipeline based on mode
     if (mode === 'pro') {
       performResearch();
+    } else if (mode === 'brainstorm') {
+      performBrainstorm();
     } else {
       performSearch();
     }
@@ -553,8 +773,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     : images;
 
   // Determine loading state indicators
-  const isSearching = loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching';
-  const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing';
+  const isSearching = loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'reframing' || loadingStage === 'exploring';
+  const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
 
   return (

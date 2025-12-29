@@ -28,7 +28,7 @@ interface Source {
   snippet?: string;
 }
 
-type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing';
+type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
 
 interface SearchResultProps {
   query: string;
@@ -110,6 +110,9 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
             {loadingStage === 'planning' ? 'Planning research approach...' :
              loadingStage === 'researching' ? 'Searching multiple sources...' :
              loadingStage === 'synthesizing' ? 'Synthesizing findings...' :
+             loadingStage === 'reframing' ? 'Finding creative angles...' :
+             loadingStage === 'exploring' ? 'Exploring cross-domain inspiration...' :
+             loadingStage === 'ideating' ? 'Generating ideas...' :
              loadingStage === 'proofreading' ? 'Polishing response...' :
              loadingStage === 'summarizing' ? 'Generating response...' :
              isSearching ? 'Searching the web...' :

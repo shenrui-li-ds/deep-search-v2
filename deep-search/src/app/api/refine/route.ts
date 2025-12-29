@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const prompt = refineSearchQueryPrompt(query, currentDate);
 
     const messages: OpenAIMessage[] = [
-      { role: 'system', content: 'You are DeepSearch, an AI specialized in refining search queries.' },
+      { role: 'system', content: 'You are Athenius, an AI specialized in refining search queries.' },
       { role: 'user', content: prompt }
     ];
 

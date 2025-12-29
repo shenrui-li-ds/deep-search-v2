@@ -61,6 +61,24 @@ XML-structured prompts for consistent LLM behavior.
 | `researchSynthesizerPrompt(query, date)` | Synthesize multi-source research into 600-800 word document |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
+**Brainstorm Pipeline Prompts:**
+
+| Prompt | Purpose |
+|--------|---------|
+| `brainstormReframePrompt(query, date)` | Generate 4-5 creative angles from unexpected domains (lateral thinking) |
+| `brainstormSynthesizerPrompt(query, date, lang)` | Synthesize cross-domain inspiration into idea cards and experiments |
+
+**Key Differences: Research vs Brainstorm**
+
+| Aspect | researchSynthesizerPrompt | brainstormSynthesizerPrompt |
+|--------|---------------------------|----------------------------|
+| Focus | Depth and comprehensiveness | Breadth and creativity |
+| Input | Direct research on topic | Cross-domain inspiration |
+| Output | Structured research document | Idea cards + experiments |
+| Temperature | 0.7 (balanced) | 0.8 (more creative) |
+| Approach | "What does the research say?" | "What can we learn from X?" |
+| Structure | Overview → Sections → Key Takeaways | Idea Cards → Unexpected Connections → Experiments |
+
 **Key Differences: Summarize vs Synthesize**
 
 | Aspect | summarizeSearchResultsPrompt | researchSynthesizerPrompt |

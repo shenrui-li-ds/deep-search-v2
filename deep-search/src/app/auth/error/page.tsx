@@ -22,7 +22,7 @@ export default function AuthErrorPage() {
         <Link href="/" className="inline-block mb-6">
           <Image
             src="/owl_google.svg"
-            alt="Deep Search"
+            alt="Athenius"
             width={48}
             height={48}
             className="mx-auto"

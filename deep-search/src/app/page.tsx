@@ -10,13 +10,13 @@ export default function Home() {
         <div className="mb-8 flex items-center gap-3">
           <Image
             src="/owl_google.svg"
-            alt="Deep Search"
+            alt="Athenius"
             width={48}
             height={48}
             className="w-12 h-12"
           />
           <h1 className="text-4xl md:text-5xl font-medium text-[var(--text-secondary)] tracking-tight" style={{ fontFamily: 'var(--font-lora)' }}>
-            Deep Search
+            Athenius
           </h1>
         </div>
 

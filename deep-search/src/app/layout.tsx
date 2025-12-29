@@ -21,7 +21,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Deep Search",
+  title: "Athenius",
   description: "An advanced internet search and research tool powered by AI",
   icons: {
     icon: '/owl_google.svg',

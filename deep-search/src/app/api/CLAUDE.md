@@ -152,6 +152,74 @@ data: {"done": true}
 - Includes Key Takeaways section
 - Supports both streaming and non-streaming modes
 
+### `/api/brainstorm/reframe` - Creative Angle Generation
+Generates creative search angles using lateral thinking and cross-domain inspiration.
+
+**Request:**
+```json
+{
+  "query": "topic to brainstorm about",
+  "provider": "deepseek"
+}
+```
+
+**Response:**
+```json
+{
+  "originalQuery": "topic to brainstorm about",
+  "angles": [
+    { "angle": "nature", "query": "how ants collaborate efficiently" },
+    { "angle": "games", "query": "game mechanics for engagement motivation" },
+    { "angle": "contrarian", "query": "why traditional approach fails" },
+    { "angle": "theater", "query": "theater improvisation techniques energy" }
+  ]
+}
+```
+
+**Features:**
+- Generates 4-5 unexpected creative angles
+- Draws from diverse domains: nature, games, art, sports, history, etc.
+- Uses higher temperature (0.8) for creativity
+- Preserves original query language
+- Falls back to direct search on parse errors
+
+### `/api/brainstorm/synthesize` - Creative Idea Synthesis
+Synthesizes cross-domain inspiration into actionable ideas.
+
+**Request:**
+```json
+{
+  "query": "original brainstorm topic",
+  "angleResults": [
+    {
+      "angle": "nature",
+      "query": "how ants collaborate efficiently",
+      "results": [{ "title", "url", "content" }]
+    }
+  ],
+  "stream": true,
+  "provider": "deepseek"
+}
+```
+
+**Response:** Server-Sent Events (SSE) when `stream=true`
+```
+data: {"data": "### The Ant Colony Approach\n\n"}
+data: {"data": "**Inspiration**: Ants use pheromone trails... [1]"}
+data: {"done": true}
+```
+
+**Output Structure:**
+- **Idea Cards** (3-5): Each with Inspiration, The Insight, Try This
+- **Unexpected Connections**: Cross-domain links between angles
+- **Experiments to Try**: Actionable checklist items
+
+**Features:**
+- Higher temperature (0.8) for creative output
+- Focus on actionable experiments
+- Cross-domain synthesis
+- Targets 600-800 words
+
 ### `/api/related-searches` - Related Search Suggestions
 Generates related search queries based on the original query and content.
 

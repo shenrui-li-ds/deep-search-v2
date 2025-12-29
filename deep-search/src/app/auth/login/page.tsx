@@ -45,7 +45,7 @@ export default function LoginPage() {
           <Link href="/" className="inline-block">
             <Image
               src="/owl_google.svg"
-              alt="Deep Search"
+              alt="Athenius"
               width={48}
               height={48}
               className="mx-auto mb-4"

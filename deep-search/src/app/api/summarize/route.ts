@@ -54,7 +54,7 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
     const messages: OpenAIMessage[] = [
       {
         role: 'system',
-        content: 'You are DeepSearch, an AI specialized in summarizing search results into comprehensive, well-structured content with proper citations. Always format your response in Markdown.'
+        content: 'You are Athenius, an AI specialized in summarizing search results into comprehensive, well-structured content with proper citations. Always format your response in Markdown.'
       },
       { role: 'user', content: completePrompt }
     ];

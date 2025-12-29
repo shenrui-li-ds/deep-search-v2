@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-DeepSearch is an AI-powered search application that provides a Perplexity-like search experience with:
+Athenius is an AI-powered search application that provides a Perplexity-like search experience with:
 - Multi-provider LLM support (DeepSeek, OpenAI, Qwen, Claude, Gemini)
 - Tavily-powered web search
 - Streamed, cited summaries with markdown rendering
@@ -51,9 +51,6 @@ Supabase (for auth and database):
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon/public key
 
-Development only:
-- `SKIP_AUTH=true` - Skip authentication (only works in development)
-
 ## Architecture
 
 ### Search Flow
@@ -67,7 +64,7 @@ Development only:
 ### Search Modes
 
 - **Web**: Standard search with streaming summary (single search → summarize)
-- **Brainstorm**: Reserved for brainstorming/ideation features
+- **Brainstorm**: Creative ideation using lateral thinking and cross-domain inspiration
 - **Research** (Pro mode): Multi-angle research pipeline with comprehensive synthesis
 
 ### Research Pipeline (Pro/Research Mode)
@@ -98,6 +95,37 @@ User Query
 - Synthesizes from 30-40 sources vs 10-15
 - Research-specific proofreading that preserves depth
 
+### Brainstorm Pipeline
+
+The Brainstorm mode uses lateral thinking and cross-domain inspiration to generate creative ideas:
+
+```
+User Topic
+    ↓
+1. Reframe: /api/brainstorm/reframe
+   → Generates 4-5 creative angles from unexpected domains
+   → Examples: nature analogies, game mechanics, contrarian views
+    ↓
+2. Parallel Search: /api/search × 4-5
+   → Searches for inspiration in each cross-domain angle (8 results each)
+    ↓
+3. Ideation: /api/brainstorm/synthesize (streaming)
+   → Synthesizes cross-domain inspiration into actionable ideas
+   → Output: Idea cards, Unexpected Connections, Experiments to Try
+    ↓
+4. Proofreading: /api/proofread (mode='quick')
+   → Light cleanup while preserving creative energy
+    ↓
+5. Display
+```
+
+**Key Differences from Research Mode:**
+- Breadth-focused instead of depth-focused
+- Searches *around* the topic, not directly *about* it
+- Output format: idea cards with actionable experiments
+- Higher temperature (0.8) for more creative outputs
+- Lateral thinking approach (nature, games, art, sports, etc.)
+
 ### Provider Selection
 
 The model selector in the UI controls which LLM provider is used for:
@@ -105,6 +133,8 @@ The model selector in the UI controls which LLM provider is used for:
 - Summarization (`/api/summarize`)
 - Research planning (`/api/research/plan`)
 - Research synthesis (`/api/research/synthesize`)
+- Brainstorm reframing (`/api/brainstorm/reframe`)
+- Brainstorm synthesis (`/api/brainstorm/synthesize`)
 - Proofreading (`/api/proofread`)
 
 Provider is passed via URL params and request body throughout the pipeline.

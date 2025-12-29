@@ -17,7 +17,7 @@ export async function generateMetadata({ searchParams }: SearchPageProps) {
   const query = params.q || '';
 
   return {
-    title: query ? `${query} - DeepSearch` : 'DeepSearch',
+    title: query ? `${query} - Athenius` : 'Athenius',
     description: `Search results for "${query}"`,
   };
 }

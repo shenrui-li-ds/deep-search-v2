@@ -1,4 +1,4 @@
--- Supabase Schema for Deep Search
+-- Supabase Schema for Athenius
 -- Run this in your Supabase SQL Editor
 
 -- Enable UUID extension
