@@ -31,9 +31,9 @@ const CONFIG = {
   },
   // Supabase cache TTLs by type (in hours)
   supabase: {
-    search: 24,      // Tavily results: 24 hours
+    search: 48,      // Tavily results: 48 hours
     refine: 48,      // Query refinement: 48 hours
-    summary: 24,     // Summaries: 24 hours
+    summary: 48,     // Summaries: 48 hours
     related: 48,     // Related searches: 48 hours
     plan: 48,        // Research plans: 48 hours
   },

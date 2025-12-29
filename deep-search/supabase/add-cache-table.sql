@@ -21,6 +21,30 @@ CREATE INDEX IF NOT EXISTS idx_search_cache_key ON search_cache(cache_key);
 CREATE INDEX IF NOT EXISTS idx_search_cache_expires ON search_cache(expires_at);
 CREATE INDEX IF NOT EXISTS idx_search_cache_type ON search_cache(cache_type);
 
+-- RLS for cache - permissive policy for authenticated users (shared cache)
+ALTER TABLE search_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can read cache"
+  ON search_cache FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can write cache"
+  ON search_cache FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update cache"
+  ON search_cache FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can delete cache"
+  ON search_cache FOR DELETE
+  TO authenticated
+  USING (true);
+
 -- Function to cleanup expired cache entries
 CREATE OR REPLACE FUNCTION public.cleanup_expired_cache()
 RETURNS void AS $$
@@ -38,10 +62,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant permissions
+-- Grant execute permission for cleanup function
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON search_cache TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON search_cache TO anon;
 
 -- ============================================
 -- SCHEDULE CACHE CLEANUP (run after enabling pg_cron)

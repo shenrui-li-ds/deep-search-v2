@@ -214,8 +214,29 @@ CREATE INDEX IF NOT EXISTS idx_search_cache_key ON search_cache(cache_key);
 CREATE INDEX IF NOT EXISTS idx_search_cache_expires ON search_cache(expires_at);
 CREATE INDEX IF NOT EXISTS idx_search_cache_type ON search_cache(cache_type);
 
--- No RLS on cache - it's shared across all users for efficiency
--- Cache entries are keyed by query hash, not user-specific
+-- RLS for cache - permissive policy for authenticated users (shared cache)
+ALTER TABLE search_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can read cache"
+  ON search_cache FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can write cache"
+  ON search_cache FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update cache"
+  ON search_cache FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can delete cache"
+  ON search_cache FOR DELETE
+  TO authenticated
+  USING (true);
 
 -- Function to cleanup expired cache entries (call via pg_cron)
 CREATE OR REPLACE FUNCTION public.cleanup_expired_cache()
@@ -244,6 +265,3 @@ GRANT EXECUTE ON FUNCTION public.cleanup_old_history() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_token_usage(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
 
--- Grant cache table access (for reading/writing cache)
-GRANT SELECT, INSERT, UPDATE, DELETE ON search_cache TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON search_cache TO anon;
