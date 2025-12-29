@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, LLMProvider } from '@/lib/api-utils';
 import { generateRelatedSearchesPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
+import { createClient } from '@/lib/supabase/server';
+
+// Response type for caching
+interface RelatedSearchesResponse {
+  relatedSearches: string[];
+  cached?: boolean;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,6 +28,34 @@ export async function POST(req: NextRequest) {
       ? content.substring(0, 500).replace(/\[[\d]+\]/g, '').trim()
       : query;
 
+    // Generate cache key based on query and content snippet
+    const cacheKey = generateCacheKey('related', {
+      query,
+      content: keyTopics,
+    });
+
+    // Try to get from cache
+    let supabase;
+    try {
+      supabase = await createClient();
+    } catch {
+      console.log('[Cache] Supabase not available, using memory cache only');
+    }
+
+    const { data: cachedData, source } = await getFromCache<RelatedSearchesResponse>(
+      cacheKey,
+      supabase
+    );
+
+    if (cachedData) {
+      console.log(`[Related] Cache ${source} hit for: ${query.slice(0, 50)}`);
+      return NextResponse.json({
+        ...cachedData,
+        cached: true,
+      });
+    }
+
+    // Cache miss - call LLM
     const messages: OpenAIMessage[] = [
       {
         role: 'system',
@@ -61,7 +97,12 @@ export async function POST(req: NextRequest) {
         .map((item: { query: string }) => item.query)
         .slice(0, 6); // Limit to 6 queries
 
-      return NextResponse.json({ relatedSearches: queries });
+      const result: RelatedSearchesResponse = { relatedSearches: queries };
+
+      // Cache the response
+      await setToCache(cacheKey, 'related', query, result, llmProvider, supabase);
+
+      return NextResponse.json(result);
     } catch (parseError) {
       console.error('Error parsing related searches response:', parseError);
       // Return empty array on parse error

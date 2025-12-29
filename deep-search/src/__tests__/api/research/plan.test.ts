@@ -15,6 +15,18 @@ jest.mock('@/lib/prompts', () => ({
   researchPlannerPrompt: jest.fn(() => 'mocked planner prompt'),
 }));
 
+// Mock the cache module
+jest.mock('@/lib/cache', () => ({
+  generateCacheKey: jest.fn(() => 'mock-cache-key'),
+  getFromCache: jest.fn(() => Promise.resolve({ data: null, source: 'miss' })),
+  setToCache: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock Supabase server client
+jest.mock('@/lib/supabase/server', () => ({
+  createClient: jest.fn(() => Promise.resolve(null)),
+}));
+
 import { callLLM } from '@/lib/api-utils';
 
 const mockCallLLM = callLLM as jest.MockedFunction<typeof callLLM>;

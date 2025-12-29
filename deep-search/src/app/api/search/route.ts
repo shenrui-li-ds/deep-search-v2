@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callTavily } from '@/lib/api-utils';
 import { Source, SearchImage, TavilySearchResult } from '@/lib/types';
+import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
+import { createClient } from '@/lib/supabase/server';
 
 // Helper function to convert Tavily results to our Source format
 function convertToSources(tavilyResults: TavilySearchResult): Source[] {
@@ -79,6 +81,15 @@ function getTimeAgo(dateString: string): string {
   }
 }
 
+// Response type for caching
+interface SearchResponse {
+  query: string;
+  sources: Source[];
+  images: SearchImage[];
+  rawResults: TavilySearchResult;
+  cached?: boolean;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { query, searchDepth = 'basic', maxResults = 10 } = await req.json();
@@ -90,7 +101,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Call Tavily search API
+    // Generate cache key
+    const cacheKey = generateCacheKey('search', {
+      query,
+      depth: searchDepth,
+      maxResults,
+    });
+
+    // Try to get from cache (Supabase client for tier 2)
+    let supabase;
+    try {
+      supabase = await createClient();
+    } catch {
+      // Supabase not available, continue without tier 2 cache
+      console.log('[Cache] Supabase not available, using memory cache only');
+    }
+
+    const { data: cachedData, source } = await getFromCache<SearchResponse>(
+      cacheKey,
+      supabase
+    );
+
+    if (cachedData) {
+      console.log(`[Search] Cache ${source} hit for: ${query.slice(0, 50)}`);
+      return NextResponse.json({
+        ...cachedData,
+        cached: true,
+      });
+    }
+
+    // Cache miss - call Tavily search API
     const tavilyResults = await callTavily(
       query,
       true, // include images
@@ -102,12 +142,17 @@ export async function POST(req: NextRequest) {
     const sources = convertToSources(tavilyResults);
     const images = convertToImages(tavilyResults);
 
-    return NextResponse.json({
+    const response: SearchResponse = {
       query,
       sources,
       images,
       rawResults: tavilyResults,
-    });
+    };
+
+    // Cache the response
+    await setToCache(cacheKey, 'search', query, response, undefined, supabase);
+
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error in search API:', error);
     return NextResponse.json(

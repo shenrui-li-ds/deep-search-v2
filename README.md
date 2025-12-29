@@ -31,6 +31,7 @@ Choose from multiple AI providers:
 - Related search suggestions
 - Search history (with Supabase)
 - Usage tracking and limits
+- Two-tier response caching (reduces API costs)
 - Dark/light theme support
 - LaTeX math rendering
 
@@ -170,11 +171,11 @@ deep-search/
 
 ## Database Setup (Optional)
 
-For auth and search history, set up Supabase:
+For auth, search history, and caching, set up Supabase:
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run `supabase/schema.sql` in SQL Editor
-3. Enable pg_cron extension for automatic usage resets:
+2. Run `supabase/schema.sql` in SQL Editor (includes cache table)
+3. Enable pg_cron extension for automatic resets:
 
 ```sql
 -- Schedule daily usage reset at midnight UTC
@@ -182,7 +183,12 @@ SELECT cron.schedule('reset-daily-limits', '0 0 * * *', $$SELECT public.reset_da
 
 -- Schedule monthly usage reset on 1st of each month
 SELECT cron.schedule('reset-monthly-limits', '0 0 1 * *', $$SELECT public.reset_monthly_limits()$$);
+
+-- Schedule cache cleanup at 3am UTC daily
+SELECT cron.schedule('cleanup-cache', '0 3 * * *', $$SELECT public.cleanup_expired_cache()$$);
 ```
+
+**Note:** If you already have the database set up, run `supabase/add-cache-table.sql` to add just the cache table.
 
 ## Development
 

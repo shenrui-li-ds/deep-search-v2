@@ -148,6 +148,60 @@ Client-side text cleanup utilities.
 
 Shared utility functions (e.g., `cn()` for className merging).
 
+### `cache.ts` - Two-Tier Caching System
+
+Reduces API costs by caching responses at two levels.
+
+**Architecture:**
+```
+Request → Memory Cache (15 min) → Supabase Cache (24-48 hrs) → API Call
+```
+
+**Cache Types & TTLs:**
+
+| Type | TTL | What's Cached |
+|------|-----|---------------|
+| `search` | 24 hours | Tavily search results |
+| `refine` | 48 hours | Query refinements |
+| `related` | 48 hours | Related search suggestions |
+| `plan` | 48 hours | Research plans |
+| `summary` | 24 hours | LLM summaries (future) |
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `generateCacheKey(type, params)` | Generate cache key from type and parameters |
+| `getFromCache<T>(key, supabase?)` | Get from memory, then Supabase |
+| `setToCache(key, type, query, data, provider?, supabase?)` | Set to both tiers |
+| `deleteFromCache(key, supabase?)` | Remove from both tiers |
+| `getCacheStats()` | Get memory cache statistics |
+
+**Usage in API Routes:**
+```typescript
+import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
+import { createClient } from '@/lib/supabase/server';
+
+// In POST handler:
+const cacheKey = generateCacheKey('search', { query, depth, maxResults });
+const supabase = await createClient();
+
+const { data, source } = await getFromCache<ResponseType>(cacheKey, supabase);
+if (data) {
+  return NextResponse.json({ ...data, cached: true });
+}
+
+// ... make API call ...
+
+await setToCache(cacheKey, 'search', query, response, provider, supabase);
+```
+
+**Cached Endpoints:**
+- `/api/search` - Tavily results
+- `/api/refine` - Query refinement
+- `/api/related-searches` - Related queries
+- `/api/research/plan` - Research plans
+
 ### `supabase/` - Supabase Integration
 
 See `supabase/CLAUDE.md` for detailed documentation.
