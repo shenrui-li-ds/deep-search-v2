@@ -8,7 +8,7 @@ Core utilities, types, and helpers.
 
 **LLM Provider Support:**
 ```typescript
-type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
+type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
 ```
 
 **Key Functions:**
@@ -18,7 +18,7 @@ type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
 | `callLLM(messages, temp, stream, provider?)` | Unified LLM call - routes to appropriate provider |
 | `callDeepSeek(messages, model, temp, stream)` | DeepSeek API (OpenAI-compatible) |
 | `callOpenAI(messages, model, temp, stream)` | OpenAI API |
-| `callQwen(messages, model, temp, stream)` | Qwen/DashScope API (OpenAI-compatible) |
+| `callGrok(messages, model, temp, stream)` | Grok API (OpenAI-compatible, x.ai) |
 | `callClaude(messages, model, temp, stream)` | Anthropic Claude API |
 | `callGemini(messages, model, temp, stream)` | Google Gemini API |
 | `callTavily(query, includeImages, depth, max)` | Tavily search API |
@@ -33,7 +33,7 @@ type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
 ```typescript
 OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
 DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
-QWEN_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
+GROK_API_URL = 'https://api.x.ai/v1/chat/completions'
 CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 TAVILY_API_URL = 'https://api.tavily.com/search'

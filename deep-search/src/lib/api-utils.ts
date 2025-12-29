@@ -16,12 +16,12 @@ interface SearchResultItem {
 }
 
 // LLM Provider type - matches the frontend ModelProvider type
-export type LLMProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
+export type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
 
 // API endpoints
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 export const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
-export const QWEN_API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+export const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
 export const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 export const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -37,8 +37,8 @@ export function getLLMProvider(): LLMProvider {
   if (process.env.OPENAI_API_KEY) {
     return 'openai';
   }
-  if (process.env.QWEN_API_KEY) {
-    return 'qwen';
+  if (process.env.GROK_API_KEY) {
+    return 'grok';
   }
   if (process.env.ANTHROPIC_API_KEY) {
     return 'claude';
@@ -46,7 +46,7 @@ export function getLLMProvider(): LLMProvider {
   if (process.env.GEMINI_API_KEY) {
     return 'gemini';
   }
-  throw new Error('No LLM API key configured. Please set DEEPSEEK_API_KEY, OPENAI_API_KEY, QWEN_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.');
+  throw new Error('No LLM API key configured. Please set DEEPSEEK_API_KEY, OPENAI_API_KEY, GROK_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY.');
 }
 
 // Check if a specific provider has an API key configured
@@ -56,8 +56,8 @@ export function isProviderAvailable(provider: LLMProvider): boolean {
       return !!process.env.OPENAI_API_KEY;
     case 'deepseek':
       return !!process.env.DEEPSEEK_API_KEY;
-    case 'qwen':
-      return !!process.env.QWEN_API_KEY;
+    case 'grok':
+      return !!process.env.GROK_API_KEY;
     case 'claude':
       return !!process.env.ANTHROPIC_API_KEY;
     case 'gemini':
@@ -145,19 +145,19 @@ export async function callOpenAI(
   }
 }
 
-// Qwen API request (OpenAI-compatible)
-export async function callQwen(
+// Grok API request (OpenAI-compatible, from x.ai)
+export async function callGrok(
   messages: ChatMessage[],
-  model: string = 'qwen-plus',
+  model: string = 'grok-4-1-fast',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
   try {
-    const response = await fetch(QWEN_API_URL, {
+    const response = await fetch(GROK_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.QWEN_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
       },
       body: JSON.stringify({
         model,
@@ -169,7 +169,7 @@ export async function callQwen(
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(`Qwen API error: ${error.error?.message || 'Unknown error'}`);
+      throw new Error(`Grok API error: ${error.error?.message || 'Unknown error'}`);
     }
 
     if (stream) {
@@ -179,7 +179,7 @@ export async function callQwen(
       return data.choices[0].message.content;
     }
   } catch (error) {
-    console.error('Error calling Qwen API:', error);
+    console.error('Error calling Grok API:', error);
     throw error;
   }
 }
@@ -431,9 +431,9 @@ function callLLMForProvider(
     case 'openai':
       console.log('Using OpenAI API');
       return callOpenAI(messages, 'gpt-4o-mini', temperature, stream);
-    case 'qwen':
-      console.log('Using Qwen API');
-      return callQwen(messages, 'qwen-plus', temperature, stream);
+    case 'grok':
+      console.log('Using Grok API');
+      return callGrok(messages, 'grok-4-1-fast', temperature, stream);
     case 'claude':
       console.log('Using Claude API');
       return callClaude(messages, 'claude-haiku-4-5', temperature, stream);
@@ -453,7 +453,7 @@ export function getStreamParser(provider: LLMProvider) {
   if (provider === 'gemini') {
     return streamGeminiResponse;
   }
-  // OpenAI, DeepSeek, and Qwen all use OpenAI-compatible streaming
+  // OpenAI, DeepSeek, and Grok all use OpenAI-compatible streaming
   return streamOpenAIResponse;
 }
 

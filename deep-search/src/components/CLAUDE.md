@@ -19,7 +19,7 @@ Fixed navigation sidebar.
 
 ### `SearchBox.tsx`
 Main search input component on the landing page.
-- Model selector dropdown (DeepSeek, OpenAI, Qwen, Claude)
+- Model selector dropdown (DeepSeek, OpenAI, Grok, Claude, Gemini)
 - Search mode toggle (Web Search, Research, Brainstorm)
 - Handles query refinement before navigation
 - Passes provider and mode via URL params
@@ -36,7 +36,7 @@ Main result display component.
     sources: Source[];
   };
   relatedSearches?: string[];
-  provider?: string;  // LLM provider (deepseek, openai, qwen, claude)
+  provider?: string;  // LLM provider (deepseek, openai, grok, claude, gemini)
   mode?: string;      // Search mode (web, pro, brainstorm)
   loadingStage?: LoadingStage;  // Current stage in pipeline
   isLoading?: boolean;

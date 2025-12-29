@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Athenius is an AI-powered search application that provides a Perplexity-like search experience with:
-- Multi-provider LLM support (DeepSeek, OpenAI, Qwen, Claude, Gemini)
+- Multi-provider LLM support (DeepSeek, OpenAI, Grok, Claude, Gemini)
 - Tavily-powered web search
 - Streamed, cited summaries with markdown rendering
 - Three search modes: Web, Pro (with proofreading), and Brainstorm
@@ -43,7 +43,7 @@ Required in `deep-search/.env.local`:
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
 - `OPENAI_API_KEY` - OpenAI GPT-4o mini
-- `QWEN_API_KEY` - Alibaba Qwen Plus
+- `GROK_API_KEY` - xAI Grok 4.1 Fast
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 - `GEMINI_API_KEY` - Google Gemini 2.5 Flash
 

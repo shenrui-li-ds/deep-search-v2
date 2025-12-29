@@ -22,7 +22,7 @@ interface SearchBoxProps {
 }
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
-type ModelProvider = 'openai' | 'deepseek' | 'qwen' | 'claude' | 'gemini';
+type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
 
 const searchModes = [
   { id: 'web' as SearchMode, label: 'Web Search', icon: (
@@ -45,7 +45,7 @@ const searchModes = [
 const modelProviders = [
   { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat' },
   { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4o mini' },
-  { id: 'qwen' as ModelProvider, label: 'Qwen', description: 'Qwen Plus' },
+  { id: 'grok' as ModelProvider, label: 'Grok', description: 'Grok 4.1 Fast' },
   { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5' },
   { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 2.5 Flash' },
 ];

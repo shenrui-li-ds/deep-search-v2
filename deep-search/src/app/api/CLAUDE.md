@@ -32,7 +32,7 @@ Optionally refines the user's query before search.
 ```json
 {
   "query": "user query",
-  "provider": "deepseek" | "openai" | "qwen" | "claude"
+  "provider": "deepseek" | "openai" | "grok" | "claude" | "gemini"
 }
 ```
 
@@ -251,7 +251,7 @@ Generates related search queries based on the original query and content.
 All LLM-powered routes accept a `provider` parameter:
 - Routes call `callLLM(messages, temperature, stream, provider)`
 - If provider is unavailable, falls back to auto-detection based on available API keys
-- Provider priority: DeepSeek > OpenAI > Qwen > Claude
+- Provider priority: DeepSeek > OpenAI > Grok > Claude > Gemini
 
 ## Error Handling
 
