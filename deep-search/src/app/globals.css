@@ -230,3 +230,89 @@ html.dark .source-hover-card {
 .border-theme {
   border-color: var(--border);
 }
+
+/* Print styles for PDF export */
+@media print {
+  /* Hide non-essential elements */
+  nav,
+  aside,
+  button,
+  input,
+  .fixed,
+  .no-print,
+  [data-radix-popper-content-wrapper] {
+    display: none !important;
+  }
+
+  /* Reset colors for print */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+
+  /* Main content area */
+  .max-w-4xl {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Reset margins */
+  .ml-16 {
+    margin-left: 0 !important;
+  }
+
+  /* Markdown content for print */
+  .markdown-content {
+    color: black !important;
+  }
+
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content strong {
+    color: black !important;
+  }
+
+  .markdown-content p,
+  .markdown-content li {
+    color: #333 !important;
+  }
+
+  .markdown-content a {
+    color: #0066cc !important;
+    text-decoration: underline;
+  }
+
+  /* Citations for print */
+  .citation {
+    background-color: #e5e7eb !important;
+    color: #374151 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Page breaks */
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+
+  p, li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Show URL after links */
+  .markdown-content a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+
+  /* Header for print */
+  @page {
+    margin: 1in;
+  }
+}

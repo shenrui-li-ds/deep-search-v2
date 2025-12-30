@@ -15,6 +15,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import SearchLoading from './SearchLoading';
 
 interface Source {
@@ -55,8 +62,61 @@ interface SearchResultProps {
 const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  // Copy just the answer content (for Copy button in action bar)
+  const handleCopyContent = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(result.content);
+      setCopyFeedback('copied');
+      setTimeout(() => setCopyFeedback(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, [result.content]);
+
+  // Copy formatted text with query, answer, sources, and URL
+  const handleCopyFormatted = useCallback(async () => {
+    const sourcesText = result.sources
+      .map((s, i) => `${i + 1}. ${s.title} - ${s.url}`)
+      .join('\n');
+
+    const formattedText = `🔍 Query: ${query}
+
+📝 Answer:
+${result.content}
+
+📚 Sources:
+${sourcesText}
+
+🔗 ${typeof window !== 'undefined' ? window.location.href : ''}`;
+
+    try {
+      await navigator.clipboard.writeText(formattedText);
+      setCopyFeedback('formatted');
+      setTimeout(() => setCopyFeedback(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, [query, result.content, result.sources]);
+
+  // Copy just the URL
+  const handleCopyLink = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyFeedback('link');
+      setTimeout(() => setCopyFeedback(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, []);
+
+  // Download as PDF using browser print dialog
+  const handleDownloadPDF = useCallback(() => {
+    window.print();
+  }, []);
 
   const handleFollowUp = useCallback(() => {
     const trimmedQuery = followUpQuery.trim();
@@ -150,13 +210,38 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
               </TabsTrigger>
             </TabsList>
 
-            {/* Share button */}
-            <Button variant="ghost" size="sm" className="h-8 text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
-              <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              Share
-            </Button>
+            {/* Share dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                  <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  {copyFeedback === 'formatted' || copyFeedback === 'link' ? 'Copied!' : 'Share'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleCopyFormatted} className="cursor-pointer">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Copy as text
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Copy link
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleDownloadPDF} className="cursor-pointer">
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <TabsContent value="answer" className="mt-0">
@@ -279,49 +364,60 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
             </div>
 
             {/* Bottom Action Bar */}
-            <div className="mt-8 pt-4 border-t border-[var(--border)] flex items-center gap-2">
+            <div className="mt-8 pt-4 border-t border-[var(--border)] flex items-center gap-2 print:hidden">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                    </svg>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`transition-colors ${copyFeedback === 'copied' ? 'text-green-500' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+                    onClick={handleCopyContent}
+                  >
+                    {copyFeedback === 'copied' ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Copy</TooltipContent>
+                <TooltipContent>{copyFeedback === 'copied' ? 'Copied!' : 'Copy'}</TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] opacity-50 cursor-not-allowed">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Like</TooltipContent>
+                <TooltipContent>Like (coming soon)</TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] opacity-50 cursor-not-allowed">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.096c.5 0 .905-.405.905-.904 0-.715.211-1.413.608-2.008L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Dislike</TooltipContent>
+                <TooltipContent>Dislike (coming soon)</TooltipContent>
               </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                  <Button variant="ghost" size="icon" className="text-[var(--text-muted)] opacity-50 cursor-not-allowed">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Rewrite</TooltipContent>
+                <TooltipContent>Rewrite (coming soon)</TooltipContent>
               </Tooltip>
 
               <div className="ml-auto flex items-center gap-2 text-sm text-[var(--text-muted)]">
