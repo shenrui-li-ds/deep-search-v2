@@ -11,7 +11,9 @@ An AI-powered search application that provides a Perplexity-like search experien
   - **Brainstorm**: Creative ideation using cross-domain inspiration
 - **Streaming Responses**: Real-time content generation with smooth UI updates
 - **Two-Tier Caching**: In-memory LRU + Supabase persistent cache for cost reduction
-- **User Authentication**: Supabase Auth with usage limits and search history
+- **User Authentication**: Supabase Auth with email/password and GitHub OAuth
+- **Usage Limits**: Daily/monthly search and token limits per user
+- **Copy & Share**: Copy answers, share formatted text, export to PDF
 
 ## Getting Started
 
@@ -127,10 +129,25 @@ Cached endpoints: `/api/search`, `/api/refine`, `/api/related-searches`, `/api/r
 
 ### Supabase Auth
 
-Add your deployment URL to Supabase → Authentication → URL Configuration → Redirect URLs:
-```
-https://your-domain.com/auth/callback
-```
+1. Go to Supabase → Authentication → URL Configuration
+2. Set **Site URL** to your production domain:
+   ```
+   https://your-domain.com
+   ```
+3. Add **Redirect URLs**:
+   ```
+   http://localhost:3000/auth/callback
+   https://your-domain.com/auth/callback
+   ```
+
+### GitHub OAuth (Optional)
+
+1. Create OAuth App at GitHub → Settings → Developer Settings → OAuth Apps
+2. Set Authorization callback URL to:
+   ```
+   https://<your-project>.supabase.co/auth/v1/callback
+   ```
+3. Copy Client ID and Client Secret to Supabase → Authentication → Providers → GitHub
 
 ## License
 

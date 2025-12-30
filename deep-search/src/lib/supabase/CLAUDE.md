@@ -41,8 +41,7 @@ Handles session refresh and route protection.
 - `/auth/callback`
 - `/auth/error`
 
-**Dev Bypass:**
-Set `SKIP_AUTH=true` in `.env.local` to skip auth in development mode.
+All other routes require authentication. Unauthenticated users are redirected to `/auth/login`.
 
 ### `auth-context.tsx` - React Auth Context
 
@@ -174,6 +173,37 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 | `reset_daily_limits()` | Reset daily counters (call via cron) |
 | `reset_monthly_limits()` | Reset monthly counters (call via cron) |
 
+## Authentication Methods
+
+### Email/Password
+Standard email and password signup/login. Email confirmation required.
+
+### OAuth Providers
+GitHub OAuth is supported. To add more providers:
+
+1. Configure provider in Supabase Dashboard → Authentication → Providers
+2. Add OAuth button to login/signup pages using:
+
+```typescript
+const { error } = await supabase.auth.signInWithOAuth({
+  provider: 'github', // or 'google', 'azure', etc.
+  options: {
+    redirectTo: `${window.location.origin}/auth/callback`,
+  },
+});
+```
+
+**Supported Providers:**
+- GitHub (configured)
+- Google, Microsoft, Apple, Discord, etc. (available on Supabase free tier)
+
+**Redirect URLs:**
+Configure in Supabase → Authentication → URL Configuration:
+- Site URL: `https://your-domain.com`
+- Redirect URLs:
+  - `http://localhost:3000/auth/callback` (development)
+  - `https://your-domain.com/auth/callback` (production)
+
 ## Setup
 
 1. Create Supabase project at supabase.com
@@ -184,3 +214,4 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
 4. (Optional) Configure email templates in Authentication → Email Templates
+5. (Optional) Configure OAuth providers in Authentication → Providers

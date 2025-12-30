@@ -35,6 +35,8 @@ npm run lint
 
 The dev server runs at http://localhost:3000
 
+**Important:** Stop the dev server before running `npm run build`. Running both simultaneously corrupts the `.next` directory and causes "Internal Server Error". If this happens, delete `.next` and restart the dev server.
+
 ## Environment Variables
 
 Required in `deep-search/.env.local`:

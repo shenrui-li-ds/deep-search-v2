@@ -53,11 +53,30 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 
 **Features:**
 - Status banner (shown during all loading stages)
-- Tabbed interface (Answer, Links)
+- Tabbed interface (Answer, Links) with Share dropdown
 - Markdown rendering with custom component styling
 - Source pills with tooltips
 - Related searches section (LLM-generated, clickable, preserves provider/mode)
 - Follow-up input (functional, navigates to new search with provider/mode preserved)
+- Copy/Share functionality
+- Print-to-PDF support via browser print dialog
+
+**Action Bar Buttons:**
+
+| Button | Status | Function |
+|--------|--------|----------|
+| Copy | Active | Copies answer content to clipboard |
+| Like | Coming soon | User feedback (not implemented) |
+| Dislike | Coming soon | User feedback (not implemented) |
+| Rewrite | Coming soon | Regenerate response (not implemented) |
+
+**Share Dropdown (in Tabs area):**
+
+| Option | Function |
+|--------|----------|
+| Copy as text | Copies formatted text with query, answer, sources, and URL |
+| Copy link | Copies current page URL |
+| Download PDF | Opens browser print dialog (Save as PDF) |
 
 **Loading States by Mode:**
 
