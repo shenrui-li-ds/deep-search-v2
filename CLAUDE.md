@@ -190,12 +190,21 @@ See `src/lib/supabase/CLAUDE.md` for auth and database documentation.
 
 ## Authentication
 
-Uses Supabase Auth with email/password authentication.
+Uses Supabase Auth with email/password and GitHub OAuth.
+
+### Auth Methods
+- **Email/Password**: Standard signup with email confirmation
+- **GitHub OAuth**: One-click sign in via GitHub
 
 ### Auth Flow
 1. User visits protected route → middleware redirects to `/auth/login`
 2. User signs up → email confirmation sent → clicks link → `/auth/callback`
-3. Session stored in cookies, managed by Supabase SSR
+3. Or user clicks "GitHub" → OAuth flow → `/auth/callback`
+4. Session stored in cookies, managed by Supabase SSR
+
+### Email Templates
+Custom branded templates in `supabase/email-templates/`:
+- Confirm signup, Invite user, Magic link, Change email, Reset password, Reauthentication
 
 ### Route Protection
 - Middleware (`src/middleware.ts`) checks auth on every request

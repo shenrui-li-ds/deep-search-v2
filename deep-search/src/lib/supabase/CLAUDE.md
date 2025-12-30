@@ -204,6 +204,37 @@ Configure in Supabase → Authentication → URL Configuration:
   - `http://localhost:3000/auth/callback` (development)
   - `https://your-domain.com/auth/callback` (production)
 
+## Email Templates
+
+Custom email templates are stored in `supabase/email-templates/`:
+
+| Template | File | Subject |
+|----------|------|---------|
+| Confirm signup | `confirm-signup.html` | Welcome to Athenius! Please confirm your email |
+| Invite user | `invite-user.html` | You've been invited to join Athenius! |
+| Magic Link | `magic-link.html` | Your magic link to sign in to Athenius |
+| Change Email | `change-email.html` | Almost there! Confirm your new email address |
+| Reset Password | `reset-password.html` | Let's get you back into Athenius |
+| Reauthentication | `reauthentication.html` | Quick security check for Athenius |
+
+To apply: Copy HTML content to Supabase → Authentication → Email Templates.
+
+## Security Settings
+
+### Function Search Path
+
+All PostgreSQL functions should have explicit `search_path` to prevent SQL injection:
+
+```sql
+ALTER FUNCTION public.function_name() SET search_path = public;
+```
+
+This is especially important for `SECURITY DEFINER` functions.
+
+### Leaked Password Protection
+
+Enable in Supabase → Authentication → Settings to check passwords against HaveIBeenPwned database.
+
 ## Setup
 
 1. Create Supabase project at supabase.com
@@ -213,5 +244,10 @@ Configure in Supabase → Authentication → URL Configuration:
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
-4. (Optional) Configure email templates in Authentication → Email Templates
-5. (Optional) Configure OAuth providers in Authentication → Providers
+4. Configure URL settings in Authentication → URL Configuration:
+   - Site URL: `https://your-domain.com`
+   - Redirect URLs: `http://localhost:3000/auth/callback`, `https://your-domain.com/auth/callback`
+5. (Optional) Apply email templates from `supabase/email-templates/`
+6. (Optional) Configure OAuth providers in Authentication → Providers
+7. (Optional) Enable leaked password protection in Authentication → Settings
+8. Fix function search paths (see Security Settings above)
