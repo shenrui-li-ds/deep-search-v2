@@ -112,11 +112,11 @@ The Brainstorm mode uses lateral thinking and cross-domain inspiration to genera
 User Topic → Navigate Immediately
     ↓
 1. Reframe + Limit Check (parallel): /api/brainstorm/reframe
-   → Generates 4-5 creative angles from unexpected domains
+   → Generates 4-6 creative angles from unexpected domains
    → Examples: nature analogies, game mechanics, contrarian views
     ↓
-2. Parallel Search: /api/search × 4-5
-   → Searches for inspiration in each cross-domain angle (8 results each)
+2. Parallel Search: /api/search × 4-6
+   → Searches for inspiration in each cross-domain angle (6 results each)
     ↓
 3. Ideation: /api/brainstorm/synthesize (streaming)
    → Synthesizes cross-domain inspiration into 700-900 word document

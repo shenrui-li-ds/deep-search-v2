@@ -144,9 +144,9 @@ describe('Prompts', () => {
       expect(prompt).toContain('"query"');
     });
 
-    it('limits to 2-4 search queries', () => {
+    it('limits to 3-4 search queries', () => {
       const prompt = researchPlannerPrompt('test', 'date');
-      expect(prompt).toContain('2-4 distinct search queries');
+      expect(prompt).toContain('3-4 distinct search queries');
     });
 
     it('has proper XML structure', () => {

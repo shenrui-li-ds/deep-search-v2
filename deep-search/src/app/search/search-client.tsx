@@ -387,7 +387,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({
               query: angleItem.query,
               searchDepth: 'basic',
-              maxResults: 8 // 8 per angle, ~40 total sources
+              maxResults: 6 // 6 per angle, ~30 total sources
             }),
             signal: abortController.signal
           }).then(res => res.json()).then(data => ({

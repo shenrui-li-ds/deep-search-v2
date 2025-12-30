@@ -65,7 +65,7 @@ XML-structured prompts for consistent LLM behavior.
 
 | Prompt | Purpose |
 |--------|---------|
-| `brainstormReframePrompt(query, date)` | Generate 4-5 creative angles from unexpected domains (lateral thinking) |
+| `brainstormReframePrompt(query, date)` | Generate 4-6 creative angles from unexpected domains (lateral thinking) |
 | `brainstormSynthesizerPrompt(query, date, lang)` | Synthesize cross-domain inspiration into idea cards and experiments |
 
 **Key Differences: Research vs Brainstorm**

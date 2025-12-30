@@ -177,7 +177,7 @@ Generates creative search angles using lateral thinking and cross-domain inspira
 ```
 
 **Features:**
-- Generates 4-5 unexpected creative angles
+- Generates 4-6 unexpected creative angles
 - Draws from diverse domains: nature, games, art, sports, history, etc.
 - Uses higher temperature (0.8) for creativity
 - Preserves original query language

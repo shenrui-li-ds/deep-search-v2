@@ -209,7 +209,7 @@ export const proofreadParagraphPrompt = () => `
 export const researchPlannerPrompt = (query: string, currentDate: string) => `
 <researchPlanner>
     <description>
-        You are a research planning expert. Given a topic, you identify 2-4 distinct
+        You are a research planning expert. Given a topic, you identify 3-4 distinct
         research angles that together will provide comprehensive understanding.
     </description>
     <context>
@@ -224,7 +224,7 @@ export const researchPlannerPrompt = (query: string, currentDate: string) => `
         - Recent developments, expert opinions, or current state
     </task>
     <rules>
-        <rule>Output 2-4 distinct search queries (not more)</rule>
+        <rule>Output 3-4 distinct search queries (not more)</rule>
         <rule>Each query should target a DIFFERENT aspect of the topic</rule>
         <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
         <rule>Keep each query concise: 5-12 words</rule>
@@ -402,7 +402,7 @@ export const brainstormReframePrompt = (query: string, currentDate: string) => `
         <topic>${query}</topic>
     </context>
     <task>
-        Generate 4-5 creative search queries that explore the topic from unexpected angles:
+        Generate 4-6 creative search queries that explore the topic from unexpected angles:
         - Analogies from completely different domains (nature, games, art, sports, etc.)
         - Contrarian or "what if the opposite were true" perspectives
         - Cross-industry inspiration (how does X industry solve this?)
@@ -417,7 +417,7 @@ export const brainstormReframePrompt = (query: string, currentDate: string) => `
         <principle>Seek out unusual success stories and edge cases</principle>
     </creativePrinciples>
     <rules>
-        <rule>Output 4-5 reframed search queries</rule>
+        <rule>Output 4-6 reframed search queries</rule>
         <rule>Each query must explore a DIFFERENT domain or perspective</rule>
         <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
         <rule>Keep each query concise: 5-15 words</rule>
