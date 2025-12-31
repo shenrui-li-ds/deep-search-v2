@@ -78,7 +78,7 @@ Client-side database operations for search history and usage limits.
 
 | Function | Description |
 |----------|-------------|
-| `addSearchToHistory(entry)` | Save a search to history |
+| `addSearchToHistory(entry)` | Save/upsert search to history (uses RPC for performance) |
 | `getSearchHistory(limit, offset)` | Get paginated history |
 | `searchHistory(term, limit)` | Search within history |
 | `deleteSearchFromHistory(id)` | Delete single entry |
@@ -171,11 +171,36 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 
 | Function | Description |
 |----------|-------------|
+| `upsert_search_history(...)` | Atomic upsert for search history (updates bookmarked entries, inserts new) |
 | `check_and_increment_search()` | Atomically check and increment daily search count |
 | `increment_token_usage(user_id, tokens)` | Add tokens to monthly usage |
 | `cleanup_old_history()` | Keep only last 100 entries per user |
 | `reset_daily_limits()` | Reset daily counters (call via cron) |
 | `reset_monthly_limits()` | Reset monthly counters (call via cron) |
+
+### `upsert_search_history` Function
+
+Optimizes the "add to history" flow by combining duplicate check + insert/update into a single database call.
+
+**Migration file:** `supabase/add-upsert-search-history-function.sql`
+
+**Behavior:**
+1. If a BOOKMARKED entry with same `(user_id, query, provider, mode)` exists → updates it
+2. Otherwise → inserts a new entry
+
+**Why:** Eliminates one database round trip (from 3 to 2 calls), reducing latency by ~50-200ms.
+
+**Usage in TypeScript:**
+```typescript
+const { data } = await supabase.rpc('upsert_search_history', {
+  p_user_id: user.id,
+  p_query: 'search query',
+  p_provider: 'deepseek',
+  p_mode: 'web',
+  p_sources_count: 10,
+  p_refined_query: 'refined query',
+});
+```
 
 ## Authentication Methods
 

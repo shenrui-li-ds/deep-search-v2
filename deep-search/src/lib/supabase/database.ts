@@ -35,6 +35,16 @@ export interface ApiUsageEntry {
 // SEARCH HISTORY OPERATIONS
 // ============================================
 
+/**
+ * Adds a search entry to history, or updates an existing bookmarked entry.
+ *
+ * Uses the `upsert_search_history` PostgreSQL function for optimal performance:
+ * - Eliminates one database round trip by combining duplicate check + insert/update
+ * - If a BOOKMARKED entry with same (query, provider, mode) exists, updates it
+ * - Otherwise, inserts a new entry
+ *
+ * See: supabase/add-upsert-search-history-function.sql for the database function.
+ */
 export async function addSearchToHistory(entry: Omit<SearchHistoryEntry, 'id' | 'user_id' | 'created_at'>) {
   const supabase = createClient();
 
@@ -45,54 +55,24 @@ export async function addSearchToHistory(entry: Omit<SearchHistoryEntry, 'id' | 
     return null;
   }
 
-  // Check if a bookmarked entry with same query+provider+mode already exists
-  const { data: existingEntry } = await supabase
-    .from('search_history')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('query', entry.query)
-    .eq('provider', entry.provider)
-    .eq('mode', entry.mode)
-    .eq('bookmarked', true)
-    .single();
-
-  // If bookmarked entry exists, update it instead of creating new
-  if (existingEntry) {
-    const { data, error } = await supabase
-      .from('search_history')
-      .update({
-        sources_count: entry.sources_count,
-        refined_query: entry.refined_query,
-        created_at: new Date().toISOString(), // Update timestamp to move it to top
-      })
-      .eq('id', existingEntry.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating bookmarked history entry:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  // No bookmarked entry exists, create new entry
-  const { data, error } = await supabase
-    .from('search_history')
-    .insert({
-      ...entry,
-      user_id: user.id,
-    })
-    .select()
-    .single();
+  // Call the PostgreSQL function that handles upsert logic atomically
+  // This combines duplicate check + insert/update into a single round trip
+  const { data, error } = await supabase.rpc('upsert_search_history', {
+    p_user_id: user.id,
+    p_query: entry.query,
+    p_provider: entry.provider,
+    p_mode: entry.mode,
+    p_sources_count: entry.sources_count,
+    p_refined_query: entry.refined_query || null,
+  });
 
   if (error) {
     console.error('Error saving search to history:', error);
     throw error;
   }
 
-  return data;
+  // RPC returns an array, get the first (and only) result
+  return Array.isArray(data) ? data[0] : data;
 }
 
 export async function getSearchHistory(limit = 50, offset = 0): Promise<SearchHistoryEntry[]> {

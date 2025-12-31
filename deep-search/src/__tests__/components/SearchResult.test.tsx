@@ -349,6 +349,76 @@ describe('SearchResult', () => {
     });
   });
 
+  describe('Bookmark Button', () => {
+    it('renders Save button in tabs area', () => {
+      render(<SearchResult {...defaultProps} />);
+      expect(screen.getByText('Save')).toBeInTheDocument();
+    });
+
+    it('shows Save button as disabled when historyEntryId is null', () => {
+      render(<SearchResult {...defaultProps} historyEntryId={null} />);
+
+      const saveButton = screen.getByText('Save').closest('button');
+      expect(saveButton).toBeDisabled();
+      expect(saveButton).toHaveClass('opacity-50');
+      expect(saveButton).toHaveClass('cursor-not-allowed');
+    });
+
+    it('shows Save button as enabled when historyEntryId is set', () => {
+      render(<SearchResult {...defaultProps} historyEntryId="test-history-id" />);
+
+      const saveButton = screen.getByText('Save').closest('button');
+      expect(saveButton).not.toBeDisabled();
+      expect(saveButton).not.toHaveClass('opacity-50');
+    });
+
+    it('shows Saved when isBookmarked is true', () => {
+      render(<SearchResult {...defaultProps} historyEntryId="test-history-id" isBookmarked={true} />);
+
+      expect(screen.getByText('Saved')).toBeInTheDocument();
+      expect(screen.queryByText('Save')).not.toBeInTheDocument();
+    });
+
+    it('applies amber color when bookmarked', () => {
+      render(<SearchResult {...defaultProps} historyEntryId="test-history-id" isBookmarked={true} />);
+
+      const savedButton = screen.getByText('Saved').closest('button');
+      expect(savedButton).toHaveClass('text-amber-500');
+    });
+
+    it('calls onToggleBookmark when clicked', () => {
+      const mockToggleBookmark = jest.fn();
+      render(
+        <SearchResult
+          {...defaultProps}
+          historyEntryId="test-history-id"
+          onToggleBookmark={mockToggleBookmark}
+        />
+      );
+
+      const saveButton = screen.getByText('Save').closest('button');
+      fireEvent.click(saveButton!);
+
+      expect(mockToggleBookmark).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not call onToggleBookmark when disabled', () => {
+      const mockToggleBookmark = jest.fn();
+      render(
+        <SearchResult
+          {...defaultProps}
+          historyEntryId={null}
+          onToggleBookmark={mockToggleBookmark}
+        />
+      );
+
+      const saveButton = screen.getByText('Save').closest('button');
+      fireEvent.click(saveButton!);
+
+      expect(mockToggleBookmark).not.toHaveBeenCalled();
+    });
+  });
+
   describe('Citation Processing', () => {
     it('converts single citations to superscript', () => {
       const propsWithCitation = {

@@ -5,23 +5,35 @@
 // Mock the Supabase client before importing
 const mockUser = { id: 'test-user-id', email: 'test@example.com' };
 
-const mockSupabaseClient = {
-  auth: {
-    getUser: jest.fn().mockResolvedValue({ data: { user: mockUser } }),
-  },
-  from: jest.fn().mockReturnThis(),
-  select: jest.fn().mockReturnThis(),
-  insert: jest.fn().mockReturnThis(),
-  delete: jest.fn().mockReturnThis(),
-  update: jest.fn().mockReturnThis(),
-  eq: jest.fn().mockReturnThis(),
-  or: jest.fn().mockReturnThis(),
-  order: jest.fn().mockReturnThis(),
-  range: jest.fn().mockReturnThis(),
-  limit: jest.fn().mockReturnThis(),
-  single: jest.fn().mockReturnThis(),
-  rpc: jest.fn().mockResolvedValue({ data: true, error: null }),
+// Create mock with proper chaining - all methods return 'this' for chaining by default
+const mockSupabaseClient: Record<string, jest.Mock | unknown> = {};
+
+// Helper to reset mock chain (called in beforeEach)
+const resetMockChain = () => {
+  const chainableMethods = ['from', 'select', 'insert', 'delete', 'update', 'eq', 'or', 'order', 'range', 'limit', 'single'];
+  chainableMethods.forEach(method => {
+    if (!mockSupabaseClient[method]) {
+      mockSupabaseClient[method] = jest.fn();
+    }
+    (mockSupabaseClient[method] as jest.Mock).mockReset();
+    (mockSupabaseClient[method] as jest.Mock).mockReturnValue(mockSupabaseClient);
+  });
+
+  if (!mockSupabaseClient.auth) {
+    mockSupabaseClient.auth = { getUser: jest.fn() };
+  }
+  (mockSupabaseClient.auth as { getUser: jest.Mock }).getUser.mockReset();
+  (mockSupabaseClient.auth as { getUser: jest.Mock }).getUser.mockResolvedValue({ data: { user: mockUser } });
+
+  if (!mockSupabaseClient.rpc) {
+    mockSupabaseClient.rpc = jest.fn();
+  }
+  (mockSupabaseClient.rpc as jest.Mock).mockReset();
+  (mockSupabaseClient.rpc as jest.Mock).mockResolvedValue({ data: true, error: null });
 };
+
+// Initialize the mock
+resetMockChain();
 
 // Mock the createClient function
 jest.mock('@/lib/supabase/client', () => ({
@@ -35,19 +47,56 @@ import {
   deleteSearchFromHistory,
   clearSearchHistory,
   getSearchHistoryCount,
+  toggleBookmark,
+  getBookmarkedSearches,
+  getBookmarkedCount,
   getUserLimits,
   canPerformSearch,
 } from '@/lib/supabase/database';
 
 describe('Supabase Database Functions', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    // Reset mock implementations
-    mockSupabaseClient.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
+    // Reset all mocks and re-establish chain
+    resetMockChain();
   });
 
   describe('addSearchToHistory', () => {
-    it('should add a search entry to history', async () => {
+    it('should call upsert_search_history RPC with correct parameters', async () => {
+      const entry = {
+        query: 'test query',
+        provider: 'deepseek',
+        mode: 'web' as const,
+        sources_count: 10,
+        refined_query: 'refined test query',
+      };
+
+      const mockResult = {
+        id: 'new-id',
+        ...entry,
+        user_id: mockUser.id,
+        bookmarked: false,
+      };
+
+      // RPC returns an array
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: [mockResult],
+        error: null,
+      });
+
+      const result = await addSearchToHistory(entry);
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_search_history', {
+        p_user_id: mockUser.id,
+        p_query: entry.query,
+        p_provider: entry.provider,
+        p_mode: entry.mode,
+        p_sources_count: entry.sources_count,
+        p_refined_query: entry.refined_query,
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should handle null refined_query', async () => {
       const entry = {
         query: 'test query',
         provider: 'deepseek',
@@ -55,23 +104,25 @@ describe('Supabase Database Functions', () => {
         sources_count: 10,
       };
 
-      mockSupabaseClient.single.mockResolvedValueOnce({
-        data: { id: 'new-id', ...entry, user_id: mockUser.id },
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: [{ id: 'new-id', ...entry, user_id: mockUser.id }],
         error: null,
       });
 
-      const result = await addSearchToHistory(entry);
+      await addSearchToHistory(entry);
 
-      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
-      expect(mockSupabaseClient.insert).toHaveBeenCalledWith({
-        ...entry,
-        user_id: mockUser.id,
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_search_history', {
+        p_user_id: mockUser.id,
+        p_query: entry.query,
+        p_provider: entry.provider,
+        p_mode: entry.mode,
+        p_sources_count: entry.sources_count,
+        p_refined_query: null,
       });
-      expect(result).toEqual({ id: 'new-id', ...entry, user_id: mockUser.id });
     });
 
     it('should return null if no user is logged in', async () => {
-      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+      (mockSupabaseClient.auth as { getUser: jest.Mock }).getUser.mockResolvedValueOnce({ data: { user: null } });
 
       const result = await addSearchToHistory({
         query: 'test',
@@ -81,7 +132,23 @@ describe('Supabase Database Functions', () => {
       });
 
       expect(result).toBeNull();
-      expect(mockSupabaseClient.insert).not.toHaveBeenCalled();
+      expect(mockSupabaseClient.rpc).not.toHaveBeenCalled();
+    });
+
+    it('should throw error if RPC fails', async () => {
+      const entry = {
+        query: 'test query',
+        provider: 'deepseek',
+        mode: 'web' as const,
+        sources_count: 10,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'RPC error' },
+      });
+
+      await expect(addSearchToHistory(entry)).rejects.toEqual({ message: 'RPC error' });
     });
   });
 
@@ -189,6 +256,93 @@ describe('Supabase Database Functions', () => {
       });
 
       const result = await getSearchHistoryCount();
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('toggleBookmark', () => {
+    it('should toggle bookmark from false to true', async () => {
+      // Mock the first chain ending with .single() to return current bookmark status
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: { bookmarked: false },
+        error: null,
+      });
+      // The second chain (.update().eq()) just needs to not error - eq returns mock by default
+
+      const result = await toggleBookmark('test-id');
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith({ bookmarked: true });
+      expect(result).toBe(true);
+    });
+
+    it('should toggle bookmark from true to false', async () => {
+      // Mock the first chain ending with .single() to return current bookmark status
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: { bookmarked: true },
+        error: null,
+      });
+
+      const result = await toggleBookmark('test-id');
+
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith({ bookmarked: false });
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getBookmarkedSearches', () => {
+    it('should fetch bookmarked searches', async () => {
+      const mockBookmarked = [
+        { id: '1', query: 'query 1', provider: 'deepseek', mode: 'web', sources_count: 5, bookmarked: true },
+        { id: '2', query: 'query 2', provider: 'openai', mode: 'pro', sources_count: 10, bookmarked: true },
+      ];
+
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: mockBookmarked,
+        error: null,
+      });
+
+      const result = await getBookmarkedSearches();
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('bookmarked', true);
+      expect(mockSupabaseClient.order).toHaveBeenCalledWith('created_at', { ascending: false });
+      expect(result).toEqual(mockBookmarked);
+    });
+
+    it('should respect custom limit and offset', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({ data: [], error: null });
+
+      await getBookmarkedSearches(20, 10);
+
+      expect(mockSupabaseClient.range).toHaveBeenCalledWith(10, 29);
+    });
+  });
+
+  describe('getBookmarkedCount', () => {
+    it('should return the count of bookmarked entries', async () => {
+      // Chain ends with .eq(), so mock eq to return the count result
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        count: 15,
+        error: null,
+      });
+
+      const result = await getBookmarkedCount();
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('bookmarked', true);
+      expect(result).toBe(15);
+    });
+
+    it('should return 0 if count is null', async () => {
+      // Chain ends with .eq(), so mock eq to return the count result
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        count: null,
+        error: null,
+      });
+
+      const result = await getBookmarkedCount();
 
       expect(result).toBe(0);
     });

@@ -108,6 +108,9 @@ Main result display component with floating follow-up input.
   isStreaming?: boolean;
   isPolishing?: boolean;
   isTransitioning?: boolean;
+  historyEntryId?: string | null;  // ID of the search history entry (enables bookmark button)
+  isBookmarked?: boolean;           // Whether this search is bookmarked
+  onToggleBookmark?: () => void;    // Callback to toggle bookmark status
 }
 
 type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
@@ -134,6 +137,12 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 | Like | Coming soon | User feedback (not implemented) |
 | Dislike | Coming soon | User feedback (not implemented) |
 | Rewrite | Coming soon | Regenerate response (not implemented) |
+
+**Save/Bookmark Button (in Tabs area):**
+- Shows "Save" when not bookmarked, "Saved" when bookmarked
+- Disabled (grayed out) until `historyEntryId` is set (history entry created)
+- Amber color when bookmarked
+- Calls `onToggleBookmark` callback when clicked
 
 **Share Dropdown (in Tabs area):**
 
