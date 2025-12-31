@@ -34,7 +34,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   }
 
   return (
-    <MainLayout>
+    <MainLayout pageTitle={query}>
       <Suspense fallback={<div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-teal-500"></div></div>}>
         <SearchClient
           query={query}

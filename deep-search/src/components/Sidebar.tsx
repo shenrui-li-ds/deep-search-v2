@@ -33,7 +33,7 @@ const Sidebar = () => {
   const pathname = usePathname();
 
   return (
-    <div className="w-[72px] h-screen bg-[var(--background)] border-r border-[var(--border)] flex flex-col items-center py-4 fixed left-0 top-0 z-50">
+    <div className="hidden md:flex w-[72px] h-screen bg-[var(--background)] border-r border-[var(--border)] flex-col items-center py-4 fixed left-0 top-0 z-50">
       {/* Logo */}
       <Link href="/" className="mb-4">
         <div className="w-10 h-10 flex items-center justify-center">

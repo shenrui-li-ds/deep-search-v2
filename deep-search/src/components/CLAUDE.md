@@ -5,27 +5,84 @@ React components for the Athenius UI.
 ## Layout Components
 
 ### `MainLayout.tsx`
-Main application layout wrapper.
-- Renders fixed `Sidebar` and main content area
-- Main content has `ml-16` to account for sidebar width
+Main application layout wrapper with responsive behavior.
+
+**Props:**
+```typescript
+{
+  children: React.ReactNode;
+  pageTitle?: string;    // Title shown in mobile header
+  hideHeader?: boolean;  // Hide mobile header (for home page)
+}
+```
+
+**Behavior:**
+- Desktop: Renders fixed `Sidebar` with `ml-[72px]` margin for main content
+- Mobile: Renders `MobileHeader` + `MobileSidebar` (hamburger menu)
+- Mobile header adds `pt-14` padding for content
 
 ### `Sidebar.tsx`
-Fixed navigation sidebar.
+Fixed navigation sidebar (desktop only).
 - Position: `fixed left-0 top-0 z-50 h-screen`
+- Hidden on mobile: `hidden md:flex`
 - Contains: Logo, navigation links, theme toggle, account button
-- Width: `w-16` (64px)
+- Width: `w-[72px]`
+
+### `MobileHeader.tsx`
+Fixed top header for mobile devices.
+- Position: `fixed top-0 left-0 right-0 z-40`
+- Height: `h-14` (56px)
+- Contains: Hamburger menu, title/logo, new search button
+- Hidden on desktop: `md:hidden`
+
+### `MobileSidebar.tsx`
+Slide-out navigation drawer for mobile.
+- Opens from left side with animation
+- Contains: Logo, navigation (Home, Library, Account), theme toggle, sign out
+- Includes backdrop overlay
+- Closes on: backdrop click, close button, Escape key
+
+### `MobileBottomSheet.tsx`
+Reusable bottom sheet component for mobile.
+- Slides up from bottom with animation
+- Used for mode/model selection in SearchBox
+- Includes iOS safe area padding
+- Prevents body scroll when open
 
 ## Search Components
 
 ### `SearchBox.tsx`
-Main search input component on the landing page.
-- Model selector dropdown (DeepSeek, OpenAI, Grok, Claude, Gemini)
-- Search mode toggle (Web Search, Research, Brainstorm)
-- Handles query refinement before navigation
-- Passes provider and mode via URL params
+Main search input component with responsive design.
+
+**Desktop:**
+- Inline mode toggle buttons (Web Search, Research, Brainstorm)
+- Model selector dropdown
+- Attachment button
+
+**Mobile:**
+- Mode selector button that opens `MobileBottomSheet`
+- Mode/model selection in bottom sheet
+- Simplified toolbar
+
+**Props:**
+```typescript
+{
+  large?: boolean;      // Large variant for home page
+  initialValue?: string;
+  placeholder?: string;
+  autoFocus?: boolean;
+}
+```
 
 ### `SearchResult.tsx`
-Main result display component.
+Main result display component with responsive follow-up input.
+
+**Desktop:**
+- Inline follow-up input after action bar
+
+**Mobile:**
+- Floating follow-up input fixed at bottom
+- Content has spacer to prevent overlap
 
 **Props:**
 ```typescript
@@ -38,11 +95,11 @@ Main result display component.
   relatedSearches?: string[];
   provider?: string;  // LLM provider (deepseek, openai, grok, claude, gemini)
   mode?: string;      // Search mode (web, pro, brainstorm)
-  loadingStage?: LoadingStage;  // Current stage in pipeline
+  loadingStage?: LoadingStage;
   isLoading?: boolean;
-  isSearching?: boolean;   // True for: searching, planning, researching
-  isStreaming?: boolean;   // True for: summarizing, synthesizing
-  isPolishing?: boolean;   // True for: proofreading
+  isSearching?: boolean;
+  isStreaming?: boolean;
+  isPolishing?: boolean;
   isTransitioning?: boolean;
 }
 
@@ -57,7 +114,7 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - Markdown rendering with custom component styling
 - Source pills with tooltips
 - Related searches section (LLM-generated, clickable, preserves provider/mode)
-- Follow-up input (functional, navigates to new search with provider/mode preserved)
+- Follow-up input (desktop: inline, mobile: floating)
 - Copy/Share functionality
 - Print-to-PDF support via browser print dialog
 
@@ -100,15 +157,6 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - `proofreading`: "Polishing response..."
 - `complete`: No banner
 
-**Performance Optimizations:**
-- Landing page navigates immediately (no blocking API calls)
-- Web mode: Query refinement happens on search page
-- Research/Brainstorm modes: Skip refinement (plan/reframe handles it)
-- Limit checks run in parallel with first API call
-
-**Transition:**
-- `isTransitioning=true`: Fades content during proofreading transition
-
 ### `SearchLoading.tsx`
 Loading skeleton for search results.
 
@@ -134,6 +182,18 @@ Components use CSS variables for theming:
 - `--accent`
 - `--text-primary`, `--text-secondary`, `--text-muted`
 
+### Responsive Breakpoints
+Mobile-first design with `md:` (768px) breakpoint:
+- `md:hidden` - Hide on desktop
+- `hidden md:flex` - Show only on desktop
+- `md:ml-[72px]` - Desktop sidebar margin
+
+### Mobile Animations
+Defined in `globals.css`:
+- `animate-slide-up` - Bottom sheet entrance
+- `animate-slide-in-left` - Sidebar entrance
+- `animate-fade-in` - Backdrop fade
+
 ### Markdown Rendering
 `SearchResult.tsx` customizes ReactMarkdown components:
 - Headers: Increased spacing (`mt-6`, `mt-8`)
@@ -143,17 +203,31 @@ Components use CSS variables for theming:
 
 ## Component Hierarchy
 
+### Desktop
 ```
 MainLayout
-├── Sidebar (fixed)
-└── main content
+├── Sidebar (fixed left)
+└── main content (ml-[72px])
     └── SearchClient (in /search)
-        └── SearchResult (all stages after landing)
-            ├── Status Banner (searching/streaming/polishing)
-            ├── Tabs
-            │   ├── Answer (markdown + sources)
-            │   └── Links (source cards)
+        └── SearchResult
+            ├── Status Banner
+            ├── Tabs (Answer, Links)
             ├── Action Bar
-            ├── Follow-up Input
-            └── Related Searches (LLM-generated pills)
+            ├── Follow-up Input (inline)
+            └── Related Searches
+```
+
+### Mobile
+```
+MainLayout
+├── MobileHeader (fixed top)
+├── MobileSidebar (slide-out drawer)
+└── main content (pt-14)
+    └── SearchClient (in /search)
+        └── SearchResult
+            ├── Status Banner
+            ├── Tabs (Answer, Links)
+            ├── Action Bar
+            ├── Related Searches
+            └── Floating Follow-up (fixed bottom)
 ```

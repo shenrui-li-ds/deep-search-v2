@@ -428,8 +428,8 @@ ${sourcesText}
               </div>
             </div>
 
-            {/* Follow-up Input */}
-            <div className="mt-8 pt-6 border-t border-[var(--border)]">
+            {/* Follow-up Input - Desktop (inline) */}
+            <div className="hidden md:block mt-8 pt-6 border-t border-[var(--border)]">
               <div className="flex items-center gap-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-2xl">
                 <Input
                   type="text"
@@ -453,6 +453,9 @@ ${sourcesText}
                 </div>
               </div>
             </div>
+
+            {/* Spacer for mobile floating follow-up */}
+            <div className="md:hidden h-20" />
 
             {/* Related Searches */}
             {relatedSearches.length > 0 && (
@@ -516,6 +519,32 @@ ${sourcesText}
         </Tabs>
 
         {/* Source Hover Card - Deprecated in favor of Tooltip */}
+      </div>
+
+      {/* Mobile Floating Follow-up Input */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] border-t border-[var(--border)] p-3 print:hidden">
+        <div className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl max-w-4xl mx-auto">
+          <Input
+            type="text"
+            placeholder="Ask a follow-up..."
+            value={followUpQuery}
+            onChange={(e) => setFollowUpQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+          />
+          <Button
+            size="icon"
+            className="h-8 w-8 flex-shrink-0"
+            onClick={handleFollowUp}
+            disabled={!followUpQuery.trim()}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </Button>
+        </div>
+        {/* Safe area padding for iOS */}
+        <div className="h-[env(safe-area-inset-bottom)]" />
       </div>
     </TooltipProvider>
   );
