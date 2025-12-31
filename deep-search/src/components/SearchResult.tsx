@@ -23,6 +23,27 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import SearchLoading from './SearchLoading';
+import MobileBottomSheet from './MobileBottomSheet';
+
+type SearchMode = 'web' | 'pro' | 'brainstorm';
+
+const searchModes = [
+  { id: 'web' as SearchMode, label: 'Web Search', shortLabel: 'Web', icon: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  ) },
+  { id: 'pro' as SearchMode, label: 'Research', shortLabel: 'Research', icon: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    </svg>
+  ) },
+  { id: 'brainstorm' as SearchMode, label: 'Brainstorm', shortLabel: 'Ideas', icon: (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+    </svg>
+  ) },
+];
 
 interface Source {
   id: string;
@@ -62,9 +83,13 @@ interface SearchResultProps {
 const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
+  const [followUpMode, setFollowUpMode] = useState<SearchMode>(mode as SearchMode);
+  const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  const currentFollowUpMode = searchModes.find(m => m.id === followUpMode);
 
   // Copy just the answer content (for Copy button in action bar)
   const handleCopyContent = useCallback(async () => {
@@ -125,10 +150,10 @@ ${sourcesText}
     const params = new URLSearchParams({
       q: trimmedQuery,
       provider: provider,
-      mode: mode
+      mode: followUpMode
     });
     router.push(`/search?${params.toString()}`);
-  }, [followUpQuery, provider, mode, router]);
+  }, [followUpQuery, provider, followUpMode, router]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -428,35 +453,6 @@ ${sourcesText}
               </div>
             </div>
 
-            {/* Follow-up Input - Desktop (inline) */}
-            <div className="hidden md:block mt-8 pt-6 border-t border-[var(--border)]">
-              <div className="flex items-center gap-3 p-3 bg-[var(--background)] border border-[var(--border)] rounded-2xl">
-                <Input
-                  type="text"
-                  placeholder="Ask a follow-up"
-                  value={followUpQuery}
-                  onChange={(e) => setFollowUpQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
-                />
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={handleFollowUp}
-                    disabled={!followUpQuery.trim()}
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Spacer for mobile floating follow-up */}
-            <div className="md:hidden h-20" />
-
             {/* Related Searches */}
             {relatedSearches.length > 0 && (
               <div className="mt-8">
@@ -477,6 +473,9 @@ ${sourcesText}
                 </div>
               </div>
             )}
+
+            {/* Spacer for floating follow-up */}
+            <div className="h-24" />
           </TabsContent>
 
           <TabsContent value="links" className="mt-0">
@@ -514,6 +513,9 @@ ${sourcesText}
                 </Card>
               ))}
             </div>
+
+            {/* Spacer for floating follow-up */}
+            <div className="h-24" />
           </TabsContent>
 
         </Tabs>
@@ -521,9 +523,50 @@ ${sourcesText}
         {/* Source Hover Card - Deprecated in favor of Tooltip */}
       </div>
 
-      {/* Mobile Floating Follow-up Input */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] border-t border-[var(--border)] p-3 print:hidden">
-        <div className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl max-w-4xl mx-auto">
+      {/* Floating Follow-up Input (both mobile and desktop) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] border-t border-[var(--border)] p-3 print:hidden">
+        <div className="flex items-center gap-2 p-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl max-w-4xl mx-auto md:ml-[72px] md:mr-auto md:max-w-3xl">
+          {/* Mode selector - Mobile: button opens bottom sheet */}
+          <button
+            onClick={() => setIsModeSheetOpen(true)}
+            className="md:hidden flex items-center gap-1 px-2 py-1 bg-[var(--background)] rounded-lg text-[var(--text-muted)] flex-shrink-0"
+          >
+            {currentFollowUpMode?.icon}
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Mode selector - Desktop: dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-[var(--background)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors flex-shrink-0">
+                {currentFollowUpMode?.icon}
+                <span className="text-xs font-medium">{currentFollowUpMode?.shortLabel}</span>
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-40">
+              {searchModes.map((m) => (
+                <DropdownMenuItem
+                  key={m.id}
+                  onClick={() => setFollowUpMode(m.id)}
+                  className={`flex items-center gap-2 ${followUpMode === m.id ? 'bg-[var(--card)]' : ''}`}
+                >
+                  {m.icon}
+                  <span>{m.label}</span>
+                  {followUpMode === m.id && (
+                    <svg className="w-4 h-4 ml-auto text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Input
             type="text"
             placeholder="Ask a follow-up..."
@@ -544,8 +587,48 @@ ${sourcesText}
           </Button>
         </div>
         {/* Safe area padding for iOS */}
-        <div className="h-[env(safe-area-inset-bottom)]" />
+        <div className="h-[env(safe-area-inset-bottom)] md:hidden" />
       </div>
+
+      {/* Mobile Bottom Sheet for Follow-up Mode Selection */}
+      <MobileBottomSheet
+        isOpen={isModeSheetOpen}
+        onClose={() => setIsModeSheetOpen(false)}
+        title="Search Mode"
+      >
+        <div className="space-y-2">
+          {searchModes.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => {
+                setFollowUpMode(m.id);
+                setIsModeSheetOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${
+                followUpMode === m.id
+                  ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
+                  : 'bg-[var(--card)] border-2 border-transparent'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                followUpMode === m.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
+              }`}>
+                {m.icon}
+              </div>
+              <div className="flex-1 text-left">
+                <div className={`font-medium ${followUpMode === m.id ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
+                  {m.label}
+                </div>
+              </div>
+              {followUpMode === m.id && (
+                <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </MobileBottomSheet>
     </TooltipProvider>
   );
 };
