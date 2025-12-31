@@ -9,6 +9,8 @@ Copy the HTML content from each file into Supabase Dashboard:
 
 ## Templates
 
+### Action Templates (require user action)
+
 | Template | File | Subject Line |
 |----------|------|--------------|
 | Confirm signup | `confirm-signup.html` | Welcome to Athenius! Please confirm your email |
@@ -18,6 +20,15 @@ Copy the HTML content from each file into Supabase Dashboard:
 | Reset Password | `reset-password.html` | Let's get you back into Athenius |
 | Reauthentication | `reauthentication.html` | Quick security check for Athenius |
 
+### Notification Templates (security alerts)
+
+| Template | File | Subject Line |
+|----------|------|--------------|
+| Password Changed | `password-changed.html` | Your Athenius password has been changed |
+| Email Changed | `email-changed.html` | Your Athenius email address has been changed |
+| MFA Enrolled | `mfa-enrolled.html` | New security method added to your Athenius account |
+| MFA Unenrolled | `mfa-unenrolled.html` | Security method removed from your Athenius account |
+
 ## Available Variables
 
 These variables are replaced by Supabase when sending emails:
@@ -26,9 +37,11 @@ These variables are replaced by Supabase when sending emails:
 |----------|-------------|
 | `{{ .ConfirmationURL }}` | The action link (confirm, reset, etc.) |
 | `{{ .Email }}` | User's email address |
+| `{{ .OldEmail }}` | User's previous email (for email change notifications) |
 | `{{ .Token }}` | Raw confirmation token |
 | `{{ .TokenHash }}` | Hashed token |
 | `{{ .SiteURL }}` | Your configured site URL |
+| `{{ .FactorType }}` | MFA factor type (e.g., "totp", "phone") |
 
 ## Brand Colors
 
@@ -38,6 +51,15 @@ These variables are replaced by Supabase when sending emails:
 - Text muted: `#6b7280`
 - Background card: `#f9fafb`
 - Border: `#e5e7eb`
+
+### Alert Colors (for notification templates)
+
+- Warning background: `#fef3c7` (amber-100)
+- Warning text: `#92400e` (amber-800)
+- Success background: `#d1fae5` (green-100)
+- Success text: `#065f46` (green-800)
+- Danger background: `#fee2e2` (red-100)
+- Danger text: `#991b1b` (red-800)
 
 ## Customization
 

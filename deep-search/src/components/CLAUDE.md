@@ -47,8 +47,12 @@ Slide-out navigation drawer for mobile.
 
 ### `MobileBottomSheet.tsx`
 Reusable bottom sheet component for mobile.
-- Slides up from bottom with animation
-- Used for mode/model selection in SearchBox
+- Slides up from bottom with animation (0.15s)
+- Slides down on close with animation (0.15s)
+- Used for mode/model selection in SearchBox, history item options in Library
+- **Swipe-to-close**: Swipe down to dismiss (80px threshold)
+- **X close button**: Displayed next to title
+- Closes on: backdrop click, X button, Escape key, swipe down
 - Includes iOS safe area padding
 - Prevents body scroll when open
 
@@ -193,8 +197,9 @@ Mobile-first design with `md:` (768px) breakpoint:
 - `md:ml-[72px]` - Desktop sidebar margin
 
 ### Mobile Animations
-Defined in `globals.css`:
+Defined in `globals.css` (all 0.15s duration):
 - `animate-slide-up` - Bottom sheet entrance
+- `animate-slide-down` - Bottom sheet exit
 - `animate-slide-in-left` - Sidebar entrance
 - `animate-slide-out-left` - Sidebar exit
 - `animate-fade-in` - Backdrop fade in
