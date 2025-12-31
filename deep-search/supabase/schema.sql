@@ -27,15 +27,15 @@ ALTER TABLE search_history ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own search history"
   ON search_history FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can insert their own search history"
   ON search_history FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can delete their own search history"
   ON search_history FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================
 -- API USAGE TRACKING TABLE
@@ -58,11 +58,11 @@ ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own API usage"
   ON api_usage FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can insert their own API usage"
   ON api_usage FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- ============================================
 -- USER LIMITS TABLE (for guard rails)
@@ -91,11 +91,11 @@ ALTER TABLE user_limits ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their own limits"
   ON user_limits FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 CREATE POLICY "Users can update their own usage counts"
   ON user_limits FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- ============================================
 -- FUNCTIONS
@@ -324,4 +324,21 @@ GRANT EXECUTE ON FUNCTION public.cleanup_old_history() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_token_usage(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_token_limits(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
+
+-- ============================================
+-- SCHEDULED JOBS (requires pg_cron extension)
+-- ============================================
+-- Uncomment and run after enabling pg_cron in Supabase Dashboard:
+--
+-- Daily reset at midnight UTC:
+-- SELECT cron.schedule('reset-daily-limits', '0 0 * * *', $$SELECT public.reset_daily_limits()$$);
+--
+-- Monthly reset on 1st of each month at midnight UTC:
+-- SELECT cron.schedule('reset-monthly-limits', '0 0 1 * *', $$SELECT public.reset_monthly_limits()$$);
+--
+-- Cache cleanup at 3am UTC daily:
+-- SELECT cron.schedule('cleanup-cache', '0 3 * * *', $$SELECT public.cleanup_expired_cache()$$);
+--
+-- History cleanup weekly on Sunday at 4am UTC:
+-- SELECT cron.schedule('cleanup-history', '0 4 * * 0', $$SELECT public.cleanup_old_history()$$);
 
