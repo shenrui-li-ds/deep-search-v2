@@ -123,7 +123,7 @@ const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
   if (!shouldRender) return null;
 
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-[9999] md:hidden">
       {/* Backdrop */}
       <div
         className={`absolute inset-0 bg-black/50 ${isClosing ? 'animate-fade-out' : 'animate-fade-in'}`}
@@ -161,12 +161,14 @@ const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
         )}
 
         {/* Content */}
-        <div className="px-4 py-4 max-h-[70vh] overflow-y-auto">
+        <div className="px-4 pt-4 pb-2 max-h-[70vh] overflow-y-auto">
           {children}
         </div>
 
-        {/* Safe area padding for iOS */}
-        <div className="h-[env(safe-area-inset-bottom)]" />
+        {/* Bottom safe area padding - extends to physical bottom of screen */}
+        <div className="pb-[env(safe-area-inset-bottom,0px)] bg-[var(--background)]">
+          <div className="h-4" />
+        </div>
       </div>
     </div>
   );
