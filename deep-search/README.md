@@ -2,6 +2,11 @@
 
 An AI-powered search application that provides a Perplexity-like search experience with multi-provider LLM support, comprehensive research capabilities, and creative brainstorming features.
 
+![Next.js](https://img.shields.io/badge/Next.js-15.5-black)
+![React](https://img.shields.io/badge/React-19-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8)
+
 ## Features
 
 - **Multi-Provider LLM Support**: DeepSeek, OpenAI, Grok, Claude, Gemini
@@ -14,6 +19,18 @@ An AI-powered search application that provides a Perplexity-like search experien
 - **User Authentication**: Supabase Auth with email/password and GitHub OAuth
 - **Usage Limits**: Daily/monthly search and token limits per user
 - **Copy & Share**: Copy answers, share formatted text, export to PDF
+- **Dark/Light Theme**: System-aware theme support
+- **LaTeX Math Rendering**: KaTeX for mathematical expressions
+
+## Tech Stack
+
+- **Framework**: Next.js 15.5 with App Router and Turbopack
+- **UI**: React 19, Tailwind CSS 4, shadcn/ui
+- **Markdown**: react-markdown with remark-gfm, remark-math, rehype-katex
+- **Auth & DB**: Supabase (PostgreSQL + Auth)
+- **Search**: Tavily API
+- **Email**: Resend (SMTP)
+- **LLMs**: Multi-provider support with streaming
 
 ## Getting Started
 
@@ -33,7 +50,7 @@ npm install
 
 ### Environment Variables
 
-Create `deep-search/.env.local`:
+Create `.env.local`:
 
 ```env
 # Required
@@ -50,6 +67,15 @@ GEMINI_API_KEY=your_gemini_key
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
+
+Get API keys from:
+- [Tavily](https://tavily.com/) - Web search API
+- [DeepSeek](https://platform.deepseek.com/) - DeepSeek API (recommended, cost-effective)
+- [OpenAI](https://platform.openai.com/) - OpenAI API
+- [x.ai](https://console.x.ai/) - Grok API
+- [Anthropic](https://console.anthropic.com/) - Claude API
+- [Google AI](https://aistudio.google.com/) - Gemini API
+- [Supabase](https://supabase.com/) - Auth & Database
 
 ### Database Setup
 
@@ -73,14 +99,41 @@ npm run build
 npm run start
 ```
 
-## Tech Stack
+## Project Structure
 
-- **Framework**: Next.js 15.5 with App Router and Turbopack
-- **UI**: React 19, Tailwind CSS 4, shadcn/ui
-- **Markdown**: react-markdown with remark-gfm, remark-math, rehype-katex
-- **Auth & DB**: Supabase (PostgreSQL + Auth)
-- **Search**: Tavily API
-- **LLMs**: Multi-provider support with streaming
+```
+deep-search/
+├── src/
+│   ├── app/
+│   │   ├── api/                    # API routes
+│   │   │   ├── search/             # Tavily search
+│   │   │   ├── refine/             # Query refinement
+│   │   │   ├── summarize/          # LLM summarization
+│   │   │   ├── proofread/          # Content proofreading
+│   │   │   ├── related-searches/   # Related query generation
+│   │   │   ├── research/           # Research mode (plan, synthesize)
+│   │   │   └── brainstorm/         # Brainstorm mode (reframe, synthesize)
+│   │   ├── auth/                   # Auth pages (login, signup)
+│   │   ├── search/                 # Search results page
+│   │   ├── library/                # Search history page
+│   │   └── page.tsx                # Home page
+│   ├── components/                 # React components
+│   │   ├── ui/                     # shadcn/ui components
+│   │   ├── SearchBox.tsx           # Main search input
+│   │   ├── SearchResult.tsx        # Results display
+│   │   ├── Sidebar.tsx             # Navigation sidebar
+│   │   └── MainLayout.tsx          # Layout wrapper
+│   └── lib/
+│       ├── api-utils.ts            # LLM provider utilities
+│       ├── prompts.ts              # LLM prompts
+│       ├── types.ts                # TypeScript types
+│       └── supabase/               # Supabase integration
+├── public/                         # Static assets
+├── supabase/
+│   ├── schema.sql                  # Database schema
+│   └── email-templates/            # Custom email templates
+└── __tests__/                      # Unit tests
+```
 
 ## Architecture
 
@@ -118,6 +171,30 @@ Cached endpoints: `/api/search`, `/api/refine`, `/api/related-searches`, `/api/r
 | Monthly searches | 1,000 | 1st of month |
 | Monthly tokens | 500,000 | 1st of month |
 
+## Development Guide
+
+### Adding a New LLM Provider
+
+1. Add API URL constant in `src/lib/api-utils.ts`
+2. Create `call{Provider}` function
+3. Add stream parser if format differs from OpenAI
+4. Update `LLMProvider` type
+5. Update `callLLMForProvider` switch
+6. Update `isProviderAvailable` and `getLLMProvider`
+7. Update `SearchBox.tsx` model selector
+
+### Modifying Prompts
+
+Edit `src/lib/prompts.ts`. Prompts use XML-structured format for clarity.
+
+### Running Tests
+
+```bash
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm run test:coverage       # With coverage report
+```
+
 ## Deployment
 
 ### Vercel
@@ -148,6 +225,37 @@ Cached endpoints: `/api/search`, `/api/refine`, `/api/related-searches`, `/api/r
    https://<your-project>.supabase.co/auth/v1/callback
    ```
 3. Copy Client ID and Client Secret to Supabase → Authentication → Providers → GitHub
+
+### Email with Resend
+
+Supabase's default email has strict rate limits. Use [Resend](https://resend.com) for reliable email delivery:
+
+1. **Create Resend Account**
+   - Sign up at [resend.com](https://resend.com)
+   - Verify your domain (or use the free `onboarding@resend.dev` for testing)
+
+2. **Get API Key**
+   - Go to Resend Dashboard → API Keys
+   - Create a new API key with "Sending access"
+
+3. **Configure Supabase SMTP**
+   - Go to Supabase → Project Settings → Authentication → SMTP Settings
+   - Enable "Custom SMTP"
+   - Enter the following:
+     ```
+     Host: smtp.resend.com
+     Port: 465
+     Username: resend
+     Password: <your-resend-api-key>
+     Sender email: noreply@yourdomain.com
+     Sender name: Athenius
+     ```
+
+4. **Apply Custom Email Templates**
+   - Copy HTML from `supabase/email-templates/*.html` into Supabase → Authentication → Email Templates
+   - See `supabase/email-templates/README.md` for subject lines and details
+
+**Note:** Free Resend tier includes 3,000 emails/month. For production, verify your domain for better deliverability.
 
 ## License
 

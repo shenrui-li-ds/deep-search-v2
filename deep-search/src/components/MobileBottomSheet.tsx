@@ -133,7 +133,7 @@ const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
       {/* Sheet */}
       <div
         ref={sheetRef}
-        className={`absolute bottom-0 left-0 right-0 bg-[var(--background)] rounded-t-2xl shadow-xl ${
+        className={`absolute bottom-0 left-0 right-0 bg-[var(--background)] rounded-t-2xl ${
           isClosing ? 'animate-slide-down' : 'animate-slide-up'
         }`}
         onTouchStart={handleTouchStart}

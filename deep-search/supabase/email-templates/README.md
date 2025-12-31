@@ -4,6 +4,23 @@ Custom email templates for Athenius authentication flows.
 
 ## Setup
 
+### 1. Configure Resend (Recommended)
+
+Supabase's default email has strict rate limits. Use [Resend](https://resend.com) for reliable delivery:
+
+1. Create account at [resend.com](https://resend.com)
+2. Get API key from Resend Dashboard → API Keys
+3. In Supabase → Project Settings → Authentication → SMTP Settings:
+   - Enable "Custom SMTP"
+   - Host: `smtp.resend.com`
+   - Port: `465`
+   - Username: `resend`
+   - Password: `<your-resend-api-key>`
+   - Sender email: `noreply@yourdomain.com`
+   - Sender name: `Athenius`
+
+### 2. Apply Email Templates
+
 Copy the HTML content from each file into Supabase Dashboard:
 **Authentication → Email Templates → [Template Name]**
 
