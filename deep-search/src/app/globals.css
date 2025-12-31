@@ -260,11 +260,24 @@ html.dark .source-hover-card {
 }
 
 .animate-slide-up {
-  animation: slide-up 0.3s ease-out;
+  animation: slide-up 0.15s ease-out;
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.15s ease-in forwards;
 }
 
 .animate-slide-in-left {
-  animation: slide-in-left 0.3s ease-out;
+  animation: slide-in-left 0.15s ease-out;
 }
 
 .animate-fade-in {
@@ -290,7 +303,7 @@ html.dark .source-hover-card {
 }
 
 .animate-slide-out-left {
-  animation: slide-out-left 0.2s ease-in forwards;
+  animation: slide-out-left 0.15s ease-in forwards;
 }
 
 .animate-fade-out {

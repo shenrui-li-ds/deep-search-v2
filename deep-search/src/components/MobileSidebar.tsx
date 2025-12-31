@@ -70,7 +70,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
         setShouldRender(false);
         setIsClosing(false);
         onClose();
-      }, 200); // Match animation duration
+      }, 150); // Match animation duration
     }
   }, [onClose]);
 
