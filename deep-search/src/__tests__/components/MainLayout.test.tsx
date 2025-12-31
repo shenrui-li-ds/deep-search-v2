@@ -97,7 +97,7 @@ describe('MainLayout', () => {
       expect(wrapper).toHaveClass('min-h-screen');
     });
 
-    it('main content area has left margin for sidebar', () => {
+    it('main content area has left margin for sidebar on desktop', () => {
       const { container } = renderWithThemeProvider(
         <MainLayout>
           <div>Content</div>
@@ -105,7 +105,8 @@ describe('MainLayout', () => {
       );
 
       const main = container.querySelector('main');
-      expect(main).toHaveClass('ml-[72px]');
+      // Uses responsive class - margin only on md: breakpoint
+      expect(main).toHaveClass('md:ml-[72px]');
     });
 
     it('main content area has full screen height', () => {

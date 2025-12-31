@@ -37,10 +37,13 @@ Fixed top header for mobile devices.
 
 ### `MobileSidebar.tsx`
 Slide-out navigation drawer for mobile.
-- Opens from left side with animation
+- Width: `w-56` (224px) - compact width
+- Opens from left with slide-in animation
+- Closes with slide-out animation (backdrop fades)
 - Contains: Logo, navigation (Home, Library, Account), theme toggle, sign out
 - Includes backdrop overlay
-- Closes on: backdrop click, close button, Escape key
+- **Swipe-to-close**: Swipe left to dismiss (80px threshold)
+- Closes on: backdrop click, close button, Escape key, swipe left
 
 ### `MobileBottomSheet.tsx`
 Reusable bottom sheet component for mobile.
@@ -57,12 +60,13 @@ Main search input component with responsive design.
 **Desktop:**
 - Inline mode toggle buttons (Web Search, Research, Brainstorm)
 - Model selector dropdown
-- Attachment button
+- Attachment button (disabled, coming soon)
 
 **Mobile:**
-- Mode selector button that opens `MobileBottomSheet`
-- Mode/model selection in bottom sheet
-- Simplified toolbar
+- Separate mode and model selector buttons (each opens own `MobileBottomSheet`)
+- Mode selector: Shows current mode icon + short label
+- Model selector: Shows AI icon + provider name
+- Attachment button (disabled, coming soon)
 
 **Props:**
 ```typescript
@@ -75,14 +79,13 @@ Main search input component with responsive design.
 ```
 
 ### `SearchResult.tsx`
-Main result display component with responsive follow-up input.
+Main result display component with floating follow-up input.
 
-**Desktop:**
-- Inline follow-up input after action bar
-
-**Mobile:**
-- Floating follow-up input fixed at bottom
-- Content has spacer to prevent overlap
+**Follow-up Input (both desktop and mobile):**
+- Fixed at bottom of viewport
+- Includes mode selector (dropdown on desktop, bottom sheet on mobile)
+- Desktop: Offset by sidebar width (`md:ml-[72px]`)
+- Content has `h-24` spacer at bottom to prevent overlap
 
 **Props:**
 ```typescript
@@ -114,7 +117,7 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - Markdown rendering with custom component styling
 - Source pills with tooltips
 - Related searches section (LLM-generated, clickable, preserves provider/mode)
-- Follow-up input (desktop: inline, mobile: floating)
+- Floating follow-up input with mode selector (both desktop and mobile)
 - Copy/Share functionality
 - Print-to-PDF support via browser print dialog
 
@@ -192,7 +195,9 @@ Mobile-first design with `md:` (768px) breakpoint:
 Defined in `globals.css`:
 - `animate-slide-up` - Bottom sheet entrance
 - `animate-slide-in-left` - Sidebar entrance
-- `animate-fade-in` - Backdrop fade
+- `animate-slide-out-left` - Sidebar exit
+- `animate-fade-in` - Backdrop fade in
+- `animate-fade-out` - Backdrop fade out
 
 ### Markdown Rendering
 `SearchResult.tsx` customizes ReactMarkdown components:
@@ -213,15 +218,15 @@ MainLayout
             ├── Status Banner
             ├── Tabs (Answer, Links)
             ├── Action Bar
-            ├── Follow-up Input (inline)
-            └── Related Searches
+            ├── Related Searches
+            └── Floating Follow-up (fixed bottom, ml-[72px])
 ```
 
 ### Mobile
 ```
 MainLayout
 ├── MobileHeader (fixed top)
-├── MobileSidebar (slide-out drawer)
+├── MobileSidebar (slide-out drawer, swipe-to-close)
 └── main content (pt-14)
     └── SearchClient (in /search)
         └── SearchResult

@@ -74,10 +74,6 @@ describe('SearchBox', () => {
 
     it('submits search on Enter key press', async () => {
       const user = userEvent.setup();
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ refinedQuery: 'refined test' }),
-      });
 
       render(<SearchBox />);
 
@@ -86,13 +82,15 @@ describe('SearchBox', () => {
       await user.keyboard('{Enter}');
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/refine', expect.any(Object));
+        // SearchBox navigates directly to search page (refine happens there)
+        expect(mockPush).toHaveBeenCalledWith(
+          expect.stringContaining('/search?q=test+query')
+        );
       });
     });
 
-    it('handles search failure gracefully', async () => {
+    it('navigates to search page with query parameters', async () => {
       const user = userEvent.setup();
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
 
       render(<SearchBox />);
 
@@ -105,17 +103,18 @@ describe('SearchBox', () => {
         expect(mockPush).toHaveBeenCalledWith(
           expect.stringContaining('/search?q=test+query')
         );
+        // Should also include provider and mode
+        expect(mockPush).toHaveBeenCalledWith(
+          expect.stringContaining('provider=deepseek')
+        );
+        expect(mockPush).toHaveBeenCalledWith(
+          expect.stringContaining('mode=web')
+        );
       });
     });
 
     it('shows loading state during search', async () => {
       const user = userEvent.setup();
-      let resolvePromise: (value: Response) => void;
-      const pendingPromise = new Promise((resolve) => {
-        resolvePromise = resolve;
-      });
-
-      (global.fetch as jest.Mock).mockReturnValueOnce(pendingPromise);
 
       render(<SearchBox />);
 
@@ -123,24 +122,14 @@ describe('SearchBox', () => {
       await user.type(input, 'test query');
       await user.keyboard('{Enter}');
 
-      // Check that input is disabled during loading
+      // Check that input is disabled during loading (briefly before navigation)
       await waitFor(() => {
         expect(input).toBeDisabled();
-      });
-
-      // Resolve the promise
-      resolvePromise!({
-        ok: true,
-        json: () => Promise.resolve({ refinedQuery: 'test' }),
       });
     });
 
     it('trims whitespace from query', async () => {
       const user = userEvent.setup();
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ refinedQuery: 'trimmed query' }),
-      });
 
       render(<SearchBox />);
 
@@ -149,11 +138,13 @@ describe('SearchBox', () => {
       await user.keyboard('{Enter}');
 
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith(
-          '/api/refine',
-          expect.objectContaining({
-            body: JSON.stringify({ query: 'test query', provider: 'deepseek' }),
-          })
+        // Query should be trimmed in the URL
+        expect(mockPush).toHaveBeenCalledWith(
+          expect.stringContaining('q=test+query')
+        );
+        // Should not have leading/trailing spaces encoded
+        expect(mockPush).not.toHaveBeenCalledWith(
+          expect.stringContaining('q=++test')
         );
       });
     });

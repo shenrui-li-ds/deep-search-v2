@@ -181,31 +181,29 @@ ${sourcesText}
   return (
     <TooltipProvider>
       <div className="max-w-4xl mx-auto px-6 py-8">
-        {/* Status Banner - always rendered to prevent layout shift, visibility controlled by opacity */}
-        <div
-          className={`mb-4 p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-lg flex items-center gap-3 transition-opacity duration-200 ${
-            (isSearching || isStreaming || isPolishing) ? 'opacity-100' : 'opacity-0 pointer-events-none h-0 p-0 mb-0 overflow-hidden'
-          }`}
-        >
-          <svg className="animate-spin w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          <span className="text-sm font-medium text-[var(--accent)]">
-            {loadingStage === 'refining' ? 'Refining query...' :
-             loadingStage === 'searching' ? 'Searching the web...' :
-             loadingStage === 'planning' ? 'Planning research approach...' :
-             loadingStage === 'researching' ? 'Searching multiple sources...' :
-             loadingStage === 'synthesizing' ? 'Synthesizing findings...' :
-             loadingStage === 'reframing' ? 'Finding creative angles...' :
-             loadingStage === 'exploring' ? 'Exploring cross-domain inspiration...' :
-             loadingStage === 'ideating' ? 'Generating ideas...' :
-             loadingStage === 'proofreading' ? 'Polishing response...' :
-             loadingStage === 'summarizing' ? 'Generating response...' :
-             isSearching ? 'Searching the web...' :
-             isPolishing ? 'Polishing response...' : 'Generating response...'}
-          </span>
-        </div>
+        {/* Status Banner - only rendered during loading */}
+        {(isSearching || isStreaming || isPolishing) && (
+          <div className="mb-4 p-3 bg-[var(--accent)]/10 border border-[var(--accent)]/20 rounded-lg flex items-center gap-3">
+            <svg className="animate-spin w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span className="text-sm font-medium text-[var(--accent)]">
+              {loadingStage === 'refining' ? 'Refining query...' :
+               loadingStage === 'searching' ? 'Searching the web...' :
+               loadingStage === 'planning' ? 'Planning research approach...' :
+               loadingStage === 'researching' ? 'Searching multiple sources...' :
+               loadingStage === 'synthesizing' ? 'Synthesizing findings...' :
+               loadingStage === 'reframing' ? 'Finding creative angles...' :
+               loadingStage === 'exploring' ? 'Exploring cross-domain inspiration...' :
+               loadingStage === 'ideating' ? 'Generating ideas...' :
+               loadingStage === 'proofreading' ? 'Polishing response...' :
+               loadingStage === 'summarizing' ? 'Generating response...' :
+               isSearching ? 'Searching the web...' :
+               isPolishing ? 'Polishing response...' : 'Generating response...'}
+            </span>
+          </div>
+        )}
 
         {/* Tabs */}
         <Tabs defaultValue="answer" className="w-full">
@@ -569,7 +567,7 @@ ${sourcesText}
 
           <Input
             type="text"
-            placeholder="Ask a follow-up..."
+            placeholder="Ask a follow-up"
             value={followUpQuery}
             onChange={(e) => setFollowUpQuery(e.target.value)}
             onKeyDown={handleKeyDown}
