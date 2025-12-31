@@ -11,7 +11,7 @@ const buttonVariants = cva(
         default:
           "bg-[var(--accent)] text-white hover:opacity-90",
         destructive:
-          "bg-red-500 text-white hover:bg-red-600",
+          "bg-rose-500 text-white hover:bg-red-600",
         outline:
           "border border-[var(--border)] bg-[var(--background)] hover:bg-[var(--card)] text-[var(--text-primary)]",
         secondary:

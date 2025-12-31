@@ -12,7 +12,7 @@ const badgeVariants = cva(
         secondary:
           "border-transparent bg-[var(--card)] text-[var(--text-secondary)]",
         destructive:
-          "border-transparent bg-red-500 text-white",
+          "border-transparent bg-rose-500 text-white",
         outline:
           "border-[var(--border)] text-[var(--text-secondary)]",
       },

@@ -78,7 +78,7 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
     <>
       <button
         onClick={handleMenuDelete}
-        className="w-full flex items-center gap-3 py-2 px-3 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+        className="w-full flex items-center gap-3 py-2 px-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-lg transition-colors"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -156,7 +156,7 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
                   onClick={handleMenuDelete}
-                  className="text-red-500 focus:text-red-500 focus:bg-red-500/10 cursor-pointer"
+                  className="text-rose-500 focus:text-rose-500 focus:bg-rose-500/10 cursor-pointer"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -384,7 +384,7 @@ export default function LibraryPage() {
           {totalCount > 0 && (
             <button
               onClick={handleClearAll}
-              className="text-sm text-[var(--text-muted)] hover:text-red-500 transition-colors"
+              className="text-sm text-[var(--text-muted)] hover:text-rose-500 transition-colors"
             >
               Clear all
             </button>
@@ -414,7 +414,7 @@ export default function LibraryPage() {
 
         {/* Error message */}
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500">
+          <div className="mb-6 p-4 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500">
             {error}
           </div>
         )}

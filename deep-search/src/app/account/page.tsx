@@ -80,7 +80,7 @@ export default function AccountPage() {
         {/* Sign Out Button */}
         <button
           onClick={handleSignOut}
-          className="w-full py-3 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg font-medium hover:bg-red-500/20 transition-colors"
+          className="w-full py-3 px-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg font-medium hover:bg-rose-500/20 transition-colors"
         >
           Sign out
         </button>
