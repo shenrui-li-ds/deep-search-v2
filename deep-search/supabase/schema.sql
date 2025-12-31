@@ -15,12 +15,15 @@ CREATE TABLE IF NOT EXISTS search_history (
   provider TEXT NOT NULL,
   mode TEXT NOT NULL CHECK (mode IN ('web', 'pro', 'brainstorm')),
   sources_count INTEGER DEFAULT 0,
+  bookmarked BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Index for fast queries by user
 CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON search_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_search_history_created_at ON search_history(created_at DESC);
+-- Index for fast queries on bookmarked searches
+CREATE INDEX IF NOT EXISTS idx_search_history_bookmarked ON search_history(user_id, bookmarked) WHERE bookmarked = true;
 
 -- Row Level Security (RLS) - Users can only see their own history
 ALTER TABLE search_history ENABLE ROW LEVEL SECURITY;
@@ -36,6 +39,11 @@ CREATE POLICY "Users can insert their own search history"
 CREATE POLICY "Users can delete their own search history"
   ON search_history FOR DELETE
   USING ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can update their own search history"
+  ON search_history FOR UPDATE
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- ============================================
 -- API USAGE TRACKING TABLE

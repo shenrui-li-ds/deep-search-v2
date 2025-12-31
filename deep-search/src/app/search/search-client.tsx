@@ -7,7 +7,7 @@ import SearchResultComponent from '@/components/SearchResult';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
-import { addSearchToHistory, canPerformSearch } from '@/lib/supabase/database';
+import { addSearchToHistory, canPerformSearch, toggleBookmark } from '@/lib/supabase/database';
 
 interface SearchClientProps {
   query: string;
@@ -27,6 +27,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [relatedSearches, setRelatedSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const router = useRouter();
 
   // Ref to track content for batched updates
@@ -96,12 +98,17 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       });
       setLoadingStage('complete');
 
-      // Save to search history
+      // Save to search history and capture the entry ID
       addSearchToHistory({
         query,
         provider: searchProvider,
         mode: searchMode,
         sources_count: fetchedSources.length
+      }).then(entry => {
+        if (entry?.id) {
+          setHistoryEntryId(entry.id);
+          setIsBookmarked(entry.bookmarked || false);
+        }
       }).catch(err => console.error('Failed to save to history:', err));
 
       // Small delay before starting fade in
@@ -129,6 +136,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setImages([]);
       setRelatedSearches([]);
       setIsTransitioning(false);
+      setHistoryEntryId(null);
+      setIsBookmarked(false);
 
       try {
         // Step 1: Create research plan and check limits in parallel
@@ -349,6 +358,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setImages([]);
       setRelatedSearches([]);
       setIsTransitioning(false);
+      setHistoryEntryId(null);
+      setIsBookmarked(false);
 
       try {
         // Step 1: Generate creative angles and check limits in parallel
@@ -568,6 +579,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setImages([]);
       setRelatedSearches([]);
       setIsTransitioning(false);
+      setHistoryEntryId(null);
+      setIsBookmarked(false);
 
       try {
         // Step 1: Refine query and check limits in parallel
@@ -701,12 +714,17 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         });
         setLoadingStage('complete');
 
-        // Save to search history
+        // Save to search history and capture the entry ID
         addSearchToHistory({
           query,
           provider,
           mode: mode as 'web' | 'pro' | 'brainstorm',
           sources_count: fetchedSources.length
+        }).then(entry => {
+          if (entry?.id) {
+            setHistoryEntryId(entry.id);
+            setIsBookmarked(entry.bookmarked || false);
+          }
         }).catch(err => console.error('Failed to save to history:', err));
 
       } catch (err) {
@@ -796,6 +814,17 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
 
+  // Handle bookmark toggle
+  const handleToggleBookmark = useCallback(async () => {
+    if (!historyEntryId) return;
+    try {
+      const newBookmarkStatus = await toggleBookmark(historyEntryId);
+      setIsBookmarked(newBookmarkStatus);
+    } catch (err) {
+      console.error('Failed to toggle bookmark:', err);
+    }
+  }, [historyEntryId]);
+
   return (
     <SearchResultComponent
       query={query}
@@ -817,6 +846,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       isStreaming={isStreaming}
       isPolishing={isPolishing}
       isTransitioning={isTransitioning}
+      historyEntryId={historyEntryId}
+      isBookmarked={isBookmarked}
+      onToggleBookmark={handleToggleBookmark}
     />
   );
 }

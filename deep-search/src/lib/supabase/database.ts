@@ -9,6 +9,7 @@ export interface SearchHistoryEntry {
   provider: string;
   mode: 'web' | 'pro' | 'brainstorm';
   sources_count: number;
+  bookmarked?: boolean;
   created_at?: string;
 }
 
@@ -44,6 +45,39 @@ export async function addSearchToHistory(entry: Omit<SearchHistoryEntry, 'id' | 
     return null;
   }
 
+  // Check if a bookmarked entry with same query+provider+mode already exists
+  const { data: existingEntry } = await supabase
+    .from('search_history')
+    .select('*')
+    .eq('user_id', user.id)
+    .eq('query', entry.query)
+    .eq('provider', entry.provider)
+    .eq('mode', entry.mode)
+    .eq('bookmarked', true)
+    .single();
+
+  // If bookmarked entry exists, update it instead of creating new
+  if (existingEntry) {
+    const { data, error } = await supabase
+      .from('search_history')
+      .update({
+        sources_count: entry.sources_count,
+        refined_query: entry.refined_query,
+        created_at: new Date().toISOString(), // Update timestamp to move it to top
+      })
+      .eq('id', existingEntry.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating bookmarked history entry:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  // No bookmarked entry exists, create new entry
   const { data, error } = await supabase
     .from('search_history')
     .insert({
@@ -137,6 +171,71 @@ export async function getSearchHistoryCount(): Promise<number> {
 
   if (error) {
     console.error('Error getting history count:', error);
+    throw error;
+  }
+
+  return count || 0;
+}
+
+export async function toggleBookmark(id: string): Promise<boolean> {
+  const supabase = createClient();
+
+  // First get current bookmark status
+  const { data: entry, error: fetchError } = await supabase
+    .from('search_history')
+    .select('bookmarked')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching entry:', fetchError);
+    throw fetchError;
+  }
+
+  const newBookmarkStatus = !entry.bookmarked;
+
+  // Update bookmark status
+  const { error: updateError } = await supabase
+    .from('search_history')
+    .update({ bookmarked: newBookmarkStatus })
+    .eq('id', id);
+
+  if (updateError) {
+    console.error('Error toggling bookmark:', updateError);
+    throw updateError;
+  }
+
+  return newBookmarkStatus;
+}
+
+export async function getBookmarkedSearches(limit = 50, offset = 0): Promise<SearchHistoryEntry[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('search_history')
+    .select('*')
+    .eq('bookmarked', true)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('Error fetching bookmarked searches:', error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function getBookmarkedCount(): Promise<number> {
+  const supabase = createClient();
+
+  const { count, error } = await supabase
+    .from('search_history')
+    .select('*', { count: 'exact', head: true })
+    .eq('bookmarked', true);
+
+  if (error) {
+    console.error('Error getting bookmarked count:', error);
     throw error;
   }
 

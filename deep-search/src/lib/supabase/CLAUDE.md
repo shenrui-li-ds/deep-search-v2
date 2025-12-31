@@ -84,6 +84,9 @@ Client-side database operations for search history and usage limits.
 | `deleteSearchFromHistory(id)` | Delete single entry |
 | `clearSearchHistory()` | Clear all user's history |
 | `getSearchHistoryCount()` | Get total count |
+| `toggleBookmark(id)` | Toggle bookmark status, returns new status |
+| `getBookmarkedSearches(limit, offset)` | Get bookmarked entries |
+| `getBookmarkedCount()` | Get total bookmarked count |
 
 **Usage Limits:**
 
@@ -103,6 +106,7 @@ interface SearchHistoryEntry {
   provider: string;
   mode: 'web' | 'pro' | 'brainstorm';
   sources_count: number;
+  bookmarked?: boolean;
   created_at?: string;
 }
 

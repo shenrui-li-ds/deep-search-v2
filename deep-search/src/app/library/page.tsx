@@ -16,6 +16,9 @@ import {
   deleteSearchFromHistory,
   clearSearchHistory,
   getSearchHistoryCount,
+  toggleBookmark,
+  getBookmarkedSearches,
+  getBookmarkedCount,
   type SearchHistoryEntry
 } from '@/lib/supabase/database';
 
@@ -58,10 +61,11 @@ function getModeColor(mode: string): string {
 interface HistoryItemProps {
   entry: SearchHistoryEntry;
   onDelete: (id: string) => void;
+  onToggleBookmark: (id: string) => void;
   isPendingDelete?: boolean;
 }
 
-function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
+function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: HistoryItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}`;
@@ -73,12 +77,19 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
     setIsMenuOpen(false);
   };
 
+  const handleMenuBookmark = () => {
+    if (entry.id) {
+      onToggleBookmark(entry.id);
+    }
+    setIsMenuOpen(false);
+  };
+
   // Menu content (shared between dropdown and bottom sheet)
   const menuItems = (
     <>
       <button
         onClick={handleMenuDelete}
-        className="w-full flex items-center gap-3 py-2 px-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-lg transition-colors"
+        className="w-full flex items-center gap-3 py-2 px-3 bg-[var(--card)] text-rose-500 hover:bg-[var(--card-hover)] rounded-lg transition-colors"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -86,14 +97,17 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
         <span>Delete</span>
       </button>
       <button
-        disabled
-        className="w-full flex items-center gap-3 py-2 px-3 bg-[var(--card)] text-[var(--text-muted)] opacity-50 cursor-not-allowed rounded-lg"
+        onClick={handleMenuBookmark}
+        className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg transition-colors ${
+          entry.bookmarked
+            ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
+            : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)]'
+        }`}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={entry.bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
         </svg>
-        <span>Bookmark</span>
-        <span className="ml-auto text-xs">(Coming soon)</span>
+        <span>{entry.bookmarked ? 'Remove Bookmark' : 'Bookmark'}</span>
       </button>
       <button
         disabled
@@ -116,10 +130,18 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
     <>
       <div className="flex items-start gap-3 p-4 bg-[var(--background)] hover:bg-[var(--card)] transition-colors rounded-lg">
           {/* Icon */}
-          <div className="w-8 h-8 rounded-full bg-[var(--card)] flex items-center justify-center flex-shrink-0 mt-0.5">
+          <div className="relative w-8 h-8 rounded-full bg-[var(--card)] flex items-center justify-center flex-shrink-0 mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
+            {/* Bookmark indicator */}
+            {entry.bookmarked && (
+              <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+              </div>
+            )}
           </div>
 
           {/* Content */}
@@ -163,12 +185,14 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
                   </svg>
                   Delete
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <DropdownMenuItem
+                  onClick={handleMenuBookmark}
+                  className={`cursor-pointer ${entry.bookmarked ? 'text-amber-500 focus:text-amber-500 focus:bg-amber-500/10' : ''}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill={entry.bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
-                  Bookmark
-                  <span className="ml-auto text-xs text-[var(--text-muted)]">Soon</span>
+                  {entry.bookmarked ? 'Remove Bookmark' : 'Bookmark'}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -261,10 +285,15 @@ interface PendingDeletion {
   timeoutId: NodeJS.Timeout;
 }
 
+type LibraryTab = 'history' | 'favorites';
+
 export default function LibraryPage() {
+  const [activeTab, setActiveTab] = useState<LibraryTab>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [history, setHistory] = useState<SearchHistoryEntry[] | undefined>(undefined);
+  const [favorites, setFavorites] = useState<SearchHistoryEntry[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState(0);
+  const [favoritesCount, setFavoritesCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
@@ -277,18 +306,25 @@ export default function LibraryPage() {
       if (searchTerm) {
         const results = await searchHistoryFn(searchTerm, 100);
         setHistory(results);
+        // Filter favorites from search results
+        setFavorites(results.filter(e => e.bookmarked));
       } else {
-        const [results, count] = await Promise.all([
+        const [historyResults, historyCount, bookmarkedResults, bookmarkedCount] = await Promise.all([
           getSearchHistory(100),
-          getSearchHistoryCount()
+          getSearchHistoryCount(),
+          getBookmarkedSearches(100),
+          getBookmarkedCount()
         ]);
-        setHistory(results);
-        setTotalCount(count);
+        setHistory(historyResults);
+        setTotalCount(historyCount);
+        setFavorites(bookmarkedResults);
+        setFavoritesCount(bookmarkedCount);
       }
     } catch (err) {
       console.error('Error loading history:', err);
       setError('Failed to load search history. Please try again.');
       setHistory([]);
+      setFavorites([]);
     } finally {
       setIsLoading(false);
     }
@@ -331,9 +367,16 @@ export default function LibraryPage() {
     const timeoutId = setTimeout(async () => {
       try {
         await deleteSearchFromHistory(id);
-        setPendingDeletion(null);
-        // Update count
+        // Remove from history array BEFORE clearing pendingDeletion to prevent flash
+        setHistory(prev => prev?.filter(e => e.id !== id));
+        // Also update favorites if the deleted entry was bookmarked
+        if (entryToDelete.bookmarked) {
+          setFavorites(prev => prev?.filter(e => e.id !== id));
+          setFavoritesCount(prev => Math.max(0, prev - 1));
+        }
+        // Update count and clear pending state
         setTotalCount(prev => Math.max(0, prev - 1));
+        setPendingDeletion(null);
       } catch (err) {
         console.error('Error deleting entry:', err);
         // Restore on error
@@ -363,24 +406,48 @@ export default function LibraryPage() {
       try {
         await clearSearchHistory();
         setHistory([]);
+        setFavorites([]);
         setTotalCount(0);
+        setFavoritesCount(0);
       } catch (err) {
         console.error('Error clearing history:', err);
       }
     }
   };
 
+  const handleToggleBookmark = useCallback(async (id: string) => {
+    try {
+      const newBookmarkStatus = await toggleBookmark(id);
+
+      // Update local state
+      setHistory(prev => prev?.map(entry =>
+        entry.id === id ? { ...entry, bookmarked: newBookmarkStatus } : entry
+      ));
+
+      // Update favorites list
+      if (newBookmarkStatus) {
+        // Add to favorites
+        const entry = history?.find(e => e.id === id);
+        if (entry) {
+          setFavorites(prev => [{ ...entry, bookmarked: true }, ...(prev || [])]);
+          setFavoritesCount(prev => prev + 1);
+        }
+      } else {
+        // Remove from favorites
+        setFavorites(prev => prev?.filter(e => e.id !== id));
+        setFavoritesCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error('Error toggling bookmark:', err);
+    }
+  }, [history]);
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Library</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-1">
-              {totalCount} {totalCount === 1 ? 'search' : 'searches'} in history
-            </p>
-          </div>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Library</h1>
           {totalCount > 0 && (
             <button
               onClick={handleClearAll}
@@ -389,6 +456,46 @@ export default function LibraryPage() {
               Clear all
             </button>
           )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-6 mb-6 border-b border-[var(--border)]">
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
+              activeTab === 'history'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              History
+              {totalCount > 0 && (
+                <span className="text-xs text-[var(--text-muted)]">({totalCount})</span>
+              )}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('favorites')}
+            className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
+              activeTab === 'favorites'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill={activeTab === 'favorites' ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+              Favorites
+              {favoritesCount > 0 && (
+                <span className="text-xs text-[var(--text-muted)]">({favoritesCount})</span>
+              )}
+            </span>
+          </button>
         </div>
 
         {/* Search input */}
@@ -419,50 +526,86 @@ export default function LibraryPage() {
           </div>
         )}
 
-        {/* History list */}
+        {/* Content based on active tab */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]"></div>
           </div>
-        ) : history && history.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
-              {searchTerm ? 'No matches found' : 'No search history yet'}
-            </h3>
-            <p className="text-[var(--text-muted)] mb-6">
-              {searchTerm
-                ? 'Try a different search term'
-                : 'Your search history will appear here'
-              }
-            </p>
-            {!searchTerm && (
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition-opacity"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        ) : activeTab === 'history' ? (
+          // History Tab Content
+          history && history.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Start searching
-              </Link>
-            )}
-          </div>
+              </div>
+              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+                {searchTerm ? 'No matches found' : 'No search history yet'}
+              </h3>
+              <p className="text-[var(--text-muted)] mb-6">
+                {searchTerm
+                  ? 'Try a different search term'
+                  : 'Your search history will appear here'
+                }
+              </p>
+              {!searchTerm && (
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Start searching
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {history?.map((entry) => (
+                <HistoryItem
+                  key={entry.id}
+                  entry={entry}
+                  onDelete={handleDelete}
+                  onToggleBookmark={handleToggleBookmark}
+                  isPendingDelete={pendingDeletion?.id === entry.id}
+                />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="space-y-1">
-            {history?.map((entry) => (
-              <HistoryItem
-                key={entry.id}
-                entry={entry}
-                onDelete={handleDelete}
-                isPendingDelete={pendingDeletion?.id === entry.id}
-              />
-            ))}
-          </div>
+          // Favorites Tab Content
+          favorites && favorites.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+                {searchTerm ? 'No matching favorites' : 'No favorites yet'}
+              </h3>
+              <p className="text-[var(--text-muted)] mb-6">
+                {searchTerm
+                  ? 'Try a different search term'
+                  : 'Bookmark searches to save them here'
+                }
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {favorites?.map((entry) => (
+                <HistoryItem
+                  key={entry.id}
+                  entry={entry}
+                  onDelete={handleDelete}
+                  onToggleBookmark={handleToggleBookmark}
+                  isPendingDelete={pendingDeletion?.id === entry.id}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
 
