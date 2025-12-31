@@ -188,7 +188,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
               height={28}
               className="w-7 h-7"
             />
-            <span className="text-lg font-semibold text-[var(--text-primary)]">Athenius</span>
+            <span className="text-lg font-medium text-[var(--text-secondary)] tracking-tight" style={{ fontFamily: '"Atkinson Hyperlegible Mono", monospace' }}>Athenius</span>
           </Link>
           <button
             onClick={() => handleClose()}

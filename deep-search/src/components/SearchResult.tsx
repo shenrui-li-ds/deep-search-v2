@@ -171,7 +171,14 @@ ${sourcesText}
   };
 
   const processContent = (content: string) => {
-    return content;
+    // Convert citations to superscript
+    // Matches [1], [2], [1, 2], [1, 2, 3], etc.
+    // Also handles legacy [1][2] format by first converting to [1, 2]
+    return content
+      // First, convert adjacent brackets [1][2] to comma-separated [1, 2]
+      .replace(/\](\s*)\[(\d+)/g, ', $2')
+      // Then convert all citations to superscript
+      .replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, '<sup>$1</sup>');
   };
 
   if (isLoading) {

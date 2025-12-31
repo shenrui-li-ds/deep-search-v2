@@ -348,4 +348,80 @@ describe('SearchResult', () => {
       expect(mockPush).toHaveBeenCalledWith('/search?q=test+query&provider=deepseek&mode=web');
     });
   });
+
+  describe('Citation Processing', () => {
+    it('converts single citations to superscript', () => {
+      const propsWithCitation = {
+        ...defaultProps,
+        result: {
+          ...defaultProps.result,
+          content: 'This is a fact [1].',
+        },
+      };
+      render(<SearchResult {...propsWithCitation} />);
+
+      const markdownContent = screen.getByTestId('markdown-content');
+      expect(markdownContent.textContent).toContain('<sup>1</sup>');
+      expect(markdownContent.textContent).not.toContain('[1]');
+    });
+
+    it('converts comma-separated citations to superscript', () => {
+      const propsWithCitation = {
+        ...defaultProps,
+        result: {
+          ...defaultProps.result,
+          content: 'This is supported by research [1, 2].',
+        },
+      };
+      render(<SearchResult {...propsWithCitation} />);
+
+      const markdownContent = screen.getByTestId('markdown-content');
+      expect(markdownContent.textContent).toContain('<sup>1, 2</sup>');
+    });
+
+    it('converts legacy adjacent brackets to comma-separated superscript', () => {
+      const propsWithCitation = {
+        ...defaultProps,
+        result: {
+          ...defaultProps.result,
+          content: 'This is supported by research [1][2].',
+        },
+      };
+      render(<SearchResult {...propsWithCitation} />);
+
+      const markdownContent = screen.getByTestId('markdown-content');
+      // [1][2] should be converted to <sup>1, 2</sup>
+      expect(markdownContent.textContent).toContain('<sup>1, 2</sup>');
+    });
+
+    it('handles multiple citation groups in content', () => {
+      const propsWithCitation = {
+        ...defaultProps,
+        result: {
+          ...defaultProps.result,
+          content: 'First claim [1]. Second claim [2, 3]. Third claim [4].',
+        },
+      };
+      render(<SearchResult {...propsWithCitation} />);
+
+      const markdownContent = screen.getByTestId('markdown-content');
+      expect(markdownContent.textContent).toContain('<sup>1</sup>');
+      expect(markdownContent.textContent).toContain('<sup>2, 3</sup>');
+      expect(markdownContent.textContent).toContain('<sup>4</sup>');
+    });
+
+    it('handles triple citations', () => {
+      const propsWithCitation = {
+        ...defaultProps,
+        result: {
+          ...defaultProps.result,
+          content: 'This is well documented [1, 2, 3].',
+        },
+      };
+      render(<SearchResult {...propsWithCitation} />);
+
+      const markdownContent = screen.getByTestId('markdown-content');
+      expect(markdownContent.textContent).toContain('<sup>1, 2, 3</sup>');
+    });
+  });
 });

@@ -115,6 +115,7 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - Status banner (shown during all loading stages)
 - Tabbed interface (Answer, Links) with Share dropdown
 - Markdown rendering with custom component styling
+- **Superscript citations**: `[1]` → `<sup>1</sup>`, `[1, 2]` → `<sup>1, 2</sup>`
 - Source pills with tooltips
 - Related searches section (LLM-generated, clickable, preserves provider/mode)
 - Floating follow-up input with mode selector (both desktop and mobile)

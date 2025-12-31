@@ -10,6 +10,9 @@ import { OpenAIMessage } from '@/lib/types';
 function quickCleanup(text: string): string {
   let cleaned = text;
 
+  // Convert adjacent bracket citations [1][2] to comma-separated [1, 2]
+  cleaned = cleaned.replace(/\](\s*)\[(\d+)/g, ', $2');
+
   // Remove gibberish patterns (random alphanumeric strings in brackets)
   cleaned = cleaned.replace(/\[[A-Za-z0-9_-]{20,}\]/g, '');
 

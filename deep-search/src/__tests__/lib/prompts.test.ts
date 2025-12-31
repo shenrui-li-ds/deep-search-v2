@@ -6,6 +6,8 @@ import {
   researchPlannerPrompt,
   researchSynthesizerPrompt,
   researchProofreadPrompt,
+  brainstormReframePrompt,
+  brainstormSynthesizerPrompt,
   generateRelatedSearchesPrompt,
 } from '@/lib/prompts';
 
@@ -41,6 +43,13 @@ describe('Prompts', () => {
       expect(prompt).toContain('[1]');
       expect(prompt).toContain('[2]');
       expect(prompt).toContain('citationFormat');
+    });
+
+    it('specifies comma-separated format for multiple citations', () => {
+      const prompt = summarizeSearchResultsPrompt('test', 'date');
+      expect(prompt).toContain('[1, 2]');
+      expect(prompt).toContain('COMMA-SEPARATED');
+      expect(prompt).toContain('DO NOT use adjacent brackets like [1][2]');
     });
 
     it('has proper XML structure', () => {
@@ -200,6 +209,12 @@ describe('Prompts', () => {
       expect(prompt).toContain('citationRules');
     });
 
+    it('specifies comma-separated format for multiple citations', () => {
+      const prompt = researchSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('[1, 2]');
+      expect(prompt).toContain('NOT adjacent brackets [1][2]');
+    });
+
     it('has proper XML structure', () => {
       const prompt = researchSynthesizerPrompt('test', 'date');
       expect(prompt).toContain('<researchSynthesizer>');
@@ -324,6 +339,96 @@ describe('Prompts', () => {
       expect(prompt).toContain('</generateRelatedSearches>');
       expect(prompt).toContain('<diversityRequirements>');
       expect(prompt).toContain('<examples>');
+    });
+  });
+
+  describe('brainstormReframePrompt', () => {
+    it('includes the topic', () => {
+      const prompt = brainstormReframePrompt('remote meetings', 'December 31, 2024');
+      expect(prompt).toContain('remote meetings');
+    });
+
+    it('includes the current date', () => {
+      const prompt = brainstormReframePrompt('test', 'December 31, 2024');
+      expect(prompt).toContain('December 31, 2024');
+    });
+
+    it('specifies lateral thinking approaches', () => {
+      const prompt = brainstormReframePrompt('test', 'date');
+      expect(prompt).toContain('lateral thinking');
+      expect(prompt).toContain('cross-domain');
+      expect(prompt).toContain('contrarian');
+    });
+
+    it('specifies output format as JSON array', () => {
+      const prompt = brainstormReframePrompt('test', 'date');
+      expect(prompt).toContain('JSON array');
+      expect(prompt).toContain('"angle"');
+      expect(prompt).toContain('"query"');
+    });
+
+    it('has proper XML structure', () => {
+      const prompt = brainstormReframePrompt('test', 'date');
+      expect(prompt).toContain('<brainstormReframe>');
+      expect(prompt).toContain('</brainstormReframe>');
+      expect(prompt).toContain('<creativePrinciples>');
+    });
+  });
+
+  describe('brainstormSynthesizerPrompt', () => {
+    it('includes the original challenge', () => {
+      const prompt = brainstormSynthesizerPrompt('improve team productivity', 'December 31, 2024');
+      expect(prompt).toContain('improve team productivity');
+    });
+
+    it('includes the current date', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'December 31, 2024');
+      expect(prompt).toContain('December 31, 2024');
+    });
+
+    it('specifies creative mindset principles', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('Yes, and...');
+      expect(prompt).toContain('novelty');
+      expect(prompt).toContain('actionable');
+    });
+
+    it('includes citation format rules', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('[1], [2]');
+      expect(prompt).toContain('citationRules');
+    });
+
+    it('specifies comma-separated format for multiple citations', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('[1, 2]');
+      expect(prompt).toContain('NOT adjacent brackets [1][2]');
+    });
+
+    it('includes output structure with idea cards', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('idea cards');
+      expect(prompt).toContain('Unexpected Connections');
+      expect(prompt).toContain('Experiments to Try');
+    });
+
+    it('has proper XML structure', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('<brainstormSynthesizer>');
+      expect(prompt).toContain('</brainstormSynthesizer>');
+      expect(prompt).toContain('<outputStructure>');
+      expect(prompt).toContain('<toneGuidelines>');
+    });
+
+    it('includes language requirement', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date', 'Spanish');
+      expect(prompt).toContain('<responseLanguage>Spanish</responseLanguage>');
+      expect(prompt).toContain('CRITICAL_LANGUAGE_REQUIREMENT');
+    });
+
+    it('defaults to English when language not specified', () => {
+      const prompt = brainstormSynthesizerPrompt('test', 'date');
+      expect(prompt).toContain('<responseLanguage>English</responseLanguage>');
     });
   });
 });

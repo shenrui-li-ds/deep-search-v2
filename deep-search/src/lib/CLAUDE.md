@@ -89,6 +89,11 @@ XML-structured prompts for consistent LLM behavior.
 | Depth | Quick scannable answer | Comprehensive research document |
 | Structure | Direct answer + sections | Executive summary + sections + Key Takeaways |
 
+**Citation Format:**
+- Single citation: `[1]`
+- Multiple citations: `[1, 2]` (comma-separated, NOT `[1][2]`)
+- Frontend converts to superscript: `[1, 2]` → `<sup>1, 2</sup>`
+
 **Prompt Design Principles:**
 - Use XML tags for structure (`<description>`, `<rules>`, etc.)
 - Include examples where helpful

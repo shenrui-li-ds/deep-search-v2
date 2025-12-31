@@ -93,11 +93,14 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string,
     <citationFormat>
         <rule>Use ONLY simple bracketed numbers: [1], [2], [3], etc.</rule>
         <rule>Place citations at the END of the sentence, before the period: "This is a fact [1]."</rule>
-        <rule>For multiple sources: "This claim is supported by research [1][2]."</rule>
+        <rule>For multiple sources, use COMMA-SEPARATED numbers in ONE bracket: "This claim is supported by research [1, 2]."</rule>
+        <rule>DO NOT use adjacent brackets like [1][2] - always use [1, 2] format</rule>
         <rule>DO NOT include URLs, titles, or any other text inside the brackets</rule>
         <rule>Citations should reference the source index from the search results</rule>
         <example>
             CORRECT: "The iPhone 16 was released in September 2024 [1]."
+            CORRECT: "This is supported by multiple studies [1, 2, 3]."
+            WRONG: "This is supported by research [1][2]." (use [1, 2] instead)
             WRONG: "The iPhone 16 was released [Apple](https://apple.com) in September."
             WRONG: "The iPhone 16 [source: TechCrunch] was released."
         </example>
@@ -162,7 +165,7 @@ export const proofreadContentPrompt = () => `
         <task>Fix broken markdown formatting (unclosed ** or *, malformed headers)</task>
         <task>Remove any gibberish, random characters, or corrupted text</task>
         <task>Ensure all sentences are complete and properly structured</task>
-        <task>Fix any broken or malformed citations - convert to simple [1], [2] format</task>
+        <task>Fix any broken or malformed citations - convert adjacent brackets [1][2] to comma-separated [1, 2] format</task>
         <task>Remove any raw URLs that appear in the middle of text</task>
         <task>Ensure proper paragraph spacing with blank lines between paragraphs</task>
         <task>Ensure headers have proper markdown format (## or ###)</task>
@@ -192,11 +195,11 @@ export const proofreadParagraphPrompt = () => `
         <fix>Broken markdown (unclosed **, *, etc.)</fix>
         <fix>Gibberish or corrupted text patterns like [ABC123xyz...]</fix>
         <fix>Raw URLs in text (remove them)</fix>
-        <fix>Malformed citations → convert to [1], [2] format</fix>
+        <fix>Malformed citations → convert adjacent [1][2] to comma-separated [1, 2] format</fix>
     </fixes>
     <preserve>
         <item>All factual content</item>
-        <item>Valid citations [1], [2], etc.</item>
+        <item>Valid citations [1], [1, 2], etc.</item>
         <item>Proper markdown formatting</item>
         <item>Headers (## or ###)</item>
     </preserve>
@@ -309,7 +312,7 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
     <citationRules>
         <rule>Use simple [1], [2], [3] format only</rule>
         <rule>Place citations at the END of sentences before the period</rule>
-        <rule>Multiple sources: "This is supported by research [1][2]."</rule>
+        <rule>Multiple sources: Use comma-separated format [1, 2] NOT adjacent brackets [1][2]</rule>
         <rule>DO NOT include URLs, titles, or other text in citations</rule>
         <rule>Cite claims that come from specific sources</rule>
     </citationRules>
@@ -516,6 +519,7 @@ export const brainstormSynthesizerPrompt = (query: string, currentDate: string, 
     <citationRules>
         <rule>Cite the SOURCE of inspiration with [1], [2], etc.</rule>
         <rule>Place citations after the inspiration description</rule>
+        <rule>Multiple sources: Use comma-separated format [1, 2] NOT adjacent brackets [1][2]</rule>
         <rule>These credit where the idea spark came from, not just facts</rule>
     </citationRules>
     <toneGuidelines>
