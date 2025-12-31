@@ -215,7 +215,7 @@ ${sourcesText}
         {/* Tabs */}
         <Tabs defaultValue="answer" className="w-full">
           <div className="flex items-center justify-between mb-6 border-b border-[var(--border)]">
-            <TabsList className="bg-transparent h-auto p-0 gap-6">
+            <TabsList className="bg-transparent h-auto p-0 gap-6 border-b-0">
               <TabsTrigger
                 value="answer"
                 className="data-[state=active]:bg-transparent data-[state=active]:shadow-none pb-3 px-0 text-sm font-medium transition-colors relative rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--accent)] data-[state=active]:text-[var(--accent)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
@@ -240,10 +240,10 @@ ${sourcesText}
               </TabsTrigger>
             </TabsList>
 
-            {/* Share dropdown */}
+            {/* Share dropdown - mb-3 to align with tabs that have pb-3 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
+                <Button variant="ghost" size="sm" className="h-8 mb-3 text-[var(--text-muted)] hover:text-[var(--text-secondary)]">
                   <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                   </svg>
@@ -528,9 +528,12 @@ ${sourcesText}
         {/* Source Hover Card - Deprecated in favor of Tooltip */}
       </div>
 
+      {/* Gradient fade above follow-up input */}
+      <div className="fixed bottom-[52px] left-0 right-0 h-12 bg-gradient-to-t from-[var(--background)] to-transparent pointer-events-none z-30 md:ml-[72px] print:hidden" />
+
       {/* Floating Follow-up Input (both mobile and desktop) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] border-t border-[var(--border)] p-3 print:hidden">
-        <div className="flex items-center gap-2 p-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl max-w-4xl mx-auto md:ml-[72px] md:mr-auto md:max-w-3xl">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)] border-t border-[var(--border)] py-2 px-3 md:pl-[calc(72px+12px)] print:hidden">
+        <div className="flex items-center gap-2 py-2 px-3 bg-[var(--card)] border border-[var(--border)] rounded-2xl max-w-4xl mx-auto">
           {/* Mode selector - Mobile: button opens bottom sheet */}
           <button
             onClick={() => setIsModeSheetOpen(true)}
