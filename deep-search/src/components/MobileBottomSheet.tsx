@@ -24,13 +24,25 @@ const MobileBottomSheet: React.FC<MobileBottomSheetProps> = ({
   const touchCurrentY = useRef<number>(0);
   const isDragging = useRef<boolean>(false);
 
-  // Handle open/close state transitions
+  // Handle open state
   useEffect(() => {
     if (isOpen) {
       setShouldRender(true);
       setIsClosing(false);
     }
   }, [isOpen]);
+
+  // Handle close when parent sets isOpen to false
+  useEffect(() => {
+    if (!isOpen && shouldRender && !isClosing) {
+      setIsClosing(true);
+      const timer = setTimeout(() => {
+        setShouldRender(false);
+        setIsClosing(false);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, shouldRender, isClosing]);
 
   // Close with animation
   const handleClose = useCallback((skipAnimation = false) => {

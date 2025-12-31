@@ -604,7 +604,7 @@ ${sourcesText}
         onClose={() => setIsModeSheetOpen(false)}
         title="Search Mode"
       >
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {searchModes.map((m) => (
             <button
               key={m.id}
@@ -612,13 +612,13 @@ ${sourcesText}
                 setFollowUpMode(m.id);
                 setIsModeSheetOpen(false);
               }}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${
+              className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg transition-colors ${
                 followUpMode === m.id
                   ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
                   : 'bg-[var(--card)] border-2 border-transparent'
               }`}
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 followUpMode === m.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
               }`}>
                 {m.icon}

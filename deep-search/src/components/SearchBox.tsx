@@ -305,7 +305,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         onClose={() => setIsModeSheetOpen(false)}
         title="Search Mode"
       >
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {searchModes.map((mode) => (
             <button
               key={mode.id}
@@ -313,13 +313,13 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 setSearchMode(mode.id);
                 setIsModeSheetOpen(false);
               }}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${
+              className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg transition-colors ${
                 searchMode === mode.id
                   ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
                   : 'bg-[var(--card)] border-2 border-transparent'
               }`}
             >
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                 searchMode === mode.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
               }`}>
                 {mode.icon}
@@ -346,7 +346,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         onClose={() => setIsModelSheetOpen(false)}
         title="AI Model"
       >
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {modelProviders.map((provider) => (
             <button
               key={provider.id}
@@ -354,7 +354,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 setSelectedModel(provider.id);
                 setIsModelSheetOpen(false);
               }}
-              className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors ${
+              className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
                 selectedModel === provider.id
                   ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
                   : 'bg-[var(--card)] border-2 border-transparent'
