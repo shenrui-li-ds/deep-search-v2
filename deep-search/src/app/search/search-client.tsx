@@ -756,6 +756,17 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     };
   }, [query, provider, mode, deep, scheduleContentUpdate, streamResponse, transitionToContent]);
 
+  // Handle bookmark toggle - must be before any early returns
+  const handleToggleBookmark = useCallback(async () => {
+    if (!historyEntryId) return;
+    try {
+      const newBookmarkStatus = await toggleBookmark(historyEntryId);
+      setIsBookmarked(newBookmarkStatus);
+    } catch (err) {
+      console.error('Failed to toggle bookmark:', err);
+    }
+  }, [historyEntryId]);
+
   if (error) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -813,17 +824,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'reframing' || loadingStage === 'exploring';
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
-
-  // Handle bookmark toggle
-  const handleToggleBookmark = useCallback(async () => {
-    if (!historyEntryId) return;
-    try {
-      const newBookmarkStatus = await toggleBookmark(historyEntryId);
-      setIsBookmarked(newBookmarkStatus);
-    } catch (err) {
-      console.error('Failed to toggle bookmark:', err);
-    }
-  }, [historyEntryId]);
 
   return (
     <SearchResultComponent
