@@ -64,64 +64,7 @@ interface HistoryItemProps {
 function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Swipe state
-  const itemRef = useRef<HTMLDivElement>(null);
-  const touchStartX = useRef<number>(0);
-  const touchCurrentX = useRef<number>(0);
-  const isDragging = useRef<boolean>(false);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isSwipeRevealed, setIsSwipeRevealed] = useState(false);
-
   const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}`;
-
-  // Touch handlers for swipe gesture
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    // Reset if already revealed and tapping elsewhere
-    if (isSwipeRevealed) {
-      setIsSwipeRevealed(false);
-      setSwipeOffset(0);
-      return;
-    }
-    touchStartX.current = e.touches[0].clientX;
-    touchCurrentX.current = e.touches[0].clientX;
-    isDragging.current = true;
-  }, [isSwipeRevealed]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging.current) return;
-    touchCurrentX.current = e.touches[0].clientX;
-    const deltaX = touchCurrentX.current - touchStartX.current;
-
-    // Only allow swiping left (negative delta), max 80px
-    if (deltaX < 0) {
-      setSwipeOffset(Math.max(deltaX, -80));
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
-
-    const threshold = -50; // Swipe distance to reveal delete
-
-    if (swipeOffset < threshold) {
-      // Reveal delete button
-      setSwipeOffset(-80);
-      setIsSwipeRevealed(true);
-    } else {
-      // Snap back
-      setSwipeOffset(0);
-      setIsSwipeRevealed(false);
-    }
-  }, [swipeOffset]);
-
-  const handleSwipeDelete = () => {
-    if (entry.id) {
-      onDelete(entry.id);
-      setSwipeOffset(0);
-      setIsSwipeRevealed(false);
-    }
-  };
 
   const handleMenuDelete = () => {
     if (entry.id) {
@@ -171,31 +114,7 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
 
   return (
     <>
-      <div className="relative overflow-hidden rounded-lg">
-        {/* Delete button revealed by swipe (mobile only) */}
-        <div className="md:hidden absolute right-0 top-0 bottom-0 w-20 bg-red-500 flex items-center justify-center">
-          <button
-            onClick={handleSwipeDelete}
-            className="w-full h-full flex items-center justify-center text-white"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Main content - slides on swipe */}
-        <div
-          ref={itemRef}
-          className="relative flex items-start gap-3 p-4 bg-[var(--background)] hover:bg-[var(--card)] transition-colors"
-          style={{
-            transform: `translateX(${swipeOffset}px)`,
-            transition: isDragging.current ? 'none' : 'transform 0.2s ease-out'
-          }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
+      <div className="flex items-start gap-3 p-4 bg-[var(--background)] hover:bg-[var(--card)] transition-colors rounded-lg">
           {/* Icon */}
           <div className="w-8 h-8 rounded-full bg-[var(--card)] flex items-center justify-center flex-shrink-0 mt-0.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -260,18 +179,17 @@ function HistoryItem({ entry, onDelete, isPendingDelete }: HistoryItemProps) {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-
-          {/* More options button - Mobile: Opens bottom sheet */}
-          <button
-            onClick={() => setIsMenuOpen(true)}
-            className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex-shrink-0"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-            </svg>
-          </button>
         </div>
+
+        {/* More options button - Mobile: Opens bottom sheet */}
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex-shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+          </svg>
+        </button>
       </div>
 
       {/* Mobile bottom sheet menu */}
