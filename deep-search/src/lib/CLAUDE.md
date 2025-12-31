@@ -159,18 +159,18 @@ Reduces API costs by caching responses at two levels.
 
 **Architecture:**
 ```
-Request → Memory Cache (15 min) → Supabase Cache (24-48 hrs) → API Call
+Request → Memory Cache (15 min) → Supabase Cache (48 hrs) → API Call
 ```
 
 **Cache Types & TTLs:**
 
 | Type | TTL | What's Cached |
 |------|-----|---------------|
-| `search` | 24 hours | Tavily search results |
+| `search` | 48 hours | Tavily search results |
 | `refine` | 48 hours | Query refinements |
 | `related` | 48 hours | Related search suggestions |
 | `plan` | 48 hours | Research plans |
-| `summary` | 24 hours | LLM summaries (future) |
+| `summary` | 48 hours | LLM summaries (future) |
 
 **Key Functions:**
 

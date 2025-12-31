@@ -2,7 +2,7 @@
  * Two-tier caching system: In-memory LRU + Supabase persistent cache
  *
  * Tier 1: In-memory LRU cache (fast, 15 min TTL, up to 500 entries)
- * Tier 2: Supabase table (persistent, 24-48 hour TTL)
+ * Tier 2: Supabase table (persistent, 48 hour TTL)
  */
 
 import crypto from 'crypto';

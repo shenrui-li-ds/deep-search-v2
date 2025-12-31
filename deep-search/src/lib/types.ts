@@ -6,6 +6,7 @@ export interface Source {
   author?: string;
   timeAgo?: string;
   readTime?: string;
+  snippet?: string;
 }
 
 export interface SearchImage {
@@ -19,19 +20,6 @@ export interface SearchResult {
   content: string;
   sources: Source[];
   images: SearchImage[];
-}
-
-export interface RelatedQuestion {
-  id: string;
-  question: string;
-}
-
-export interface RelatedResource {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  url: string;
 }
 
 export interface TavilySearchResult {
