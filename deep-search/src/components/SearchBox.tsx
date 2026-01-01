@@ -46,11 +46,11 @@ const searchModes = [
 ];
 
 const modelProviders = [
-  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat' },
-  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4o mini' },
+  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat v3.2' },
+  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4.1 mini' },
   { id: 'grok' as ModelProvider, label: 'Grok', description: 'Grok 4.1 Fast' },
   { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5' },
-  { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 2.5 Flash' },
+  { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 3 Flash' },
 ];
 
 const quickActions = [

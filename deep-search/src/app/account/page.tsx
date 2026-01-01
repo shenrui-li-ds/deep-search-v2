@@ -440,15 +440,15 @@ function PreferencesTab() {
   };
 
   const providers = [
-    { id: 'deepseek', name: 'DeepSeek', description: 'Cost-effective, fast responses' },
-    { id: 'openai', name: 'OpenAI', description: 'GPT-4o mini' },
-    { id: 'grok', name: 'Grok', description: 'xAI Grok 4.1 Fast' },
-    { id: 'claude', name: 'Claude', description: 'Anthropic Claude Haiku' },
-    { id: 'gemini', name: 'Gemini', description: 'Google Gemini 2.5 Flash' },
+    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat v3.2' },
+    { id: 'openai', name: 'OpenAI', description: 'GPT-4.1 mini' },
+    { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast' },
+    { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5' },
+    { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash' },
   ] as const;
 
   const modes = [
-    { id: 'web', name: 'Web', description: 'Quick search with streaming summary' },
+    { id: 'web', name: 'Web', description: 'Quick search with summary' },
     { id: 'pro', name: 'Research', description: 'Multi-angle comprehensive research' },
     { id: 'brainstorm', name: 'Brainstorm', description: 'Creative ideation with cross-domain inspiration' },
   ] as const;

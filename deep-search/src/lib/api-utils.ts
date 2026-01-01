@@ -109,7 +109,7 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-4o-mini',
+  model: string = 'gpt-4.1-mini',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -238,7 +238,7 @@ export async function callClaude(
 // Gemini API request (Google AI format)
 export async function callGemini(
   messages: ChatMessage[],
-  model: string = 'gemini-2.5-flash',
+  model: string = 'gemini-3-flash-preview',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -442,7 +442,7 @@ function callLLMForProvider(
       return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
     case 'openai':
       console.log('Using OpenAI API');
-      return callOpenAI(messages, 'gpt-4o-mini', temperature, stream);
+      return callOpenAI(messages, 'gpt-4.1-mini', temperature, stream);
     case 'grok':
       console.log('Using Grok API');
       return callGrok(messages, 'grok-4-1-fast', temperature, stream);
@@ -451,7 +451,7 @@ function callLLMForProvider(
       return callClaude(messages, 'claude-haiku-4-5', temperature, stream);
     case 'gemini':
       console.log('Using Gemini API');
-      return callGemini(messages, 'gemini-2.5-flash', temperature, stream);
+      return callGemini(messages, 'gemini-3-flash-preview', temperature, stream);
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }
