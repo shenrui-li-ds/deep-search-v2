@@ -473,10 +473,15 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- RLS: Only service role can access (called from edge functions/server)
+-- RLS: Only service role can directly access
+-- (Regular users access via SECURITY DEFINER functions which bypass RLS)
 ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
 
--- No user-facing policies - this table is managed by server-side functions only
+CREATE POLICY "Service role only"
+  ON login_attempts
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
 
 -- Check if a user is currently locked out
 -- Returns: { locked: boolean, locked_until: timestamp, remaining_seconds: number }
