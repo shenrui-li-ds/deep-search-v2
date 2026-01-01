@@ -7,7 +7,7 @@ import SearchBox from '../components/SearchBox';
 import MobileSidebar from '../components/MobileSidebar';
 import { getUserPreferences } from '@/lib/supabase/database';
 
-type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
+type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
 type SearchMode = 'web' | 'pro' | 'brainstorm';
 
 export default function Home() {

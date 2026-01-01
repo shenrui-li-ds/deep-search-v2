@@ -41,7 +41,7 @@ export interface ApiUsageEntry {
 
 export interface UserPreferences {
   user_id: string;
-  default_provider: 'deepseek' | 'openai' | 'grok' | 'claude' | 'gemini';
+  default_provider: 'deepseek' | 'openai' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
   default_mode: 'web' | 'pro' | 'brainstorm';
   created_at?: string;
   updated_at?: string;

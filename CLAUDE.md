@@ -49,6 +49,9 @@ At least one LLM provider key:
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 - `GEMINI_API_KEY` - Google Gemini 3 Flash
 
+Optional fallback provider:
+- `VERCEL_AI_GATEWAY_KEY` - Vercel AI Gateway (last-resort fallback, uses Qwen 3 235B)
+
 Supabase (for auth and database):
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon/public key

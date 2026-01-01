@@ -950,11 +950,12 @@ function PreferencesTab() {
   };
 
   const providers = [
-    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat v3.2' },
-    { id: 'openai', name: 'OpenAI', description: 'GPT-4.1 mini' },
-    { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast' },
-    { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5' },
-    { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash' },
+    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat v3.2', experimental: false },
+    { id: 'openai', name: 'OpenAI', description: 'GPT-4.1 mini', experimental: false },
+    { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast', experimental: false },
+    { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
+    { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
+    { id: 'vercel-gateway', name: 'Vercel Gateway', description: 'Experimental', experimental: true },
   ] as const;
 
   const modes = [
@@ -996,28 +997,38 @@ function PreferencesTab() {
           Choose which AI provider to use by default when starting a new search
         </p>
         <div className="grid gap-2">
-          {providers.map((provider) => (
-            <button
-              key={provider.id}
-              onClick={() => handleProviderChange(provider.id)}
-              disabled={isSaving}
-              className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
-                preferences?.default_provider === provider.id
-                  ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                  : 'border-[var(--border)] hover:border-[var(--text-muted)]'
-              } disabled:opacity-50`}
-            >
-              <div>
-                <p className="font-medium text-[var(--text-primary)]">{provider.name}</p>
-                <p className="text-xs text-[var(--text-muted)]">{provider.description}</p>
-              </div>
-              {preferences?.default_provider === provider.id && (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+          {providers.map((provider) => {
+            const isSelected = preferences?.default_provider === provider.id;
+            const borderColor = provider.experimental
+              ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-[var(--border)] hover:border-[var(--text-muted)]/30')
+              : (isSelected ? 'border-[var(--accent)]' : 'border-[var(--border)] hover:border-[var(--text-muted)]');
+            const bgColor = provider.experimental
+              ? (isSelected ? 'bg-[var(--text-muted)]/5' : '')
+              : (isSelected ? 'bg-[var(--accent)]/5' : '');
+
+            return (
+              <button
+                key={provider.id}
+                onClick={() => handleProviderChange(provider.id)}
+                disabled={isSaving}
+                className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${borderColor} ${bgColor} disabled:opacity-50`}
+              >
+                <div>
+                  <p className={`font-medium ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
+                    {provider.name}
+                  </p>
+                  <p className={`text-xs ${provider.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                    {provider.description}
+                  </p>
+                </div>
+                {isSelected && (
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 

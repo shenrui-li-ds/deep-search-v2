@@ -8,7 +8,7 @@ Core utilities, types, and helpers.
 
 **LLM Provider Support:**
 ```typescript
-type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
+type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
 ```
 
 **Key Functions:**
@@ -16,11 +16,13 @@ type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
 | Function | Description |
 |----------|-------------|
 | `callLLM(messages, temp, stream, provider?)` | Unified LLM call - routes to appropriate provider |
+| `callLLMWithFallback(messages, temp, stream, provider?)` | LLM call with automatic fallback chain (uses Vercel Gateway as last resort) |
 | `callDeepSeek(messages, model, temp, stream)` | DeepSeek API (OpenAI-compatible) |
 | `callOpenAI(messages, model, temp, stream)` | OpenAI API |
 | `callGrok(messages, model, temp, stream)` | Grok API (OpenAI-compatible, x.ai) |
 | `callClaude(messages, model, temp, stream)` | Anthropic Claude API |
 | `callGemini(messages, model, temp, stream)` | Google Gemini API |
+| `callVercelGateway(messages, model, temp, stream)` | Vercel AI Gateway (unified API for 100+ models) |
 | `callTavily(query, includeImages, depth, max)` | Tavily search API |
 | `getLLMProvider()` | Auto-detect available provider from env |
 | `isProviderAvailable(provider)` | Check if provider has API key |
@@ -36,7 +38,23 @@ DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions'
 GROK_API_URL = 'https://api.x.ai/v1/chat/completions'
 CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
+VERCEL_GATEWAY_API_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions'
 TAVILY_API_URL = 'https://api.tavily.com/search'
+```
+
+**Fallback Chain (`callLLMWithFallback`):**
+```
+1. Specified provider (if available)
+       ↓ (on failure)
+2. Other primary providers: deepseek → openai → grok → claude → gemini
+       ↓ (on failure)
+3. Vercel AI Gateway (last resort, uses alibaba/qwen-3-235b)
+```
+
+Usage:
+```typescript
+const { response, usedProvider } = await callLLMWithFallback(messages, 0.7, true, 'deepseek');
+// usedProvider tells you which provider actually succeeded
 ```
 
 ### `prompts.ts` - LLM Prompts

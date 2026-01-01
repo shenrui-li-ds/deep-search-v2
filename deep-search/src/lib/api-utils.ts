@@ -16,7 +16,7 @@ interface SearchResultItem {
 }
 
 // LLM Provider type - matches the frontend ModelProvider type
-export type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
+export type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
 
 // API endpoints
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
@@ -24,6 +24,7 @@ export const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 export const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
 export const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 export const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+export const VERCEL_GATEWAY_API_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions';
 
 // Tavily API endpoints
 export const TAVILY_API_URL = 'https://api.tavily.com/search';
@@ -62,6 +63,8 @@ export function isProviderAvailable(provider: LLMProvider): boolean {
       return !!process.env.ANTHROPIC_API_KEY;
     case 'gemini':
       return !!process.env.GEMINI_API_KEY;
+    case 'vercel-gateway':
+      return !!process.env.VERCEL_AI_GATEWAY_KEY;
     default:
       return false;
   }
@@ -297,6 +300,46 @@ export async function callGemini(
   }
 }
 
+// Vercel AI Gateway request (OpenAI-compatible, unified API for 100+ models)
+// Default model: alibaba/qwen-3-235b (Qwen 3 235B)
+export async function callVercelGateway(
+  messages: ChatMessage[],
+  model: string = 'alibaba/qwen-3-235b',
+  temperature: number = 0.7,
+  stream: boolean = false
+) {
+  try {
+    const response = await fetch(VERCEL_GATEWAY_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.VERCEL_AI_GATEWAY_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        stream,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Vercel Gateway API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    if (stream) {
+      return response;
+    } else {
+      const data = await response.json();
+      return data.choices[0].message.content;
+    }
+  } catch (error) {
+    console.error('Error calling Vercel Gateway API:', error);
+    throw error;
+  }
+}
+
 // Helper function to parse stream response from Claude (Anthropic format)
 export async function* streamClaudeResponse(response: Response) {
   if (!response.body) {
@@ -429,6 +472,79 @@ export async function callLLM(
   return callLLMForProvider(messages, temperature, stream, selectedProvider);
 }
 
+// Primary providers to try before falling back to Vercel Gateway (excludes vercel-gateway itself)
+const PRIMARY_PROVIDERS: LLMProvider[] = ['deepseek', 'openai', 'grok', 'claude', 'gemini'];
+
+/**
+ * Unified LLM call with automatic fallback chain.
+ * Tries the specified provider first, then cycles through other available providers,
+ * and uses Vercel AI Gateway as the last resort fallback.
+ *
+ * Fallback order:
+ * 1. Specified provider (if available)
+ * 2. Other primary providers in priority order (deepseek, openai, grok, claude, gemini)
+ * 3. Vercel AI Gateway (last resort)
+ *
+ * @returns Object containing the response and the provider that was actually used
+ */
+export async function callLLMWithFallback(
+  messages: ChatMessage[],
+  temperature: number = 0.7,
+  stream: boolean = false,
+  provider?: LLMProvider
+): Promise<{ response: Response | string; usedProvider: LLMProvider }> {
+  const errors: { provider: LLMProvider; error: Error }[] = [];
+
+  // Build ordered list of providers to try
+  const providersToTry: LLMProvider[] = [];
+
+  // If a specific provider was requested, try it first
+  if (provider && provider !== 'vercel-gateway' && isProviderAvailable(provider)) {
+    providersToTry.push(provider);
+  }
+
+  // Add other available primary providers
+  for (const p of PRIMARY_PROVIDERS) {
+    if (!providersToTry.includes(p) && isProviderAvailable(p)) {
+      providersToTry.push(p);
+    }
+  }
+
+  // Try each primary provider
+  for (const currentProvider of providersToTry) {
+    try {
+      console.log(`[Fallback] Trying provider: ${currentProvider}`);
+      const response = await callLLMForProvider(messages, temperature, stream, currentProvider);
+      console.log(`[Fallback] Success with provider: ${currentProvider}`);
+      return { response, usedProvider: currentProvider };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.warn(`[Fallback] Provider ${currentProvider} failed:`, err.message);
+      errors.push({ provider: currentProvider, error: err });
+    }
+  }
+
+  // Last resort: try Vercel AI Gateway
+  if (isProviderAvailable('vercel-gateway')) {
+    try {
+      console.log('[Fallback] All primary providers failed. Trying Vercel AI Gateway...');
+      const response = await callLLMForProvider(messages, temperature, stream, 'vercel-gateway');
+      console.log('[Fallback] Success with Vercel AI Gateway');
+      return { response, usedProvider: 'vercel-gateway' };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error('[Fallback] Vercel AI Gateway failed:', err.message);
+      errors.push({ provider: 'vercel-gateway', error: err });
+    }
+  }
+
+  // All providers failed - throw a comprehensive error
+  const errorSummary = errors
+    .map(({ provider, error }) => `${provider}: ${error.message}`)
+    .join('; ');
+  throw new Error(`All LLM providers failed. Errors: ${errorSummary}`);
+}
+
 // Internal helper to call the appropriate provider
 function callLLMForProvider(
   messages: ChatMessage[],
@@ -452,6 +568,9 @@ function callLLMForProvider(
     case 'gemini':
       console.log('Using Gemini API');
       return callGemini(messages, 'gemini-3-flash-preview', temperature, stream);
+    case 'vercel-gateway':
+      console.log('Using Vercel AI Gateway');
+      return callVercelGateway(messages, 'alibaba/qwen-3-235b', temperature, stream);
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }
@@ -465,7 +584,7 @@ export function getStreamParser(provider: LLMProvider) {
   if (provider === 'gemini') {
     return streamGeminiResponse;
   }
-  // OpenAI, DeepSeek, and Grok all use OpenAI-compatible streaming
+  // OpenAI, DeepSeek, Grok, and Vercel Gateway all use OpenAI-compatible streaming
   return streamOpenAIResponse;
 }
 

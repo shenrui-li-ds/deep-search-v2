@@ -25,7 +25,7 @@ interface SearchBoxProps {
 }
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
-type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
+type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
 
 const searchModes = [
   { id: 'web' as SearchMode, label: 'Web Search', shortLabel: 'Search', icon: (
@@ -46,11 +46,12 @@ const searchModes = [
 ];
 
 const modelProviders = [
-  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat v3.2' },
-  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4.1 mini' },
-  { id: 'grok' as ModelProvider, label: 'Grok', description: 'Grok 4.1 Fast' },
-  { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5' },
-  { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 3 Flash' },
+  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat v3.2', experimental: false },
+  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-4.1 mini', experimental: false },
+  { id: 'grok' as ModelProvider, label: 'Grok', description: 'Grok 4.1 Fast', experimental: false },
+  { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
+  { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
+  { id: 'vercel-gateway' as ModelProvider, label: 'Vercel Gateway', description: 'Experimental', experimental: true },
 ];
 
 const quickActions = [
@@ -214,7 +215,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 px-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] gap-1.5"
+                      className="h-8 px-2 gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -237,11 +238,15 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                         }`}
                       >
                         <div>
-                          <div className="font-medium text-[var(--text-primary)]">{provider.label}</div>
-                          <div className="text-xs text-[var(--text-muted)]">{provider.description}</div>
+                          <div className={`font-medium ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
+                            {provider.label}
+                          </div>
+                          <div className={`text-xs ${provider.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                            {provider.description}
+                          </div>
                         </div>
                         {selectedModel === provider.id && (
-                          <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg className={`w-4 h-4 ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
                         )}
@@ -360,32 +365,44 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         title="AI Model"
       >
         <div className="space-y-1.5">
-          {modelProviders.map((provider) => (
-            <button
-              key={provider.id}
-              onClick={() => {
-                setSelectedModel(provider.id);
-                setIsModelSheetOpen(false);
-              }}
-              className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${
-                selectedModel === provider.id
-                  ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
-                  : 'bg-[var(--card)] border-2 border-transparent'
-              }`}
-            >
-              <div className="text-left">
-                <div className={`font-medium ${selectedModel === provider.id ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
-                  {provider.label}
+          {modelProviders.map((provider) => {
+            const isSelected = selectedModel === provider.id;
+            const borderColor = provider.experimental
+              ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-transparent')
+              : (isSelected ? 'border-[var(--accent)]' : 'border-transparent');
+            const bgColor = provider.experimental
+              ? (isSelected ? 'bg-[var(--text-muted)]/5' : 'bg-[var(--card)]')
+              : (isSelected ? 'bg-[var(--accent)]/10' : 'bg-[var(--card)]');
+            const textColor = provider.experimental
+              ? 'text-[var(--text-muted)]'
+              : (isSelected ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]');
+            const descColor = provider.experimental
+              ? 'text-[var(--text-muted)]/60'
+              : 'text-[var(--text-muted)]';
+
+            return (
+              <button
+                key={provider.id}
+                onClick={() => {
+                  setSelectedModel(provider.id);
+                  setIsModelSheetOpen(false);
+                }}
+                className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${bgColor} border-2 ${borderColor}`}
+              >
+                <div className="text-left">
+                  <div className={`font-medium ${textColor}`}>
+                    {provider.label}
+                  </div>
+                  <div className={`text-xs ${descColor}`}>{provider.description}</div>
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">{provider.description}</div>
-              </div>
-              {selectedModel === provider.id && (
-                <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
+                {isSelected && (
+                  <svg className={`w-5 h-5 ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
         </div>
       </MobileBottomSheet>
     </TooltipProvider>

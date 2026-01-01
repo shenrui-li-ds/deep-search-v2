@@ -476,8 +476,13 @@ export default function LibraryPage() {
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Library</h1>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Library</h1>
+            <p className="text-sm text-[var(--text-muted)] mt-1">
+              Your search history and saved favorites
+            </p>
+          </div>
           {totalCount > 0 && (
             <button
               onClick={handleClearAll}
