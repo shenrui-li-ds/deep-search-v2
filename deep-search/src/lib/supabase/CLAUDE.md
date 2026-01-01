@@ -397,19 +397,60 @@ This is especially important for `SECURITY DEFINER` functions.
 
 Enable in Supabase → Authentication → Settings to check passwords against HaveIBeenPwned database.
 
+### Account Lockout (Brute Force Protection)
+
+Progressive account lockout after failed login attempts. Migration: `supabase/add-login-lockout.sql`
+
+**Thresholds:**
+- 5 failed attempts in 15 minutes → 5 minute lockout
+- 10 failed attempts in 1 hour → 30 minute lockout
+- 15+ failed attempts in 1 hour → 1 hour lockout
+
+**Database Functions:**
+| Function | Description |
+|----------|-------------|
+| `check_login_lockout(p_email)` | Check if account is locked (returns JSON with locked status, remaining_seconds) |
+| `record_failed_login(p_email)` | Record failed attempt, apply lockout if threshold reached |
+| `reset_login_attempts(p_email)` | Reset attempts on successful login |
+
+**Login Page Integration:**
+- Checks lockout before login attempt
+- Records failed attempts and shows lockout countdown
+- Resets attempts on successful login
+- Button disabled during lockout with countdown display
+
+### Session-Based Security Cooldown
+
+15-minute cooldown after login before sensitive security actions (reset password, change email).
+
+- Login page stores `session_start_time` in localStorage on successful login
+- Account security modals check elapsed time before allowing action
+- Shows countdown UI when cooldown is active
+
+### Change Email Re-Authentication
+
+Change Email modal requires password verification before sending email change request. This prevents account takeover via leaked credentials.
+
+**Flow:**
+1. User enters current password
+2. Password verified via `signInWithPassword`
+3. Only then `updateUser({ email })` is called
+4. Verification email sent to new address
+
 ## Setup
 
 1. Create Supabase project at supabase.com
 2. Run `supabase/schema.sql` in SQL Editor
-3. Add to `.env.local`:
+3. Run `supabase/add-login-lockout.sql` for brute force protection
+4. Add to `.env.local`:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
-4. Configure URL settings in Authentication → URL Configuration:
+5. Configure URL settings in Authentication → URL Configuration:
    - Site URL: `https://your-domain.com`
    - Redirect URLs: `http://localhost:3000/auth/callback`, `https://your-domain.com/auth/callback`
-5. (Optional) Apply email templates from `supabase/email-templates/`
-6. (Optional) Configure OAuth providers in Authentication → Providers
-7. (Optional) Enable leaked password protection in Authentication → Settings
-8. Fix function search paths (see Security Settings above)
+6. (Optional) Apply email templates from `supabase/email-templates/`
+7. (Optional) Configure OAuth providers in Authentication → Providers
+8. (Optional) Enable leaked password protection in Authentication → Settings
+9. Fix function search paths (see Security Settings above)

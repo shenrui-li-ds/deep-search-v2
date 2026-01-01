@@ -1,10 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+
+interface LockoutStatus {
+  locked: boolean;
+  locked_until: string | null;
+  remaining_seconds: number;
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,9 +18,20 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [lockoutSeconds, setLockoutSeconds] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/';
+
+  // Countdown timer for lockout
+  useEffect(() => {
+    if (lockoutSeconds > 0) {
+      const timer = setInterval(() => {
+        setLockoutSeconds((prev) => Math.max(0, prev - 1));
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [lockoutSeconds]);
 
   const handleGitHubLogin = async () => {
     setOauthLoading(true);
@@ -42,19 +59,78 @@ export default function LoginPage() {
 
     const supabase = createClient();
 
+    // Check if account is locked out
+    try {
+      const { data: lockoutData } = await supabase.rpc('check_login_lockout', { p_email: email });
+      if (lockoutData) {
+        const status = lockoutData as LockoutStatus;
+        if (status.locked && status.remaining_seconds > 0) {
+          setLockoutSeconds(status.remaining_seconds);
+          setError(`Account temporarily locked. Please try again in ${formatTime(status.remaining_seconds)}.`);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // If lockout check fails (function doesn't exist), continue with login
+      console.warn('Lockout check failed, continuing with login');
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      // Record failed attempt
+      try {
+        const { data: failData } = await supabase.rpc('record_failed_login', { p_email: email });
+        if (failData) {
+          const result = failData as { locked: boolean; attempts: number; locked_until: string | null };
+          if (result.locked && result.locked_until) {
+            const remaining = Math.ceil((new Date(result.locked_until).getTime() - Date.now()) / 1000);
+            setLockoutSeconds(remaining);
+            setError(`Too many failed attempts. Account locked for ${formatTime(remaining)}.`);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // If recording fails, just show the error
+        console.warn('Failed to record login attempt');
+      }
+
       setError(error.message);
       setLoading(false);
       return;
     }
 
+    // Reset failed attempts on successful login
+    try {
+      await supabase.rpc('reset_login_attempts', { p_email: email });
+    } catch {
+      // Non-critical, continue
+    }
+
+    // Store session start time for security cooldown on sensitive actions
+    localStorage.setItem('session_start_time', Date.now().toString());
+
     router.push(redirectTo);
     router.refresh();
+  };
+
+  // Format seconds to human-readable time
+  const formatTime = (seconds: number): string => {
+    if (seconds >= 3600) {
+      const hours = Math.floor(seconds / 3600);
+      const mins = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${mins}m`;
+    } else if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    }
+    return `${seconds}s`;
   };
 
   return (
@@ -120,10 +196,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading || oauthLoading}
+            disabled={loading || oauthLoading || lockoutSeconds > 0}
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Signing in...' : lockoutSeconds > 0 ? `Locked (${formatTime(lockoutSeconds)})` : 'Sign in'}
           </button>
         </form>
 
