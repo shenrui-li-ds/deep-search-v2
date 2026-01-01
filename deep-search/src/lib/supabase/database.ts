@@ -266,7 +266,7 @@ export async function getUserLimits(): Promise<UserLimits | null> {
   return data;
 }
 
-export async function checkSearchLimit(): Promise<{ allowed: boolean; remaining: number; limit: number }> {
+export async function checkSearchLimit(): Promise<{ allowed: boolean; remaining: number; limit: number; reason?: string }> {
   const supabase = createClient();
 
   // Call the database function to check and increment
@@ -280,11 +280,23 @@ export async function checkSearchLimit(): Promise<{ allowed: boolean; remaining:
 
   // Get updated limits
   const limits = await getUserLimits();
+  const allowed = data === true;
+
+  // Determine reason if not allowed
+  let reason: string | undefined;
+  if (!allowed && limits) {
+    if (limits.daily_searches_used >= limits.daily_search_limit) {
+      reason = `Daily search limit reached (${limits.daily_search_limit} searches). Resets at midnight.`;
+    } else if (limits.monthly_searches_used >= limits.monthly_search_limit) {
+      reason = `Monthly search limit reached (${limits.monthly_search_limit} searches). Resets on the 1st.`;
+    }
+  }
 
   return {
-    allowed: data === true,
+    allowed,
     remaining: limits ? limits.daily_search_limit - limits.daily_searches_used : 0,
     limit: limits?.daily_search_limit || 50,
+    reason,
   };
 }
 

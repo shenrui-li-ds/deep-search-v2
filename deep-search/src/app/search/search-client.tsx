@@ -7,7 +7,7 @@ import SearchResultComponent from '@/components/SearchResult';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
-import { addSearchToHistory, canPerformSearch, toggleBookmark } from '@/lib/supabase/database';
+import { addSearchToHistory, toggleBookmark } from '@/lib/supabase/database';
 
 interface SearchClientProps {
   query: string;
@@ -148,7 +148,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({ query, provider }),
             signal: abortController.signal
           }),
-          canPerformSearch()
+          fetch('/api/check-limit', { method: 'POST' }).then(res => res.json())
         ]);
 
         if (!isActive) return;
@@ -370,7 +370,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({ query, provider }),
             signal: abortController.signal
           }),
-          canPerformSearch()
+          fetch('/api/check-limit', { method: 'POST' }).then(res => res.json())
         ]);
 
         if (!isActive) return;
@@ -591,7 +591,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({ query, provider }),
             signal: abortController.signal
           }).then(res => res.ok ? res.json() : { refinedQuery: query }).catch(() => ({ refinedQuery: query })),
-          canPerformSearch()
+          fetch('/api/check-limit', { method: 'POST' }).then(res => res.json())
         ]);
 
         if (!isActive) return;

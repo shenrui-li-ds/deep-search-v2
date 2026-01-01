@@ -246,6 +246,37 @@ Generates related search queries based on the original query and content.
 - Handles markdown code blocks in LLM response
 - Limits output to 6 queries max
 
+### `/api/check-limit` - Usage Limit Check
+Checks if the user can perform a search and increments the counter atomically.
+
+**Request:** `POST` (no body required)
+
+**Response:**
+```json
+{
+  "allowed": true,
+  "remaining": 45,
+  "limit": 50,
+  "reason": null
+}
+```
+
+**When limit exceeded:**
+```json
+{
+  "allowed": false,
+  "remaining": 0,
+  "limit": 50,
+  "reason": "Daily search limit reached (50 searches). Resets at midnight."
+}
+```
+
+**Features:**
+- Uses `check_and_increment_search_v2` PostgreSQL function (single query)
+- Falls back to v1 if v2 not available
+- Runs server-side to avoid React Strict Mode double-invocation
+- Called in parallel with first API call (no added latency)
+
 ## Provider Handling
 
 All LLM-powered routes accept a `provider` parameter:

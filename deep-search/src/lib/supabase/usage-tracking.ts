@@ -94,7 +94,7 @@ export async function checkServerUsageLimits(): Promise<{ allowed: boolean; reas
 
     // Check daily search limit
     const today = new Date().toISOString().split('T')[0];
-    if (limits.last_reset_date < today) {
+    if (limits.last_daily_reset < today) {
       // Reset happened, counters are stale on client - allow
       return { allowed: true };
     }

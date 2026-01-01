@@ -200,8 +200,9 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 |----------|-------------|
 | `upsert_search_history(...)` | Atomic upsert for search history (updates bookmarked entries, inserts new) |
 | `upsert_user_preferences(...)` | Atomic upsert for user preferences |
-| `check_and_increment_search()` | Atomically check and increment daily search count |
-| `increment_token_usage(user_id, tokens)` | Add tokens to monthly usage |
+| `check_and_increment_search()` | Atomically check and increment search count (returns BOOLEAN) |
+| `check_and_increment_search_v2()` | Optimized version that returns JSON with all limit data (eliminates extra query) |
+| `increment_token_usage(user_id, tokens)` | Add tokens to daily and monthly usage |
 | `cleanup_old_history()` | Keep only last 100 entries per user |
 | `reset_daily_limits()` | Reset daily counters (call via cron) |
 | `reset_monthly_limits()` | Reset monthly counters (call via cron) |

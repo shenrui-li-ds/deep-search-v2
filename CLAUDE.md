@@ -193,46 +193,16 @@ See `src/lib/supabase/CLAUDE.md` for auth and database documentation.
 
 ## Authentication
 
-Uses Supabase Auth with email/password and GitHub OAuth.
+Uses Supabase Auth with email/password and GitHub OAuth. See `src/lib/supabase/CLAUDE.md` for detailed documentation.
 
-### Auth Methods
+### Overview
 - **Email/Password**: Standard signup with email confirmation
 - **GitHub OAuth**: One-click sign in via GitHub
+- **Route Protection**: Middleware redirects unauthenticated users to `/auth/login`
+- **Session**: Stored in cookies, managed by Supabase SSR
 
-### Auth Flow
-1. User visits protected route → middleware redirects to `/auth/login`
-2. User signs up → email confirmation sent → clicks link → `/auth/callback`
-3. Or user clicks "GitHub" → OAuth flow → `/auth/callback`
-4. Session stored in cookies, managed by Supabase SSR
-
-### Email Templates
-Custom branded templates in `supabase/email-templates/`:
-- Confirm signup, Invite user, Magic link, Change email, Reset password, Reauthentication
-
-### Route Protection
-- Middleware (`src/middleware.ts`) checks auth on every request
-- Public routes: `/auth/*`
-- All other routes require authentication
-
-### Database (Supabase)
-- `search_history` - User search history with RLS
-- `api_usage` - Token usage tracking per request
-- `user_limits` - Per-user quotas (daily searches, monthly tokens)
-
-### Row Level Security (RLS)
-Each user can only see/modify their own data. Policies enforce `auth.uid() = user_id`.
-
-### Usage Limits (Guard Rails)
-
-| Limit | Default | Reset |
-|-------|---------|-------|
-| Daily searches | 50 | Midnight |
-| Daily tokens | 100,000 | Midnight |
-| Monthly searches | 1,000 | 1st of month |
-| Monthly tokens | 500,000 | 1st of month |
-
-- Limits checked in parallel with first API call (no added latency)
-- Functions: `check_and_increment_search()`, `check_token_limits()`, `increment_token_usage()`
+### Usage Limits
+Limits checked in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for defaults and database schema.
 
 ## Path Alias
 
@@ -253,14 +223,10 @@ Each user can only see/modify their own data. Policies enforce `auth.uid() = use
 ## Common Tasks
 
 ### Adding a new LLM provider
-1. Add API endpoint constant in `src/lib/api-utils.ts`
-2. Create `call{Provider}` function following existing patterns
-3. Add to `LLMProvider` type
-4. Update `callLLMForProvider` switch statement
-5. Add env var check in `isProviderAvailable`
+See `src/lib/CLAUDE.md` for detailed 7-step guide.
 
 ### Modifying prompts
-Edit `src/lib/prompts.ts`. Prompts use XML-structured format for clarity.
+See `src/lib/CLAUDE.md` for prompt design guidelines.
 
 ### Changing streaming behavior
 Edit `src/app/search/search-client.tsx`. Key areas:
@@ -269,30 +235,7 @@ Edit `src/app/search/search-client.tsx`. Key areas:
 
 ## Caching
 
-Two-tier caching system reduces API costs:
-
-### Architecture
-```
-Request → Memory Cache (15 min) → Supabase Cache (48 hrs) → API Call
-```
-
-### Cached Endpoints
-| Endpoint | Cache Type | TTL |
-|----------|------------|-----|
-| `/api/search` | Tavily results | 48 hours |
-| `/api/refine` | Query refinements | 48 hours |
-| `/api/related-searches` | Related queries | 48 hours |
-| `/api/research/plan` | Research plans | 48 hours |
-
-### Cache Key Generation
-Keys are MD5 hashes of query + parameters:
-- `search:{query_hash}:{depth}:{maxResults}`
-- `refine:{query_hash}:{provider}`
-- `related:{query_hash}:{content_hash}`
-- `plan:{query_hash}:{provider}`
-
-### Database Cleanup
-Scheduled via pg_cron: `cleanup_expired_cache()` runs daily at 3 AM.
+Two-tier caching system (Memory → Supabase → API) reduces costs. See `src/lib/CLAUDE.md` for detailed documentation including cache types, TTLs, and usage examples.
 
 ## Provider-Specific Notes
 
@@ -316,3 +259,82 @@ Scheduled via pg_cron: `cleanup_expired_cache()` runs daily at 3 AM.
 3. **Skip Redundant Calls**: Research/Brainstorm skip refine (plan/reframe handles it)
 4. **Batched UI Updates**: 50ms intervals prevent jittery streaming
 5. **Two-Tier Caching**: Reduces repeated API calls for same queries
+
+## Deployment & External Services
+
+### Vercel (Hosting)
+
+1. Connect GitHub repository to Vercel
+2. Set build settings:
+   - Framework: Next.js
+   - Root Directory: `deep-search`
+   - Build Command: `npm run build`
+   - Output Directory: `.next`
+3. Add environment variables (same as `.env.local`)
+4. Deploy
+
+**Production URL**: Configure in Vercel → Settings → Domains
+
+### Porkbun (Domain)
+
+1. Purchase domain at porkbun.com
+2. Add DNS records for Vercel:
+   - Type: `CNAME`, Host: `@`, Answer: `cname.vercel-dns.com`
+   - Type: `CNAME`, Host: `www`, Answer: `cname.vercel-dns.com`
+3. In Vercel: Add domain → Settings → Domains → Add your domain
+4. Wait for SSL certificate provisioning (automatic)
+
+### Supabase (Auth + Database)
+
+1. Create project at supabase.com
+2. Run `supabase/schema.sql` in SQL Editor (includes all tables, functions, triggers)
+3. Configure Authentication:
+   - URL Configuration: Set Site URL and Redirect URLs
+   - Email Templates: Copy from `supabase/email-templates/`
+   - Providers: Enable GitHub OAuth (optional)
+   - Settings: Enable "Leaked password protection"
+4. Get credentials from Settings → API:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+5. (Optional) Enable pg_cron for scheduled jobs:
+   ```sql
+   SELECT cron.schedule('reset-daily-limits', '0 0 * * *', $$SELECT public.reset_daily_limits()$$);
+   SELECT cron.schedule('reset-monthly-limits', '0 0 1 * *', $$SELECT public.reset_monthly_limits()$$);
+   SELECT cron.schedule('cleanup-cache', '0 3 * * *', $$SELECT public.cleanup_expired_cache()$$);
+   ```
+
+### Resend (Email Delivery)
+
+Supabase uses its own SMTP by default, but for custom domain emails:
+
+1. Create account at resend.com
+2. Add and verify your domain (DNS records)
+3. Create API key
+4. In Supabase → Settings → Auth → SMTP Settings:
+   - Host: `smtp.resend.com`
+   - Port: `465`
+   - Username: `resend`
+   - Password: Your Resend API key
+   - Sender email: `noreply@yourdomain.com`
+
+### Environment Variables Checklist
+
+**Required for all environments:**
+```
+TAVILY_API_KEY=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+**At least one LLM provider:**
+```
+DEEPSEEK_API_KEY=
+OPENAI_API_KEY=
+GROK_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+```
+
+**For Vercel production:**
+- Add all above via Vercel → Settings → Environment Variables
+- Ensure variables are set for Production, Preview, and Development as needed
