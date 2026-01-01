@@ -302,17 +302,22 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
         {/* Quick Action Tags - only show on large (home page) variant */}
         {large && (
-          <div className="flex flex-wrap justify-center gap-2 mt-6">
-            {quickActions.map((action) => (
-              <a
-                key={action.label}
-                href={buildSearchUrl(action.query)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-full text-sm text-[var(--text-secondary)] hover:bg-[var(--card)] hover:border-[var(--accent)] transition-colors"
-              >
-                <span>{action.icon}</span>
-                <span>{action.label}</span>
-              </a>
-            ))}
+          <div className="mt-8">
+            <p className="text-center text-sm text-[var(--text-muted)] mb-3">
+              ✨ Not sure where to start? Try one of these
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {quickActions.map((action) => (
+                <a
+                  key={action.label}
+                  href={buildSearchUrl(action.query)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-full text-sm text-[var(--text-secondary)] hover:bg-[var(--card)] hover:border-[var(--accent)] hover:scale-105 transition-all cursor-pointer"
+                >
+                  <span>{action.icon}</span>
+                  <span>{action.label}</span>
+                </a>
+              ))}
+            </div>
           </div>
         )}
       </div>
