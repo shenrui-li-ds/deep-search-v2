@@ -307,14 +307,317 @@ function ChangePasswordModal({
   );
 }
 
+// Reset Password via Email Modal
+function ResetPasswordEmailModal({
+  isOpen,
+  onClose,
+  userEmail
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  userEmail: string;
+}) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSendResetLink = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (error) {
+        setError(error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+        setSuccess(false);
+      }, 2000);
+    } catch {
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isLoading) {
+      setError(null);
+      setSuccess(false);
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+      <div className="relative w-full max-w-md mx-4 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Reset Password</h2>
+          <button
+            onClick={handleClose}
+            disabled={isLoading}
+            className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-4">
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm">
+              {error}
+            </div>
+          )}
+
+          {success ? (
+            <div className="text-center py-4">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-[var(--text-primary)] font-medium">Reset link sent!</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">Check your email for the reset link.</p>
+            </div>
+          ) : (
+            <>
+              <p className="text-[var(--text-secondary)] mb-4">
+                We&apos;ll send a password reset link to:
+              </p>
+              <p className="text-[var(--text-primary)] font-medium mb-4 p-3 bg-[var(--card)] rounded-lg">
+                {userEmail}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 px-4 bg-[var(--card)] text-[var(--text-secondary)] border border-[var(--border)] rounded-lg font-medium hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendResetLink}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Reset Link'
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Change Email Modal
+function ChangeEmailModal({
+  isOpen,
+  onClose,
+  currentEmail
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  currentEmail: string;
+}) {
+  const [newEmail, setNewEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!newEmail) {
+      setError('Please enter a new email address');
+      return;
+    }
+
+    if (newEmail === currentEmail) {
+      setError('New email must be different from current email');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser(
+        { email: newEmail },
+        { emailRedirectTo: `${window.location.origin}/auth/callback` }
+      );
+
+      if (error) {
+        setError(error.message);
+        setIsLoading(false);
+        return;
+      }
+
+      setSuccess(true);
+    } catch {
+      setError('An unexpected error occurred');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isLoading) {
+      setNewEmail('');
+      setError(null);
+      setSuccess(false);
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+      <div className="relative w-full max-w-md mx-4 bg-[var(--background)] border border-[var(--border)] rounded-xl shadow-2xl">
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Change Email Address</h2>
+          <button
+            onClick={handleClose}
+            disabled={isLoading}
+            className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-4">
+          {error && (
+            <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm">
+              {error}
+            </div>
+          )}
+
+          {success ? (
+            <div className="text-center py-4">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <p className="text-[var(--text-primary)] font-medium">Verification email sent!</p>
+              <p className="text-sm text-[var(--text-muted)] mt-1">
+                Please check <span className="font-medium text-[var(--text-primary)]">{newEmail}</span> to confirm your new email address.
+              </p>
+              <button
+                onClick={handleClose}
+                className="mt-4 px-4 py-2 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                  Current Email
+                </label>
+                <p className="p-3 bg-[var(--card)] rounded-lg text-[var(--text-muted)]">
+                  {currentEmail}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="newEmail" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                  New Email Address
+                </label>
+                <input
+                  id="newEmail"
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+                  placeholder="Enter new email address"
+                  required
+                />
+              </div>
+
+              <p className="text-xs text-[var(--text-muted)] mb-4">
+                We&apos;ll send a verification email to your new address. Your email won&apos;t change until you verify it.
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  disabled={isLoading}
+                  className="flex-1 py-2.5 px-4 bg-[var(--card)] text-[var(--text-secondary)] border border-[var(--border)] rounded-lg font-medium hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isLoading || !newEmail}
+                  className="flex-1 py-2.5 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Verification'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Profile Tab Content
 function ProfileTab({
   user,
   onChangePassword,
+  onResetPassword,
+  onChangeEmail,
   onSignOut
 }: {
   user: { email?: string; created_at?: string; email_confirmed_at?: string; id?: string } | null;
   onChangePassword: () => void;
+  onResetPassword: () => void;
+  onChangeEmail: () => void;
   onSignOut: () => void;
 }) {
   return (
@@ -361,19 +664,54 @@ function ProfileTab({
       {/* Security Section */}
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Account Security</h3>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[var(--text-primary)] font-medium">Password</p>
-            <p className="text-sm text-[var(--text-muted)]">
-              Change your account password
-            </p>
+        <div className="space-y-4">
+          {/* Change Password */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[var(--text-primary)] font-medium">Password</p>
+              <p className="text-sm text-[var(--text-muted)]">
+                Change your account password
+              </p>
+            </div>
+            <button
+              onClick={onChangePassword}
+              className="px-4 py-2 bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card-hover)] transition-colors"
+            >
+              Change
+            </button>
           </div>
-          <button
-            onClick={onChangePassword}
-            className="px-4 py-2 bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card-hover)] transition-colors"
-          >
-            Change
-          </button>
+
+          {/* Reset Password via Email */}
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+            <div>
+              <p className="text-[var(--text-primary)] font-medium">Reset Password</p>
+              <p className="text-sm text-[var(--text-muted)]">
+                Send a password reset link to your email
+              </p>
+            </div>
+            <button
+              onClick={onResetPassword}
+              className="px-4 py-2 bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card-hover)] transition-colors"
+            >
+              Send Link
+            </button>
+          </div>
+
+          {/* Change Email */}
+          <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+            <div>
+              <p className="text-[var(--text-primary)] font-medium">Email Address</p>
+              <p className="text-sm text-[var(--text-muted)]">
+                Update your email address
+              </p>
+            </div>
+            <button
+              onClick={onChangeEmail}
+              className="px-4 py-2 bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card-hover)] transition-colors"
+            >
+              Update
+            </button>
+          </div>
         </div>
       </div>
 
@@ -688,6 +1026,8 @@ export default function AccountPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>('profile');
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -762,6 +1102,8 @@ export default function AccountPage() {
           <ProfileTab
             user={user}
             onChangePassword={() => setIsPasswordModalOpen(true)}
+            onResetPassword={() => setIsResetPasswordModalOpen(true)}
+            onChangeEmail={() => setIsChangeEmailModalOpen(true)}
             onSignOut={handleSignOut}
           />
         )}
@@ -774,6 +1116,20 @@ export default function AccountPage() {
         isOpen={isPasswordModalOpen}
         onClose={() => setIsPasswordModalOpen(false)}
         userEmail={user?.email || ''}
+      />
+
+      {/* Reset Password via Email Modal */}
+      <ResetPasswordEmailModal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => setIsResetPasswordModalOpen(false)}
+        userEmail={user?.email || ''}
+      />
+
+      {/* Change Email Modal */}
+      <ChangeEmailModal
+        isOpen={isChangeEmailModalOpen}
+        onClose={() => setIsChangeEmailModalOpen(false)}
+        currentEmail={user?.email || ''}
       />
     </MainLayout>
   );

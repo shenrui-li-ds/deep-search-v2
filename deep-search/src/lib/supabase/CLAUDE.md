@@ -40,8 +40,14 @@ Handles session refresh and route protection.
 - `/auth/signup`
 - `/auth/callback`
 - `/auth/error`
+- `/auth/forgot-password`
+- `/auth/reset-password`
 
 All other routes require authentication. Unauthenticated users are redirected to `/auth/login`.
+
+**No-Redirect Routes (for logged-in users):**
+- `/auth/callback` - OAuth callback
+- `/auth/reset-password` - Password recovery flow (user has recovery session)
 
 ### `auth-context.tsx` - React Auth Context
 
@@ -266,6 +272,73 @@ const { error: updateError } = await supabase.auth.updateUser({
 - Eye icon toggle to show/hide password in each field
 - Real-time validation feedback
 - Success confirmation before modal closes
+
+### Forgot Password (Password Reset via Email)
+
+Users who forget their password can request a reset link.
+
+**Flow:**
+1. User clicks "Forgot password?" on login page → `/auth/forgot-password`
+2. User enters email address
+3. Supabase sends reset email via `resetPasswordForEmail(email, { redirectTo })`
+4. User clicks link in email → redirected to `/auth/reset-password`
+5. User enters new password (same validation as Change Password)
+6. Password updated via `updateUser({ password })`
+
+**Pages:**
+- `/auth/forgot-password` - Email input to request reset link
+- `/auth/reset-password` - New password form (handles recovery session)
+
+```typescript
+// Request reset link
+const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${window.location.origin}/auth/reset-password`,
+});
+
+// Set new password (on reset-password page)
+const { error } = await supabase.auth.updateUser({
+  password: newPassword,
+});
+```
+
+**Reset Password Page States:**
+- Loading: Verifying recovery session
+- Invalid/Expired: Link no longer valid, offer to request new link
+- Form: Password input with validation
+- Success: Confirmation, then redirect to home
+
+### Reset Password via Email (Account Page)
+
+Logged-in users can request a password reset link from Account → Profile → Account Security.
+
+```typescript
+const { error } = await supabase.auth.resetPasswordForEmail(userEmail, {
+  redirectTo: `${window.location.origin}/auth/reset-password`,
+});
+```
+
+### Change Email
+
+Users can update their email address from Account → Profile → Account Security.
+
+**Flow:**
+1. User clicks "Update" next to Email Address
+2. User enters new email address
+3. Supabase sends verification email via `updateUser({ email }, { emailRedirectTo })`
+4. User clicks link in verification email
+5. Email is updated after verification
+
+```typescript
+const { error } = await supabase.auth.updateUser(
+  { email: newEmail },
+  { emailRedirectTo: `${window.location.origin}/auth/callback` }
+);
+```
+
+**Notes:**
+- Email doesn't change until new address is verified
+- Verification email sent to NEW address
+- Uses Supabase's "Change Email" email template
 
 ### OAuth Providers
 GitHub OAuth is supported. To add more providers:

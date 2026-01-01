@@ -36,7 +36,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Define public routes that don't require authentication
-  const publicRoutes = ['/auth/login', '/auth/signup', '/auth/callback', '/auth/error'];
+  const publicRoutes = ['/auth/login', '/auth/signup', '/auth/callback', '/auth/error', '/auth/forgot-password', '/auth/reset-password'];
   const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
 
   // If user is not logged in and trying to access protected route, redirect to login
@@ -48,7 +48,10 @@ export async function updateSession(request: NextRequest) {
   }
 
   // If user is logged in and trying to access auth pages, redirect to home
-  if (user && isPublicRoute && !request.nextUrl.pathname.startsWith('/auth/callback')) {
+  // Exception: /auth/reset-password needs to be accessible for password recovery flow
+  const noRedirectRoutes = ['/auth/callback', '/auth/reset-password'];
+  const shouldRedirect = user && isPublicRoute && !noRedirectRoutes.some(route => request.nextUrl.pathname.startsWith(route));
+  if (shouldRedirect) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);

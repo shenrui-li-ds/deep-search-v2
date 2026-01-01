@@ -1,0 +1,175 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
+
+// Rate limiting: track last request time in sessionStorage
+const COOLDOWN_SECONDS = 60;
+
+export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  // Check cooldown on mount and update timer
+  useEffect(() => {
+    const checkCooldown = () => {
+      const lastRequest = sessionStorage.getItem('forgot_password_last_request');
+      if (lastRequest) {
+        const elapsed = Math.floor((Date.now() - parseInt(lastRequest)) / 1000);
+        const remaining = Math.max(0, COOLDOWN_SECONDS - elapsed);
+        setCooldownRemaining(remaining);
+      }
+    };
+
+    checkCooldown();
+    const interval = setInterval(checkCooldown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check cooldown
+    if (cooldownRemaining > 0) {
+      setError(`Please wait ${cooldownRemaining} seconds before requesting another reset link.`);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    // Set cooldown
+    sessionStorage.setItem('forgot_password_last_request', Date.now().toString());
+    setCooldownRemaining(COOLDOWN_SECONDS);
+
+    setSuccess(true);
+    setLoading(false);
+  };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+        <div className="w-full max-w-md text-center">
+          {/* Logo */}
+          <div className="mb-8">
+            <Link href="/" className="inline-block">
+              <Image
+                src="/owl_google.svg"
+                alt="Athenius"
+                width={48}
+                height={48}
+                className="mx-auto mb-4"
+              />
+            </Link>
+          </div>
+
+          {/* Success Message */}
+          <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Check your email</h1>
+            <p className="text-[var(--text-muted)] mb-4">
+              We&apos;ve sent a password reset link to <span className="text-[var(--text-primary)] font-medium">{email}</span>
+            </p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Didn&apos;t receive the email? Check your spam folder or{' '}
+              <button
+                onClick={() => setSuccess(false)}
+                className="text-[var(--accent)] hover:underline"
+              >
+                try again
+              </button>
+            </p>
+          </div>
+
+          <p className="mt-6 text-[var(--text-muted)]">
+            <Link href="/auth/login" className="text-[var(--accent)] hover:underline">
+              Back to sign in
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-block">
+            <Image
+              src="/owl_google.svg"
+              alt="Athenius"
+              width={48}
+              height={48}
+              className="mx-auto mb-4"
+            />
+          </Link>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Reset your password</h1>
+          <p className="text-[var(--text-muted)] mt-2">Enter your email to receive a reset link</p>
+        </div>
+
+        {/* Reset Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || cooldownRemaining > 0}
+            className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Sending...' : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : 'Send reset link'}
+          </button>
+        </form>
+
+        {/* Back to login */}
+        <p className="text-center mt-6 text-[var(--text-muted)]">
+          Remember your password?{' '}
+          <Link href="/auth/login" className="text-[var(--accent)] hover:underline">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}

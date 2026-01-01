@@ -44,10 +44,10 @@ Required in `deep-search/.env.local`:
 
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
-- `OPENAI_API_KEY` - OpenAI GPT-4o mini
+- `OPENAI_API_KEY` - OpenAI GPT-4.1 mini
 - `GROK_API_KEY` - xAI Grok 4.1 Fast
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
-- `GEMINI_API_KEY` - Google Gemini 2.5 Flash
+- `GEMINI_API_KEY` - Google Gemini 3 Flash
 
 Supabase (for auth and database):
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
@@ -198,8 +198,20 @@ Uses Supabase Auth with email/password and GitHub OAuth. See `src/lib/supabase/C
 ### Overview
 - **Email/Password**: Standard signup with email confirmation
 - **GitHub OAuth**: One-click sign in via GitHub
+- **Forgot Password**: Reset via email link (`/auth/forgot-password` → `/auth/reset-password`)
+- **Change Email**: Update with verification from Account page
 - **Route Protection**: Middleware redirects unauthenticated users to `/auth/login`
 - **Session**: Stored in cookies, managed by Supabase SSR
+
+### Auth Pages
+| Route | Description |
+|-------|-------------|
+| `/auth/login` | Email/password and OAuth login |
+| `/auth/signup` | New user registration |
+| `/auth/forgot-password` | Request password reset link |
+| `/auth/reset-password` | Set new password (from email link) |
+| `/auth/callback` | OAuth and email verification handler |
+| `/auth/error` | Authentication error display |
 
 ### Usage Limits
 Limits checked in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for defaults and database schema.
