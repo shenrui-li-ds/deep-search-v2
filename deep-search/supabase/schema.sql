@@ -109,11 +109,13 @@ CREATE POLICY "Users can update their own usage counts"
 -- FUNCTIONS
 -- ============================================
 
--- Function to create user limits on signup
+-- Function to create user limits and preferences on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.user_limits (user_id)
+  VALUES (NEW.id);
+  INSERT INTO public.user_preferences (user_id)
   VALUES (NEW.id);
   RETURN NEW;
 END;
@@ -262,6 +264,65 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================
+-- USER PREFERENCES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_preferences (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  default_provider TEXT DEFAULT 'deepseek' CHECK (default_provider IN ('deepseek', 'openai', 'grok', 'claude', 'gemini')),
+  default_mode TEXT DEFAULT 'web' CHECK (default_mode IN ('web', 'pro', 'brainstorm')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS for user preferences
+ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own preferences"
+  ON user_preferences FOR SELECT
+  USING ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can insert own preferences"
+  ON user_preferences FOR INSERT
+  WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE POLICY "Users can update own preferences"
+  ON user_preferences FOR UPDATE
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
+
+-- Function to upsert user preferences
+CREATE OR REPLACE FUNCTION public.upsert_user_preferences(
+  p_default_provider TEXT DEFAULT NULL,
+  p_default_mode TEXT DEFAULT NULL
+)
+RETURNS user_preferences AS $$
+DECLARE
+  v_user_id UUID;
+  v_result user_preferences;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  INSERT INTO user_preferences (user_id, default_provider, default_mode, updated_at)
+  VALUES (
+    v_user_id,
+    COALESCE(p_default_provider, 'deepseek'),
+    COALESCE(p_default_mode, 'web'),
+    NOW()
+  )
+  ON CONFLICT (user_id) DO UPDATE SET
+    default_provider = COALESCE(p_default_provider, user_preferences.default_provider),
+    default_mode = COALESCE(p_default_mode, user_preferences.default_mode),
+    updated_at = NOW()
+  RETURNING * INTO v_result;
+
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
 -- SEARCH CACHE TABLE (Two-tier caching)
 -- ============================================
 CREATE TABLE IF NOT EXISTS search_cache (
@@ -332,6 +393,7 @@ GRANT EXECUTE ON FUNCTION public.cleanup_old_history() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_token_usage(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_token_limits(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.upsert_user_preferences(TEXT, TEXT) TO authenticated;
 
 -- ============================================
 -- SCHEDULED JOBS (requires pg_cron extension)

@@ -96,6 +96,13 @@ Client-side database operations for search history and usage limits.
 | `checkSearchLimit()` | Check and increment search count |
 | `canPerformSearch()` | Check if user can search (client-side) |
 
+**User Preferences:**
+
+| Function | Description |
+|----------|-------------|
+| `getUserPreferences()` | Get user's default provider and mode |
+| `updateUserPreferences(prefs)` | Update default provider and/or mode |
+
 **Types:**
 ```typescript
 interface SearchHistoryEntry {
@@ -112,11 +119,27 @@ interface SearchHistoryEntry {
 
 interface UserLimits {
   user_id: string;
+  // Daily limits
   daily_search_limit: number;      // Default: 50
   daily_searches_used: number;
+  daily_token_limit: number;       // Default: 100,000
+  daily_tokens_used: number;
+  // Monthly limits
+  monthly_search_limit: number;    // Default: 1,000
+  monthly_searches_used: number;
   monthly_token_limit: number;     // Default: 500,000
   monthly_tokens_used: number;
-  last_reset_date: string;
+  // Reset tracking
+  last_daily_reset: string;
+  last_monthly_reset: string;
+}
+
+interface UserPreferences {
+  user_id: string;
+  default_provider: 'deepseek' | 'openai' | 'grok' | 'claude' | 'gemini';
+  default_mode: 'web' | 'pro' | 'brainstorm';
+  created_at?: string;
+  updated_at?: string;
 }
 ```
 
@@ -167,11 +190,16 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 - Per-user quotas and current usage
 - Auto-created for new users via trigger
 
+**`user_preferences`**
+- User's default provider and search mode
+- Auto-created for new users via trigger
+
 ### Key Functions (PostgreSQL)
 
 | Function | Description |
 |----------|-------------|
 | `upsert_search_history(...)` | Atomic upsert for search history (updates bookmarked entries, inserts new) |
+| `upsert_user_preferences(...)` | Atomic upsert for user preferences |
 | `check_and_increment_search()` | Atomically check and increment daily search count |
 | `increment_token_usage(user_id, tokens)` | Add tokens to monthly usage |
 | `cleanup_old_history()` | Keep only last 100 entries per user |
@@ -206,6 +234,37 @@ const { data } = await supabase.rpc('upsert_search_history', {
 
 ### Email/Password
 Standard email and password signup/login. Email confirmation required.
+
+### Change Password
+
+Users can change their password from the Account page (`/account`). The flow:
+
+1. User enters current password (verified via `signInWithPassword`)
+2. User enters new password with requirements:
+   - Minimum 10 characters
+   - At least one lowercase letter
+   - At least one uppercase letter
+   - At least one digit
+3. Password updated via `updateUser({ password: newPassword })`
+
+```typescript
+// Verify current password
+const { error: signInError } = await supabase.auth.signInWithPassword({
+  email: userEmail,
+  password: currentPassword,
+});
+
+// Update to new password
+const { error: updateError } = await supabase.auth.updateUser({
+  password: newPassword,
+});
+```
+
+**UI Features:**
+- Modal dialog with form validation
+- Eye icon toggle to show/hide password in each field
+- Real-time validation feedback
+- Success confirmation before modal closes
 
 ### OAuth Providers
 GitHub OAuth is supported. To add more providers:

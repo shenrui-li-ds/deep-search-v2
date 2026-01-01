@@ -1,10 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/MainLayout';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { createClient } from '@/lib/supabase/client';
+import { getUserPreferences, updateUserPreferences, getUserLimits, type UserPreferences, type UserLimits } from '@/lib/supabase/database';
+
+// Tab types
+type TabId = 'profile' | 'preferences' | 'usage';
 
 // Change Password Modal Component
 function ChangePasswordModal({
@@ -303,9 +307,386 @@ function ChangePasswordModal({
   );
 }
 
+// Profile Tab Content
+function ProfileTab({
+  user,
+  onChangePassword,
+  onSignOut
+}: {
+  user: { email?: string; created_at?: string; email_confirmed_at?: string; id?: string } | null;
+  onChangePassword: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <div className="space-y-6">
+      {/* User Info Card */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-14 h-14 rounded-full bg-[var(--accent)]/20 flex items-center justify-center">
+            <span className="text-xl font-semibold text-[var(--accent)]">
+              {user?.email?.charAt(0).toUpperCase() || '?'}
+            </span>
+          </div>
+          <div>
+            <h2 className="text-lg font-medium text-[var(--text-primary)]">
+              {user?.email || 'Unknown User'}
+            </h2>
+            <p className="text-sm text-[var(--text-muted)]">
+              Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
+            </p>
+          </div>
+        </div>
+
+        <div className="border-t border-[var(--border)] pt-4">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Account Details</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-[var(--text-muted)]">Email</span>
+              <span className="text-[var(--text-primary)]">{user?.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--text-muted)]">Email verified</span>
+              <span className={user?.email_confirmed_at ? 'text-green-500' : 'text-yellow-500'}>
+                {user?.email_confirmed_at ? 'Yes' : 'Pending'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-[var(--text-muted)]">User ID</span>
+              <span className="text-[var(--text-primary)] font-mono text-xs">{user?.id?.slice(0, 8)}...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Security Section */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Account Security</h3>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[var(--text-primary)] font-medium">Password</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              Change your account password
+            </p>
+          </div>
+          <button
+            onClick={onChangePassword}
+            className="px-4 py-2 bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card-hover)] transition-colors"
+          >
+            Change
+          </button>
+        </div>
+      </div>
+
+      {/* Sign Out Button */}
+      <button
+        onClick={onSignOut}
+        className="w-full py-3 px-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg font-medium hover:bg-rose-500/20 transition-colors"
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+// Preferences Tab Content
+function PreferencesTab() {
+  const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const prefs = await getUserPreferences();
+        setPreferences(prefs);
+      } catch (error) {
+        console.error('Failed to load preferences:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadPreferences();
+  }, []);
+
+  const handleProviderChange = async (provider: UserPreferences['default_provider']) => {
+    if (!preferences) return;
+    setIsSaving(true);
+    try {
+      await updateUserPreferences({ default_provider: provider });
+      setPreferences({ ...preferences, default_provider: provider });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to update provider:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleModeChange = async (mode: UserPreferences['default_mode']) => {
+    if (!preferences) return;
+    setIsSaving(true);
+    try {
+      await updateUserPreferences({ default_mode: mode });
+      setPreferences({ ...preferences, default_mode: mode });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to update mode:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const providers = [
+    { id: 'deepseek', name: 'DeepSeek', description: 'Cost-effective, fast responses' },
+    { id: 'openai', name: 'OpenAI', description: 'GPT-4o mini' },
+    { id: 'grok', name: 'Grok', description: 'xAI Grok 4.1 Fast' },
+    { id: 'claude', name: 'Claude', description: 'Anthropic Claude Haiku' },
+    { id: 'gemini', name: 'Gemini', description: 'Google Gemini 2.5 Flash' },
+  ] as const;
+
+  const modes = [
+    { id: 'web', name: 'Web', description: 'Quick search with streaming summary' },
+    { id: 'pro', name: 'Research', description: 'Multi-angle comprehensive research' },
+    { id: 'brainstorm', name: 'Brainstorm', description: 'Creative ideation with cross-domain inspiration' },
+  ] as const;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <div className="animate-pulse space-y-4">
+            <div className="h-5 w-32 bg-[var(--border)] rounded" />
+            <div className="h-10 w-full bg-[var(--border)] rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Save indicator */}
+      {(isSaving || saveSuccess) && (
+        <div className={`fixed top-4 right-4 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          saveSuccess
+            ? 'bg-green-500/20 text-green-500 border border-green-500/20'
+            : 'bg-[var(--card)] text-[var(--text-muted)] border border-[var(--border)]'
+        }`}>
+          {saveSuccess ? 'Saved!' : 'Saving...'}
+        </div>
+      )}
+
+      {/* Default Provider */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">Default Provider</h3>
+        <p className="text-xs text-[var(--text-muted)] mb-4">
+          Choose which AI provider to use by default when starting a new search
+        </p>
+        <div className="grid gap-2">
+          {providers.map((provider) => (
+            <button
+              key={provider.id}
+              onClick={() => handleProviderChange(provider.id)}
+              disabled={isSaving}
+              className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                preferences?.default_provider === provider.id
+                  ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                  : 'border-[var(--border)] hover:border-[var(--text-muted)]'
+              } disabled:opacity-50`}
+            >
+              <div>
+                <p className="font-medium text-[var(--text-primary)]">{provider.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">{provider.description}</p>
+              </div>
+              {preferences?.default_provider === provider.id && (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Default Search Mode */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">Default Search Mode</h3>
+        <p className="text-xs text-[var(--text-muted)] mb-4">
+          Choose which search mode to use by default
+        </p>
+        <div className="grid gap-2">
+          {modes.map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => handleModeChange(mode.id)}
+              disabled={isSaving}
+              className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                preferences?.default_mode === mode.id
+                  ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                  : 'border-[var(--border)] hover:border-[var(--text-muted)]'
+              } disabled:opacity-50`}
+            >
+              <div>
+                <p className="font-medium text-[var(--text-primary)]">{mode.name}</p>
+                <p className="text-xs text-[var(--text-muted)]">{mode.description}</p>
+              </div>
+              {preferences?.default_mode === mode.id && (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Usage Progress Bar Component
+function UsageProgressBar({
+  label,
+  used,
+  limit,
+  resetText,
+  formatValue = (v: number) => v.toString(),
+}: {
+  label: string;
+  used: number;
+  limit: number;
+  resetText: string;
+  formatValue?: (value: number) => string;
+}) {
+  const percent = limit > 0 ? (used / limit) * 100 : 0;
+
+  return (
+    <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)]">{label}</h3>
+        <span className="text-sm text-[var(--text-muted)]">
+          {formatValue(used)} / {formatValue(limit)}
+        </span>
+      </div>
+      <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${
+            percent >= 90 ? 'bg-rose-500' : percent >= 70 ? 'bg-yellow-500' : 'bg-[var(--accent)]'
+          }`}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+      <p className="text-xs text-[var(--text-muted)] mt-2">{resetText}</p>
+    </div>
+  );
+}
+
+// Usage Tab Content
+function UsageTab() {
+  const [limits, setLimits] = useState<UserLimits | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadLimits = async () => {
+      try {
+        const userLimits = await getUserLimits();
+        setLimits(userLimits);
+      } catch (error) {
+        console.error('Failed to load usage limits:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadLimits();
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <div className="animate-pulse space-y-4">
+            <div className="h-5 w-32 bg-[var(--border)] rounded" />
+            <div className="h-4 w-full bg-[var(--border)] rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const formatNumber = (n: number) => n.toLocaleString();
+
+  return (
+    <div className="space-y-6">
+      {/* Daily Usage Section */}
+      <div>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Daily Usage</h2>
+        <div className="space-y-4">
+          <UsageProgressBar
+            label="Searches"
+            used={limits?.daily_searches_used || 0}
+            limit={limits?.daily_search_limit || 50}
+            resetText="Resets daily at midnight"
+          />
+          <UsageProgressBar
+            label="Tokens"
+            used={limits?.daily_tokens_used || 0}
+            limit={limits?.daily_token_limit || 100000}
+            resetText="Resets daily at midnight"
+            formatValue={formatNumber}
+          />
+        </div>
+      </div>
+
+      {/* Monthly Usage Section */}
+      <div>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Monthly Usage</h2>
+        <div className="space-y-4">
+          <UsageProgressBar
+            label="Searches"
+            used={limits?.monthly_searches_used || 0}
+            limit={limits?.monthly_search_limit || 1000}
+            resetText="Resets on the 1st of each month"
+          />
+          <UsageProgressBar
+            label="Tokens"
+            used={limits?.monthly_tokens_used || 0}
+            limit={limits?.monthly_token_limit || 500000}
+            resetText="Resets on the 1st of each month"
+            formatValue={formatNumber}
+          />
+        </div>
+      </div>
+
+      {/* Reset Info */}
+      {limits && (
+        <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <div className="flex items-center gap-4 text-sm">
+            <div>
+              <span className="text-[var(--text-muted)]">Daily reset: </span>
+              <span className="text-[var(--text-primary)]">
+                {limits.last_daily_reset ? new Date(limits.last_daily_reset).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+            <div className="w-px h-4 bg-[var(--border)]" />
+            <div>
+              <span className="text-[var(--text-muted)]">Monthly reset: </span>
+              <span className="text-[var(--text-primary)]">
+                {limits.last_monthly_reset ? new Date(limits.last_monthly_reset).toLocaleDateString() : 'N/A'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<TabId>('profile');
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const handleSignOut = async () => {
@@ -326,113 +707,66 @@ export default function AccountPage() {
     );
   }
 
+  const tabs = [
+    { id: 'profile' as const, label: 'Profile', icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+      </svg>
+    )},
+    { id: 'preferences' as const, label: 'Preferences', icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    )},
+    { id: 'usage' as const, label: 'Usage', icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+      </svg>
+    )},
+  ];
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Account</h1>
           <p className="text-sm text-[var(--text-muted)] mt-1">
-            Manage your account settings
+            Manage your account settings and preferences
           </p>
         </div>
 
-        {/* User Info Card */}
-        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)] mb-6">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 rounded-full bg-[var(--accent)]/20 flex items-center justify-center">
-              <span className="text-xl font-semibold text-[var(--accent)]">
-                {user?.email?.charAt(0).toUpperCase() || '?'}
-              </span>
-            </div>
-            <div>
-              <h2 className="text-lg font-medium text-[var(--text-primary)]">
-                {user?.email || 'Unknown User'}
-              </h2>
-              <p className="text-sm text-[var(--text-muted)]">
-                Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-[var(--border)] pt-4">
-            <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Account Details</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-[var(--text-muted)]">Email</span>
-                <span className="text-[var(--text-primary)]">{user?.email}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--text-muted)]">Email verified</span>
-                <span className={user?.email_confirmed_at ? 'text-green-500' : 'text-yellow-500'}>
-                  {user?.email_confirmed_at ? 'Yes' : 'Pending'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[var(--text-muted)]">User ID</span>
-                <span className="text-[var(--text-primary)] font-mono text-xs">{user?.id?.slice(0, 8)}...</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Security Section */}
-        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)] mb-6">
-          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Account Security</h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[var(--text-primary)] font-medium">Password</p>
-              <p className="text-sm text-[var(--text-muted)]">
-                Change your account password
-              </p>
-            </div>
+        {/* Tabs */}
+        <div className="flex items-center gap-6 mb-6 border-b border-[var(--border)]">
+          {tabs.map((tab) => (
             <button
-              onClick={() => setIsPasswordModalOpen(true)}
-              className="px-4 py-2 bg-[var(--background)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg text-sm font-medium hover:bg-[var(--card-hover)] transition-colors"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
+                activeTab === tab.id
+                  ? 'border-[var(--accent)] text-[var(--accent)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+              }`}
             >
-              Change
+              <span className="flex items-center gap-1.5">
+                {tab.icon}
+                {tab.label}
+              </span>
             </button>
-          </div>
+          ))}
         </div>
 
-        {/* Sign Out Button */}
-        <button
-          onClick={handleSignOut}
-          className="w-full py-3 px-4 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg font-medium hover:bg-rose-500/20 transition-colors"
-        >
-          Sign out
-        </button>
-
-        {/* Feature preview */}
-        <div className="mt-12">
-          <h3 className="text-lg font-medium text-[var(--text-primary)] mb-4">Coming Soon</h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-              <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <h4 className="font-medium text-[var(--text-primary)] mb-1">Preferences</h4>
-              <p className="text-sm text-[var(--text-muted)]">
-                Customize default providers and search settings
-              </p>
-            </div>
-
-            <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-              <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <h4 className="font-medium text-[var(--text-primary)] mb-1">Usage Stats</h4>
-              <p className="text-sm text-[var(--text-muted)]">
-                View your search statistics and API usage
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Tab Content */}
+        {activeTab === 'profile' && (
+          <ProfileTab
+            user={user}
+            onChangePassword={() => setIsPasswordModalOpen(true)}
+            onSignOut={handleSignOut}
+          />
+        )}
+        {activeTab === 'preferences' && <PreferencesTab />}
+        {activeTab === 'usage' && <UsageTab />}
       </div>
 
       {/* Change Password Modal */}

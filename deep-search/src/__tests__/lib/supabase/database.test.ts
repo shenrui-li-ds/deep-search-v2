@@ -52,6 +52,8 @@ import {
   getBookmarkedCount,
   getUserLimits,
   canPerformSearch,
+  getUserPreferences,
+  updateUserPreferences,
 } from '@/lib/supabase/database';
 
 describe('Supabase Database Functions', () => {
@@ -354,9 +356,14 @@ describe('Supabase Database Functions', () => {
         user_id: mockUser.id,
         daily_search_limit: 50,
         daily_searches_used: 10,
+        daily_token_limit: 100000,
+        daily_tokens_used: 5000,
+        monthly_search_limit: 1000,
+        monthly_searches_used: 100,
         monthly_token_limit: 500000,
         monthly_tokens_used: 50000,
-        last_reset_date: '2024-01-15',
+        last_daily_reset: '2024-01-15',
+        last_monthly_reset: '2024-01-01',
       };
 
       mockSupabaseClient.single.mockResolvedValueOnce({
@@ -396,9 +403,14 @@ describe('Supabase Database Functions', () => {
         user_id: mockUser.id,
         daily_search_limit: 50,
         daily_searches_used: 50,
+        daily_token_limit: 100000,
+        daily_tokens_used: 5000,
+        monthly_search_limit: 1000,
+        monthly_searches_used: 100,
         monthly_token_limit: 500000,
         monthly_tokens_used: 100000,
-        last_reset_date: new Date().toISOString().split('T')[0], // Today
+        last_daily_reset: new Date().toISOString().split('T')[0], // Today
+        last_monthly_reset: '2024-01-01',
       };
 
       mockSupabaseClient.single.mockResolvedValueOnce({
@@ -417,9 +429,14 @@ describe('Supabase Database Functions', () => {
         user_id: mockUser.id,
         daily_search_limit: 50,
         daily_searches_used: 10,
+        daily_token_limit: 100000,
+        daily_tokens_used: 5000,
+        monthly_search_limit: 1000,
+        monthly_searches_used: 100,
         monthly_token_limit: 500000,
         monthly_tokens_used: 500000, // At limit
-        last_reset_date: new Date().toISOString().split('T')[0],
+        last_daily_reset: new Date().toISOString().split('T')[0],
+        last_monthly_reset: '2024-01-01',
       };
 
       mockSupabaseClient.single.mockResolvedValueOnce({
@@ -438,9 +455,14 @@ describe('Supabase Database Functions', () => {
         user_id: mockUser.id,
         daily_search_limit: 50,
         daily_searches_used: 10,
+        daily_token_limit: 100000,
+        daily_tokens_used: 5000,
+        monthly_search_limit: 1000,
+        monthly_searches_used: 100,
         monthly_token_limit: 500000,
         monthly_tokens_used: 100000,
-        last_reset_date: new Date().toISOString().split('T')[0],
+        last_daily_reset: new Date().toISOString().split('T')[0],
+        last_monthly_reset: '2024-01-01',
       };
 
       mockSupabaseClient.single.mockResolvedValueOnce({
@@ -451,6 +473,157 @@ describe('Supabase Database Functions', () => {
       const result = await canPerformSearch();
 
       expect(result).toEqual({ allowed: true });
+    });
+  });
+
+  describe('getUserPreferences', () => {
+    it('should return user preferences', async () => {
+      const mockPreferences = {
+        user_id: mockUser.id,
+        default_provider: 'claude',
+        default_mode: 'pro',
+        created_at: '2024-01-15T00:00:00Z',
+        updated_at: '2024-01-15T00:00:00Z',
+      };
+
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: mockPreferences,
+        error: null,
+      });
+
+      const result = await getUserPreferences();
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('user_preferences');
+      expect(result).toEqual(mockPreferences);
+    });
+
+    it('should return null if no user is logged in', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+
+      const result = await getUserPreferences();
+
+      expect(result).toBeNull();
+    });
+
+    it('should return defaults if no preferences record exists (PGRST116)', async () => {
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: null,
+        error: { code: 'PGRST116' },
+      });
+
+      const result = await getUserPreferences();
+
+      expect(result).toEqual({
+        user_id: mockUser.id,
+        default_provider: 'deepseek',
+        default_mode: 'web',
+      });
+    });
+
+    it('should throw error for other database errors', async () => {
+      mockSupabaseClient.single.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Database error', code: 'OTHER_ERROR' },
+      });
+
+      await expect(getUserPreferences()).rejects.toEqual({
+        message: 'Database error',
+        code: 'OTHER_ERROR',
+      });
+    });
+  });
+
+  describe('updateUserPreferences', () => {
+    it('should call upsert_user_preferences RPC with correct parameters', async () => {
+      const mockResult = {
+        user_id: mockUser.id,
+        default_provider: 'grok',
+        default_mode: 'brainstorm',
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockResult,
+        error: null,
+      });
+
+      const result = await updateUserPreferences({
+        default_provider: 'grok',
+        default_mode: 'brainstorm',
+      });
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_user_preferences', {
+        p_default_provider: 'grok',
+        p_default_mode: 'brainstorm',
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should handle partial update (only provider)', async () => {
+      const mockResult = {
+        user_id: mockUser.id,
+        default_provider: 'openai',
+        default_mode: 'web',
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockResult,
+        error: null,
+      });
+
+      const result = await updateUserPreferences({
+        default_provider: 'openai',
+      });
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_user_preferences', {
+        p_default_provider: 'openai',
+        p_default_mode: null,
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should handle partial update (only mode)', async () => {
+      const mockResult = {
+        user_id: mockUser.id,
+        default_provider: 'deepseek',
+        default_mode: 'pro',
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockResult,
+        error: null,
+      });
+
+      const result = await updateUserPreferences({
+        default_mode: 'pro',
+      });
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_user_preferences', {
+        p_default_provider: null,
+        p_default_mode: 'pro',
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should return null if no user is logged in', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
+
+      const result = await updateUserPreferences({
+        default_provider: 'claude',
+      });
+
+      expect(result).toBeNull();
+      expect(mockSupabaseClient.rpc).not.toHaveBeenCalled();
+    });
+
+    it('should throw error if RPC fails', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'RPC error' },
+      });
+
+      await expect(
+        updateUserPreferences({ default_provider: 'claude' })
+      ).rejects.toEqual({ message: 'RPC error' });
     });
   });
 });

@@ -15,11 +15,19 @@ export interface SearchHistoryEntry {
 
 export interface UserLimits {
   user_id: string;
+  // Daily limits
   daily_search_limit: number;
   daily_searches_used: number;
+  daily_token_limit: number;
+  daily_tokens_used: number;
+  // Monthly limits
+  monthly_search_limit: number;
+  monthly_searches_used: number;
   monthly_token_limit: number;
   monthly_tokens_used: number;
-  last_reset_date: string;
+  // Tracking dates
+  last_daily_reset: string;
+  last_monthly_reset: string;
 }
 
 export interface ApiUsageEntry {
@@ -29,6 +37,14 @@ export interface ApiUsageEntry {
   tokens_used: number;
   request_type: 'refine' | 'summarize' | 'proofread' | 'research';
   created_at?: string;
+}
+
+export interface UserPreferences {
+  user_id: string;
+  default_provider: 'deepseek' | 'openai' | 'grok' | 'claude' | 'gemini';
+  default_mode: 'web' | 'pro' | 'brainstorm';
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ============================================
@@ -358,7 +374,7 @@ export async function canPerformSearch(): Promise<{ allowed: boolean; reason?: s
 
   // Reset daily counter if needed (client-side check)
   const today = new Date().toISOString().split('T')[0];
-  if (limits.last_reset_date < today) {
+  if (limits.last_daily_reset < today) {
     // The database function will handle the reset
     return { allowed: true };
   }
@@ -380,4 +396,58 @@ export async function canPerformSearch(): Promise<{ allowed: boolean; reason?: s
   }
 
   return { allowed: true };
+}
+
+// ============================================
+// USER PREFERENCES OPERATIONS
+// ============================================
+
+export async function getUserPreferences(): Promise<UserPreferences | null> {
+  const supabase = createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('user_preferences')
+    .select('*')
+    .eq('user_id', user.id)
+    .single();
+
+  if (error) {
+    // If no record exists, return defaults
+    if (error.code === 'PGRST116') {
+      return {
+        user_id: user.id,
+        default_provider: 'deepseek',
+        default_mode: 'web',
+      };
+    }
+    console.error('Error fetching user preferences:', error);
+    throw error;
+  }
+
+  return data;
+}
+
+export async function updateUserPreferences(
+  preferences: Partial<Pick<UserPreferences, 'default_provider' | 'default_mode'>>
+): Promise<UserPreferences | null> {
+  const supabase = createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  // Use the RPC function for atomic upsert
+  const { data, error } = await supabase.rpc('upsert_user_preferences', {
+    p_default_provider: preferences.default_provider || null,
+    p_default_mode: preferences.default_mode || null,
+  });
+
+  if (error) {
+    console.error('Error updating user preferences:', error);
+    throw error;
+  }
+
+  return data;
 }

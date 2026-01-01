@@ -20,6 +20,8 @@ interface SearchBoxProps {
   initialValue?: string;
   placeholder?: string;
   autoFocus?: boolean;
+  defaultProvider?: ModelProvider;
+  defaultMode?: SearchMode;
 }
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
@@ -62,13 +64,15 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   large = false,
   initialValue = '',
   placeholder = 'Ask anything',
-  autoFocus = false
+  autoFocus = false,
+  defaultProvider = 'deepseek',
+  defaultMode = 'web'
 }) => {
   const [query, setQuery] = useState(initialValue);
   const [isSearching, setIsSearching] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [searchMode, setSearchMode] = useState<SearchMode>('web');
-  const [selectedModel, setSelectedModel] = useState<ModelProvider>('deepseek');
+  const [searchMode, setSearchMode] = useState<SearchMode>(defaultMode);
+  const [selectedModel, setSelectedModel] = useState<ModelProvider>(defaultProvider);
   const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const router = useRouter();
@@ -79,6 +83,15 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       inputRef.current.focus();
     }
   }, [autoFocus]);
+
+  // Update state when default props change (async preference loading)
+  useEffect(() => {
+    setSelectedModel(defaultProvider);
+  }, [defaultProvider]);
+
+  useEffect(() => {
+    setSearchMode(defaultMode);
+  }, [defaultMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

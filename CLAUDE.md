@@ -177,7 +177,10 @@ See `src/lib/supabase/CLAUDE.md` for auth and database documentation.
 - `page.tsx` - Displays user's search history from Supabase
 
 ### `src/app/account/` - Account Management
-- `page.tsx` - User account info and sign-out
+- `page.tsx` - Account settings with tabbed interface
+  - **Profile tab**: User info, security (change password), sign out
+  - **Preferences tab**: Default provider and search mode selection
+  - **Usage tab**: Daily search and monthly token usage with progress bars
 
 ## Tech Stack
 

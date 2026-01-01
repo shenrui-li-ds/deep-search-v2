@@ -1,13 +1,36 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 import MobileSidebar from '../components/MobileSidebar';
+import { getUserPreferences } from '@/lib/supabase/database';
+
+type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini';
+type SearchMode = 'web' | 'pro' | 'brainstorm';
 
 export default function Home() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [defaultProvider, setDefaultProvider] = useState<ModelProvider>('deepseek');
+  const [defaultMode, setDefaultMode] = useState<SearchMode>('web');
+
+  // Load user preferences on mount
+  useEffect(() => {
+    const loadPreferences = async () => {
+      try {
+        const prefs = await getUserPreferences();
+        if (prefs) {
+          setDefaultProvider(prefs.default_provider);
+          setDefaultMode(prefs.default_mode);
+        }
+      } catch (error) {
+        // Silently fail - use defaults if preferences can't be loaded
+        console.error('Failed to load preferences:', error);
+      }
+    };
+    loadPreferences();
+  }, []);
 
   return (
     <>
@@ -46,7 +69,12 @@ export default function Home() {
 
           {/* Search Box with Quick Actions */}
           <div className="w-full max-w-2xl">
-            <SearchBox large={true} autoFocus={true} />
+            <SearchBox
+              large={true}
+              autoFocus={true}
+              defaultProvider={defaultProvider}
+              defaultMode={defaultMode}
+            />
           </div>
         </div>
       </MainLayout>
