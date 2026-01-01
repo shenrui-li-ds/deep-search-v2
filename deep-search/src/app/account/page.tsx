@@ -733,7 +733,7 @@ function ChangeEmailModal({
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50"
+                  className="w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder:text-xs placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50"
                   placeholder="Enter new email address"
                   required
                 />
