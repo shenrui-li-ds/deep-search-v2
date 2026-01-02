@@ -31,15 +31,32 @@ CREATE TABLE IF NOT EXISTS credit_purchases (
 -- RLS for credit_purchases
 ALTER TABLE credit_purchases ENABLE ROW LEVEL SECURITY;
 
+-- Users can only SELECT their own purchases
 CREATE POLICY "Users can view own purchases"
-  ON credit_purchases FOR SELECT
+  ON credit_purchases
+  FOR SELECT
+  TO authenticated
   USING ((SELECT auth.uid()) = user_id);
 
--- Only service role can insert/update (via Stripe webhooks)
-CREATE POLICY "Service role can manage purchases"
-  ON credit_purchases FOR ALL
-  USING (auth.role() = 'service_role')
-  WITH CHECK (auth.role() = 'service_role');
+-- Service role can INSERT, UPDATE, DELETE (separate policies to avoid overlap)
+CREATE POLICY "Service role can insert purchases"
+  ON credit_purchases
+  FOR INSERT
+  TO service_role
+  WITH CHECK (true);
+
+CREATE POLICY "Service role can update purchases"
+  ON credit_purchases
+  FOR UPDATE
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Service role can delete purchases"
+  ON credit_purchases
+  FOR DELETE
+  TO service_role
+  USING (true);
 
 -- Index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_credit_purchases_user_id ON credit_purchases(user_id);

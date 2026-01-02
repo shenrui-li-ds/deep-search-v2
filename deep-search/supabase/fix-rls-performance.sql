@@ -1,80 +1,53 @@
--- Migration: Fix RLS policy performance
--- Replaces auth.uid() with (select auth.uid()) for better query performance
--- This caches the auth value once per query instead of re-evaluating for each row
+-- Migration: Fix RLS policy performance issues
+-- 1. Use (SELECT auth.function()) instead of auth.function() for better performance
+-- 2. Fix overlapping policies on credit_purchases table
 
 -- ============================================
--- USER_PREFERENCES TABLE
+-- FIX login_attempts RLS
 -- ============================================
 
-DROP POLICY IF EXISTS "Users can view own preferences" ON user_preferences;
-DROP POLICY IF EXISTS "Users can insert own preferences" ON user_preferences;
-DROP POLICY IF EXISTS "Users can update own preferences" ON user_preferences;
+-- Drop and recreate with optimized auth check
+DROP POLICY IF EXISTS "Service role only" ON login_attempts;
 
-CREATE POLICY "Users can view own preferences"
-  ON user_preferences FOR SELECT
-  USING ((select auth.uid()) = user_id);
-
-CREATE POLICY "Users can insert own preferences"
-  ON user_preferences FOR INSERT
-  WITH CHECK ((select auth.uid()) = user_id);
-
-CREATE POLICY "Users can update own preferences"
-  ON user_preferences FOR UPDATE
-  USING ((select auth.uid()) = user_id)
-  WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Service role only"
+  ON login_attempts
+  FOR ALL
+  USING ((SELECT auth.role()) = 'service_role')
+  WITH CHECK ((SELECT auth.role()) = 'service_role');
 
 -- ============================================
--- SEARCH_HISTORY TABLE (in case these also need fixing)
+-- FIX credit_purchases RLS
 -- ============================================
 
-DROP POLICY IF EXISTS "Users can view their own search history" ON search_history;
-DROP POLICY IF EXISTS "Users can insert their own search history" ON search_history;
-DROP POLICY IF EXISTS "Users can delete their own search history" ON search_history;
-DROP POLICY IF EXISTS "Users can update their own search history" ON search_history;
+-- Drop existing policies
+DROP POLICY IF EXISTS "Users can view own purchases" ON credit_purchases;
+DROP POLICY IF EXISTS "Service role can manage purchases" ON credit_purchases;
 
-CREATE POLICY "Users can view their own search history"
-  ON search_history FOR SELECT
-  USING ((select auth.uid()) = user_id);
+-- Recreate with optimized auth checks and no overlapping
+-- Users can only SELECT their own purchases
+CREATE POLICY "Users can view own purchases"
+  ON credit_purchases
+  FOR SELECT
+  TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
 
-CREATE POLICY "Users can insert their own search history"
-  ON search_history FOR INSERT
-  WITH CHECK ((select auth.uid()) = user_id);
+-- Service role can INSERT, UPDATE, DELETE (not SELECT to avoid overlap)
+-- Note: Service role bypasses RLS anyway, but explicit policy avoids warnings
+CREATE POLICY "Service role can insert purchases"
+  ON credit_purchases
+  FOR INSERT
+  TO service_role
+  WITH CHECK (true);
 
-CREATE POLICY "Users can delete their own search history"
-  ON search_history FOR DELETE
-  USING ((select auth.uid()) = user_id);
+CREATE POLICY "Service role can update purchases"
+  ON credit_purchases
+  FOR UPDATE
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
 
-CREATE POLICY "Users can update their own search history"
-  ON search_history FOR UPDATE
-  USING ((select auth.uid()) = user_id)
-  WITH CHECK ((select auth.uid()) = user_id);
-
--- ============================================
--- API_USAGE TABLE
--- ============================================
-
-DROP POLICY IF EXISTS "Users can view their own API usage" ON api_usage;
-DROP POLICY IF EXISTS "Users can insert their own API usage" ON api_usage;
-
-CREATE POLICY "Users can view their own API usage"
-  ON api_usage FOR SELECT
-  USING ((select auth.uid()) = user_id);
-
-CREATE POLICY "Users can insert their own API usage"
-  ON api_usage FOR INSERT
-  WITH CHECK ((select auth.uid()) = user_id);
-
--- ============================================
--- USER_LIMITS TABLE
--- ============================================
-
-DROP POLICY IF EXISTS "Users can view their own limits" ON user_limits;
-DROP POLICY IF EXISTS "Users can update their own usage counts" ON user_limits;
-
-CREATE POLICY "Users can view their own limits"
-  ON user_limits FOR SELECT
-  USING ((select auth.uid()) = user_id);
-
-CREATE POLICY "Users can update their own usage counts"
-  ON user_limits FOR UPDATE
-  USING ((select auth.uid()) = user_id);
+CREATE POLICY "Service role can delete purchases"
+  ON credit_purchases
+  FOR DELETE
+  TO service_role
+  USING (true);
