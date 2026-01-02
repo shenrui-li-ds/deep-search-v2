@@ -99,9 +99,10 @@ describe('/api/check-limit', () => {
       const data = await response.json();
 
       expect(data.allowed).toBe(false);
-      expect(data.reason).toBe('Insufficient credits');
+      expect(data.reason).toContain('You need 4 credits but only have 2');
       expect(data.creditsNeeded).toBe(4);
       expect(data.creditsAvailable).toBe(2);
+      expect(data.isCreditsError).toBe(true);
     });
 
     it('should reserve correct max credits for each mode', async () => {

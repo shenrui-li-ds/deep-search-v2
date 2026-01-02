@@ -270,11 +270,14 @@ Reserves credits before a search. Uses reserve→finalize pattern for fair billi
 ```json
 {
   "allowed": false,
-  "reason": "Insufficient credits",
+  "reason": "You need 4 credits but only have 2. Purchase more credits to continue.",
   "creditsNeeded": 4,
-  "creditsAvailable": 2
+  "creditsAvailable": 2,
+  "isCreditsError": true
 }
 ```
+
+The `isCreditsError` flag allows the frontend to distinguish credit errors from other failures and show appropriate UI (e.g., "Purchase Credits" button instead of generic retry).
 
 **Max Credits Reserved (1 credit = 1 Tavily query):**
 | Mode | Max Credits | Actual Usage |

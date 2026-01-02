@@ -26,6 +26,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [images, setImages] = useState<SearchImage[]>([]);
   const [relatedSearches, setRelatedSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isCreditError, setIsCreditError] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -150,6 +151,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const performResearch = async () => {
       setLoadingStage('planning');
       setError(null);
+      setIsCreditError(false);
       setSearchResult(null);
       setStreamingContent('');
       contentRef.current = '';
@@ -183,6 +185,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!limitCheck.allowed) {
           setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          setIsCreditError(limitCheck.isCreditsError === true);
           setLoadingStage('complete');
           return;
         }
@@ -392,6 +395,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const performBrainstorm = async () => {
       setLoadingStage('reframing');
       setError(null);
+      setIsCreditError(false);
       setSearchResult(null);
       setStreamingContent('');
       contentRef.current = '';
@@ -425,6 +429,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!limitCheck.allowed) {
           setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          setIsCreditError(limitCheck.isCreditsError === true);
           setLoadingStage('complete');
           return;
         }
@@ -633,6 +638,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const performSearch = async () => {
       setLoadingStage('refining');
       setError(null);
+      setIsCreditError(false);
       setSearchResult(null);
       setStreamingContent('');
       contentRef.current = '';
@@ -665,6 +671,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!limitCheck.allowed) {
           setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          setIsCreditError(limitCheck.isCreditsError === true);
           setLoadingStage('complete');
           return;
         }
@@ -850,15 +857,34 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       <div className="max-w-4xl mx-auto p-6">
         <Card className="p-8 text-center">
           <div className="mb-4">
-            <svg className="w-12 h-12 mx-auto text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-            </svg>
+            {isCreditError ? (
+              <svg className="w-12 h-12 mx-auto text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+              </svg>
+            ) : (
+              <svg className="w-12 h-12 mx-auto text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+              </svg>
+            )}
           </div>
-          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Something went wrong</h2>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
+            {isCreditError ? 'Insufficient Credits' : 'Something went wrong'}
+          </h2>
           <p className="text-[var(--text-muted)] mb-6">{error}</p>
-          <Button onClick={() => router.push('/')}>
-            Try a different search
-          </Button>
+          {isCreditError ? (
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={() => router.push('/account?tab=billing')}>
+                Purchase Credits
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/')}>
+                Back to Search
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => router.push('/')}>
+              Try a different search
+            </Button>
+          )}
         </Card>
       </div>
     );

@@ -61,11 +61,14 @@ export async function POST(request: NextRequest) {
 
     // Handle reservation result
     if (!data.allowed) {
+      const needed = data.needed || maxCredits;
+      const available = data.available || 0;
       return NextResponse.json({
         allowed: false,
-        reason: data.error || 'Insufficient credits',
-        creditsNeeded: data.needed || maxCredits,
-        creditsAvailable: data.available || 0,
+        reason: `You need ${needed} credits but only have ${available}. Purchase more credits to continue.`,
+        creditsNeeded: needed,
+        creditsAvailable: available,
+        isCreditsError: true,
       });
     }
 
