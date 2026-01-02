@@ -219,13 +219,18 @@ Uses Supabase Auth with email/password and GitHub OAuth. See `src/lib/supabase/C
 
 ### Credit System (Billing)
 
-Users get 1000 free credits per month. Additional credits can be purchased.
+Users get 1000 free credits per month. 1 credit = 1 Tavily search query. Uses reserve→finalize for fair billing:
 
-| Mode | Credit Cost |
-|------|-------------|
-| Web Search | 1 credit |
-| Research | 2 credits |
-| Brainstorm | 2 credits |
+| Mode | Max Credits | Actual Usage |
+|------|-------------|--------------|
+| Web Search | 1 | 1 query |
+| Research | 4 | 3-4 queries |
+| Brainstorm | 6 | 4-6 queries |
+
+**Reserve→Finalize Flow:**
+1. Credits reserved at max before search starts (check-limit)
+2. Search executes, counting actual Tavily queries
+3. Actual credits charged, unused refunded (finalize-credits, fire-and-forget)
 
 **Credit Packs** (Stripe integration TODO):
 - Getting Started: 500 credits for $5 ($0.01/credit)
@@ -234,12 +239,17 @@ Users get 1000 free credits per month. Additional credits can be purchased.
 
 **Database:**
 - `user_limits` table stores credit balances (free and purchased)
+- `credit_reservations` table tracks pending reservations
 - `credit_purchases` table tracks purchase history
-- `check_and_use_credits()` function deducts credits atomically
+- `reserve_credits()` function reserves credits before search
+- `finalize_credits()` function charges actual usage, refunds unused
+- `cancel_reservation()` function for full refund on search failure
+- `cleanup_expired_reservations()` function expires stale reservations (5 min TTL)
 - `get_user_credits()` function returns balance without side effects
 
 **Migration files:**
-- `supabase/add-credit-system.sql` - Full migration for existing databases
+- `supabase/add-credit-system.sql` - Base credit system
+- `supabase/add-credit-reservation.sql` - Reserve→finalize system
 - Schema integrated in `supabase/schema.sql`
 
 ### Rate Limits (Security)

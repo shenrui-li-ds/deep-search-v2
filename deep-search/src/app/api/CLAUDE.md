@@ -246,8 +246,8 @@ Generates related search queries based on the original query and content.
 - Handles markdown code blocks in LLM response
 - Limits output to 6 queries max
 
-### `/api/check-limit` - Dual Check (Security + Billing)
-Performs a two-phase check: rate limits (security) then credits (billing). Both must pass.
+### `/api/check-limit` - Credit Reservation
+Reserves credits before a search. Uses reserve→finalize pattern for fair billing based on actual usage.
 
 **Request:**
 ```json
@@ -260,21 +260,9 @@ Performs a two-phase check: rate limits (security) then credits (billing). Both 
 ```json
 {
   "allowed": true,
-  "creditsUsed": 1,
-  "source": "free",
-  "remainingCredits": 999,
-  "remainingFree": 999,
-  "remainingPurchased": 0
-}
-```
-
-**When rate limit exceeded:**
-```json
-{
-  "allowed": false,
-  "reason": "Daily search limit reached (50 searches). Resets at midnight.",
-  "remaining": 0,
-  "limit": 50
+  "reservationId": "uuid",
+  "maxCredits": 4,
+  "remainingAfterReserve": 996
 }
 ```
 
@@ -282,29 +270,67 @@ Performs a two-phase check: rate limits (security) then credits (billing). Both 
 ```json
 {
   "allowed": false,
-  "reason": "Insufficient credits. Purchase more credits to continue.",
-  "creditsNeeded": 2,
-  "remainingCredits": 0
+  "reason": "Insufficient credits",
+  "creditsNeeded": 4,
+  "creditsAvailable": 2
 }
 ```
 
-**Credit Costs:**
-| Mode | Credits |
-|------|---------|
-| web | 1 |
-| pro | 2 |
-| brainstorm | 2 |
+**Max Credits Reserved (1 credit = 1 Tavily query):**
+| Mode | Max Credits | Actual Usage |
+|------|-------------|--------------|
+| web | 1 | 1 query |
+| pro | 4 | 3-4 queries |
+| brainstorm | 6 | 4-6 queries |
 
 **Features:**
-- **Optimized Path**: Single `check_and_authorize_search` RPC call (~30-50ms saved)
-- **Legacy Fallback**: Two-call system if combined function unavailable
-  - Phase 1 (Security): `check_and_increment_search_v2` for rate limits
-  - Phase 2 (Billing): `check_and_use_credits` for credit deduction
-- Falls back to v1 rate limits if v2 unavailable
-- Falls back to rate-limits-only mode if credit functions unavailable
+- **Reserve→Finalize Pattern**: Reserves max credits, charges actual usage after search
+- **Optimized Path**: Single `reserve_credits` RPC call
+- **Legacy Fallback**: Falls back to `check_and_authorize_search` if reserve function unavailable
+- **Deep Fallback**: Falls back to `check_and_use_credits` if combined function unavailable
 - Fail-open on errors (allows search, logs error)
 - Runs server-side to avoid React Strict Mode double-invocation
 - Called in parallel with first API call (no added latency)
+
+### `/api/finalize-credits` - Credit Finalization
+Finalizes a credit reservation after search completes. Charges actual credits and refunds unused.
+
+**POST Request (Finalize):**
+```json
+{
+  "reservationId": "uuid from check-limit",
+  "actualCredits": 3
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "charged": 3,
+  "refunded": 1
+}
+```
+
+**DELETE Request (Cancel):**
+```json
+{
+  "reservationId": "uuid from check-limit"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "refunded": 4
+}
+```
+
+**Features:**
+- **Fire-and-forget**: Called non-blocking after search completes (zero perceived latency)
+- **Full refund on cancel**: Used when search fails or is aborted
+- **Automatic expiry**: Unfinalised reservations expire after 5 minutes (credits refunded)
 
 ## Provider Handling
 

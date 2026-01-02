@@ -640,8 +640,8 @@ describe('Supabase Database Functions', () => {
   describe('CREDIT_COSTS', () => {
     it('should have correct credit costs for each mode', () => {
       expect(CREDIT_COSTS.web).toBe(1);
-      expect(CREDIT_COSTS.pro).toBe(2);
-      expect(CREDIT_COSTS.brainstorm).toBe(2);
+      expect(CREDIT_COSTS.pro).toBe(3);
+      expect(CREDIT_COSTS.brainstorm).toBe(3);
     });
   });
 
@@ -711,13 +711,13 @@ describe('Supabase Database Functions', () => {
       expect(result).toEqual(mockResult);
     });
 
-    it('should check and use credits for pro mode (2 credits)', async () => {
+    it('should check and use credits for pro mode (3 credits)', async () => {
       const mockResult = {
         allowed: true,
         source: 'purchased',
-        credits_used: 2,
+        credits_used: 3,
         remaining_free: 0,
-        remaining_purchased: 498,
+        remaining_purchased: 497,
       };
 
       (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
@@ -728,21 +728,21 @@ describe('Supabase Database Functions', () => {
       const result = await checkAndUseCredits('pro');
 
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
-        p_credits_needed: 2,
+        p_credits_needed: 3,
       });
       expect(result).toEqual(mockResult);
     });
 
-    it('should check and use credits for brainstorm mode (2 credits)', async () => {
+    it('should check and use credits for brainstorm mode (3 credits)', async () => {
       (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
-        data: { allowed: true, source: 'free', credits_used: 2, remaining_free: 998, remaining_purchased: 0 },
+        data: { allowed: true, source: 'free', credits_used: 3, remaining_free: 997, remaining_purchased: 0 },
         error: null,
       });
 
       const result = await checkAndUseCredits('brainstorm');
 
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
-        p_credits_needed: 2,
+        p_credits_needed: 3,
       });
       expect(result.allowed).toBe(true);
     });
@@ -818,11 +818,11 @@ describe('Supabase Database Functions', () => {
         error: null,
       });
 
-      const result = await hasEnoughCredits('pro'); // Needs 2 credits
+      const result = await hasEnoughCredits('pro'); // Needs 3 credits
 
       expect(result.hasCredits).toBe(false);
       expect(result.totalAvailable).toBe(1);
-      expect(result.creditsNeeded).toBe(2);
+      expect(result.creditsNeeded).toBe(3);
     });
 
     it('should return false if getUserCredits returns null', async () => {

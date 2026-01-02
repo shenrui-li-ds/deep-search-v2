@@ -117,7 +117,8 @@ Client-side database operations for search history and usage limits.
 | `checkAndUseCredits(mode)` | Check and deduct credits atomically |
 | `hasEnoughCredits(mode)` | Preview credit check without deduction |
 | `getPurchaseHistory(limit)` | Get user's credit purchase history |
-| `CREDIT_COSTS` | Credit costs per mode: web=1, pro=2, brainstorm=2 |
+| `MAX_CREDITS` | Max credits reserved per mode: web=1, pro=4, brainstorm=6 |
+| `CREDIT_COSTS` | Alias for MAX_CREDITS (backwards compatibility) |
 
 **Usage Statistics:**
 

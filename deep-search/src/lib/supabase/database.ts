@@ -500,12 +500,16 @@ export interface CreditCheckResult {
   remaining_purchased: number;
 }
 
-// Credit costs per search mode
-export const CREDIT_COSTS = {
-  web: 1,
-  pro: 2,      // Research mode
-  brainstorm: 2,
+// Maximum credits reserved per search mode (1 credit = 1 Tavily query)
+// Actual credits charged are based on actual queries made
+export const MAX_CREDITS = {
+  web: 1,        // 1 query (always 1)
+  pro: 4,        // 2-4 queries (research angles)
+  brainstorm: 6, // 4-6 queries (creative angles)
 } as const;
+
+// For backwards compatibility
+export const CREDIT_COSTS = MAX_CREDITS;
 
 /**
  * Get current credit balances (read-only, no side effects)

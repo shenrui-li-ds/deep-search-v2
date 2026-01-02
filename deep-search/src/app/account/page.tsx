@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/MainLayout';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { createClient } from '@/lib/supabase/client';
-import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, CREDIT_COSTS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats } from '@/lib/supabase/database';
+import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, MAX_CREDITS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats } from '@/lib/supabase/database';
 
 // Tab types
 type TabId = 'profile' | 'preferences' | 'billing' | 'usage';
@@ -1156,18 +1156,19 @@ function BillingTab() {
       {/* Credit Costs Info */}
       <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Credits Per Search</h4>
+        <p className="text-xs text-[var(--text-muted)] mb-3">1 credit = 1 search query. You&apos;re only charged for actual queries made.</p>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <div className="flex items-center gap-2">
             <span className="text-[var(--text-muted)]">Web Search:</span>
-            <span className="font-medium text-[var(--text-primary)]">{CREDIT_COSTS.web} credit</span>
+            <span className="font-medium text-[var(--text-primary)]">{MAX_CREDITS.web} credit</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[var(--text-muted)]">Research:</span>
-            <span className="font-medium text-[var(--text-primary)]">{CREDIT_COSTS.pro} credits</span>
+            <span className="font-medium text-[var(--text-primary)]">3-{MAX_CREDITS.pro} credits</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[var(--text-muted)]">Brainstorm:</span>
-            <span className="font-medium text-[var(--text-primary)]">{CREDIT_COSTS.brainstorm} credits</span>
+            <span className="font-medium text-[var(--text-primary)]">4-{MAX_CREDITS.brainstorm} credits</span>
           </div>
         </div>
       </div>

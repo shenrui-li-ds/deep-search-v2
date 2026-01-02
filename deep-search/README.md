@@ -168,13 +168,18 @@ Cached endpoints: `/api/search`, `/api/refine`, `/api/related-searches`, `/api/r
 
 ### Credit System
 
-Users get 1000 free credits per month. Credits are deducted per search:
+Users get 1000 free credits per month. 1 credit = 1 Tavily search query. You're charged only for actual queries made:
 
-| Search Mode | Credit Cost |
-|-------------|-------------|
+| Search Mode | Credits (Actual Usage) |
+|-------------|------------------------|
 | Web Search | 1 credit |
-| Research | 2 credits |
-| Brainstorm | 2 credits |
+| Research | 3-4 credits |
+| Brainstorm | 4-6 credits |
+
+The system uses a reserve→finalize approach for fair billing:
+1. Credits are reserved at max before search starts
+2. Actual credits charged after search completes (based on queries made)
+3. Unused credits are refunded automatically
 
 **Credit Packs** (coming soon):
 | Pack | Credits | Price |

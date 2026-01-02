@@ -125,6 +125,27 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const abortController = new AbortController();
     let isActive = true; // Flag to prevent state updates from stale requests
 
+    // Helper to finalize credits (fire-and-forget)
+    const finalizeCredits = (reservationId: string | undefined, actualCredits: number) => {
+      if (!reservationId) return;
+      // Fire-and-forget: don't await, just log errors
+      fetch('/api/finalize-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservationId, actualCredits })
+      }).catch(err => console.error('Failed to finalize credits:', err));
+    };
+
+    // Helper to cancel reservation (fire-and-forget)
+    const cancelReservation = (reservationId: string | undefined) => {
+      if (!reservationId) return;
+      fetch('/api/finalize-credits', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reservationId })
+      }).catch(err => console.error('Failed to cancel reservation:', err));
+    };
+
     // Research pipeline for Pro mode
     const performResearch = async () => {
       setLoadingStage('planning');
@@ -138,6 +159,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
       setHistoryEntryId(null);
       setIsBookmarked(false);
+
+      let reservationId: string | undefined;
+      let tavilyQueryCount = 0;
 
       try {
         // Step 1: Create research plan and check limits in parallel
@@ -162,6 +186,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           setLoadingStage('complete');
           return;
         }
+
+        // Store reservation ID for finalization
+        reservationId = limitCheck.reservationId;
 
         if (!planResponse.ok) {
           throw new Error('Research planning failed');
@@ -189,6 +216,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             ...data
           }))
         );
+
+        // Track Tavily query count (1 credit per query)
+        tavilyQueryCount = searchPromises.length;
 
         const searchResults = await Promise.all(searchPromises);
 
@@ -338,13 +368,20 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!isActive) return;
 
+        // Finalize credits with actual Tavily query count (fire-and-forget)
+        finalizeCredits(reservationId, tavilyQueryCount);
+
         transitionToContent(proofreadContent, allSources, allImages, mode, provider);
 
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
+          // Cancel reservation on abort
+          cancelReservation(reservationId);
           return;
         }
         if (!isActive) return;
+        // Cancel reservation on error (full refund)
+        cancelReservation(reservationId);
         console.error('Research error:', err);
         setError('An error occurred while processing your research');
         setLoadingStage('complete');
@@ -364,6 +401,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
       setHistoryEntryId(null);
       setIsBookmarked(false);
+
+      let reservationId: string | undefined;
+      let tavilyQueryCount = 0;
 
       try {
         // Step 1: Generate creative angles and check limits in parallel
@@ -388,6 +428,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           setLoadingStage('complete');
           return;
         }
+
+        // Store reservation ID for finalization
+        reservationId = limitCheck.reservationId;
 
         if (!reframeResponse.ok) {
           throw new Error('Failed to generate creative angles');
@@ -415,6 +458,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             ...data
           }))
         );
+
+        // Track Tavily query count (1 credit per query)
+        tavilyQueryCount = searchPromises.length;
 
         const searchResults = await Promise.all(searchPromises);
 
@@ -563,13 +609,20 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         if (!isActive) return;
 
+        // Finalize credits with actual Tavily query count (fire-and-forget)
+        finalizeCredits(reservationId, tavilyQueryCount);
+
         transitionToContent(proofreadContent, allSources, allImages, mode, provider);
 
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
+          // Cancel reservation on abort
+          cancelReservation(reservationId);
           return;
         }
         if (!isActive) return;
+        // Cancel reservation on error (full refund)
+        cancelReservation(reservationId);
         console.error('Brainstorm error:', err);
         setError('An error occurred while brainstorming ideas');
         setLoadingStage('complete');
@@ -589,6 +642,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
       setHistoryEntryId(null);
       setIsBookmarked(false);
+
+      let reservationId: string | undefined;
 
       try {
         // Step 1: Refine query and check limits in parallel
@@ -613,6 +668,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           setLoadingStage('complete');
           return;
         }
+
+        // Store reservation ID for finalization
+        reservationId = limitCheck.reservationId;
 
         const refinedQuery = refineResult.refinedQuery || query;
 
@@ -718,6 +776,10 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // NON-PRO MODE: Just set final result (no proofreading)
         if (!isActive) return;
+
+        // Finalize credits - web search is always 1 Tavily query
+        finalizeCredits(reservationId, 1);
+
         setSearchResult({
           query,
           content: cleanedContent,
@@ -741,9 +803,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
+          // Cancel reservation on abort
+          cancelReservation(reservationId);
           return;
         }
         if (!isActive) return;
+        // Cancel reservation on error (full refund)
+        cancelReservation(reservationId);
         console.error('Search error:', err);
         setError('An error occurred while processing your search');
         setLoadingStage('complete');
