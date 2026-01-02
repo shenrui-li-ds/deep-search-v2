@@ -246,34 +246,61 @@ Generates related search queries based on the original query and content.
 - Handles markdown code blocks in LLM response
 - Limits output to 6 queries max
 
-### `/api/check-limit` - Usage Limit Check
-Checks if the user can perform a search and increments the counter atomically.
+### `/api/check-limit` - Dual Check (Security + Billing)
+Performs a two-phase check: rate limits (security) then credits (billing). Both must pass.
 
-**Request:** `POST` (no body required)
+**Request:**
+```json
+{
+  "mode": "web" | "pro" | "brainstorm"
+}
+```
 
-**Response:**
+**Response (allowed):**
 ```json
 {
   "allowed": true,
-  "remaining": 45,
-  "limit": 50,
-  "reason": null
+  "creditsUsed": 1,
+  "source": "free",
+  "remainingCredits": 999,
+  "remainingFree": 999,
+  "remainingPurchased": 0
 }
 ```
 
-**When limit exceeded:**
+**When rate limit exceeded:**
 ```json
 {
   "allowed": false,
+  "reason": "Daily search limit reached (50 searches). Resets at midnight.",
   "remaining": 0,
-  "limit": 50,
-  "reason": "Daily search limit reached (50 searches). Resets at midnight."
+  "limit": 50
 }
 ```
 
+**When insufficient credits:**
+```json
+{
+  "allowed": false,
+  "reason": "Insufficient credits. Purchase more credits to continue.",
+  "creditsNeeded": 2,
+  "remainingCredits": 0
+}
+```
+
+**Credit Costs:**
+| Mode | Credits |
+|------|---------|
+| web | 1 |
+| pro | 2 |
+| brainstorm | 2 |
+
 **Features:**
-- Uses `check_and_increment_search_v2` PostgreSQL function (single query)
-- Falls back to v1 if v2 not available
+- **Phase 1 (Security)**: Rate limits via `check_and_increment_search_v2` (daily/monthly caps)
+- **Phase 2 (Billing)**: Credits via `check_and_use_credits` (deducts if allowed)
+- Falls back to v1 rate limits if v2 unavailable
+- Falls back to rate-limits-only mode if credit functions unavailable
+- Fail-open on errors (allows search, logs error)
 - Runs server-side to avoid React Strict Mode double-invocation
 - Called in parallel with first API call (no added latency)
 

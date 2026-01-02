@@ -242,8 +242,22 @@ Users get 1000 free credits per month. Additional credits can be purchased.
 - `supabase/add-credit-system.sql` - Full migration for existing databases
 - Schema integrated in `supabase/schema.sql`
 
-### Usage Limits (Legacy)
-Legacy daily/monthly search and token limits are still tracked for visualization purposes. Credit checks run in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for database schema.
+### Rate Limits (Security)
+Daily/monthly search limits are enforced for abuse prevention, separate from billing:
+
+| Limit | Default | Reset |
+|-------|---------|-------|
+| Daily searches | 50 | Midnight |
+| Monthly searches | 1,000 | 1st of month |
+
+These limits apply regardless of available credits. Prevents bad actors from abusing the system.
+
+### Dual-Check Model
+Every search request goes through a two-phase check in `/api/check-limit`:
+1. **Rate Limits (Security)**: `check_and_increment_search_v2` - blocks if daily/monthly caps exceeded
+2. **Credit Check (Billing)**: `check_and_use_credits` - deducts credits if allowed
+
+Both checks must pass. Runs in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for database schema.
 
 ## Path Alias
 
