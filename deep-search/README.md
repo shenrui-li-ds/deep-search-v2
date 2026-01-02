@@ -86,6 +86,8 @@ Run the SQL schema in your Supabase SQL Editor:
 - `supabase/add-extended-limits.sql` - Add extended limits (if upgrading)
 - `supabase/add-credit-system.sql` - Add credit-based billing (if upgrading)
 - `supabase/add-combined-auth-check.sql` - Optimized auth check (if upgrading)
+- `supabase/add-credit-reservation.sql` - Dynamic credit billing (if upgrading)
+- `supabase/add-user-tiers.sql` - User tiers and admin functions (if upgrading)
 
 ### Development
 
@@ -180,6 +182,13 @@ The system uses a reserve→finalize approach for fair billing:
 1. Credits are reserved at max before search starts
 2. Actual credits charged after search completes (based on queries made)
 3. Unused credits are refunded automatically
+
+**User Tiers:**
+| Tier | Monthly Free Credits |
+|------|---------------------|
+| free | 1,000 |
+| vip | 2,000 |
+| admin | 10,000 |
 
 **Credit Packs** (coming soon):
 | Pack | Credits | Price |

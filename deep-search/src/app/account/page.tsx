@@ -1114,12 +1114,26 @@ function BillingTab() {
   const freeRemaining = credits?.free_credits_remaining ?? 0;
   const purchasedCredits = credits?.purchased_credits ?? 0;
   const daysUntilReset = credits?.days_until_reset ?? 0;
+  const userTier = credits?.user_tier ?? 'free';
+
+  const tierConfig = {
+    free: { label: 'Free', color: 'bg-gray-500', textColor: 'text-gray-100' },
+    vip: { label: 'VIP', color: 'bg-purple-500', textColor: 'text-purple-100' },
+    admin: { label: 'Admin', color: 'bg-amber-500', textColor: 'text-amber-100' },
+  };
+
+  const currentTier = tierConfig[userTier] || tierConfig.free;
 
   return (
     <div className="space-y-6">
       {/* Credit Balance */}
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Credit Balance</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)]">Credit Balance</h3>
+          <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${currentTier.color} ${currentTier.textColor}`}>
+            {currentTier.label}
+          </span>
+        </div>
 
         {/* Total Credits Display */}
         <div className="mb-6">

@@ -149,6 +149,145 @@ body {
   font-style: italic;
 }
 
+/* Table styles */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.markdown-content thead {
+  background-color: var(--card);
+}
+
+.markdown-content th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.markdown-content th:last-child {
+  border-right: none;
+}
+
+.markdown-content td {
+  padding: 0.75rem 1rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.markdown-content td:last-child {
+  border-right: none;
+}
+
+.markdown-content tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-content tbody tr:hover {
+  background-color: var(--card-hover);
+}
+
+/* Responsive table wrapper */
+.markdown-content .table-wrapper {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border-radius: 0.5rem;
+}
+
+/* Table alignment support */
+.markdown-content th[align="center"],
+.markdown-content td[align="center"] {
+  text-align: center;
+}
+
+.markdown-content th[align="right"],
+.markdown-content td[align="right"] {
+  text-align: right;
+}
+
+/* Task list styles (checkboxes) */
+.markdown-content ul.contains-task-list {
+  list-style: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+.markdown-content li.task-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content li.task-list-item input[type="checkbox"] {
+  margin-top: 0.25rem;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+  cursor: default;
+}
+
+/* Strikethrough */
+.markdown-content del,
+.markdown-content s {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* Superscript and subscript */
+.markdown-content sup {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+.markdown-content sub {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+
+/* Images in markdown */
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+/* Nested lists */
+.markdown-content ul ul,
+.markdown-content ol ol,
+.markdown-content ul ol,
+.markdown-content ol ul {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Definition lists */
+.markdown-content dl {
+  margin: 1rem 0;
+}
+
+.markdown-content dt {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 0.5rem;
+}
+
+.markdown-content dd {
+  margin-left: 1.5rem;
+  color: var(--text-secondary);
+}
+
 /* Citation styles */
 .citation {
   display: inline-flex;
@@ -363,6 +502,28 @@ html.dark .source-hover-card {
   .markdown-content a {
     color: #0066cc !important;
     text-decoration: underline;
+  }
+
+  /* Tables for print */
+  .markdown-content table {
+    border: 1px solid #333 !important;
+  }
+
+  .markdown-content th {
+    background-color: #f3f4f6 !important;
+    border-bottom: 2px solid #333 !important;
+    border-right: 1px solid #333 !important;
+    color: black !important;
+  }
+
+  .markdown-content td {
+    border-bottom: 1px solid #ccc !important;
+    border-right: 1px solid #ccc !important;
+    color: #333 !important;
+  }
+
+  .markdown-content tbody tr:hover {
+    background-color: transparent !important;
   }
 
   /* Citations for print */

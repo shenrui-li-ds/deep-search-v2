@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
+**Private Repository** - This is a private project, not open source.
+
 Athenius is an AI-powered search application that provides a Perplexity-like search experience with:
 - Multi-provider LLM support (DeepSeek, OpenAI, Grok, Claude, Gemini)
 - Tavily-powered web search
@@ -237,19 +239,39 @@ Users get 1000 free credits per month. 1 credit = 1 Tavily search query. Uses re
 - I Like It: 2,000 credits for $15 ($0.0075/credit, 33% bonus)
 - Power User: 6,000 credits for $40 ($0.0067/credit, 50% bonus)
 
+**User Tiers:**
+| Tier | Monthly Free Credits |
+|------|---------------------|
+| free | 1,000 |
+| vip | 2,000 |
+| admin | 10,000 |
+
 **Database:**
-- `user_limits` table stores credit balances (free and purchased)
+- `user_limits` table stores credit balances, tier, and usage
 - `credit_reservations` table tracks pending reservations
 - `credit_purchases` table tracks purchase history
-- `reserve_credits()` function reserves credits before search
+- `reserve_credits()` function reserves credits before search (tier-aware)
 - `finalize_credits()` function charges actual usage, refunds unused
 - `cancel_reservation()` function for full refund on search failure
 - `cleanup_expired_reservations()` function expires stale reservations (5 min TTL)
-- `get_user_credits()` function returns balance without side effects
+- `get_user_credits()` function returns balance and tier info
+
+**Admin Functions (service_role only):**
+```sql
+-- Set user tier by email
+SELECT set_user_tier('user@example.com', 'vip');
+
+-- Grant one-time bonus credits (added to purchased_credits)
+SELECT grant_bonus_credits('user@example.com', 500);
+
+-- View all users and their credits
+SELECT * FROM admin_user_credits;
+```
 
 **Migration files:**
 - `supabase/add-credit-system.sql` - Base credit system
 - `supabase/add-credit-reservation.sql` - Reserve→finalize system
+- `supabase/add-user-tiers.sql` - User tiers and admin functions
 - Schema integrated in `supabase/schema.sql`
 
 ### Rate Limits (Security)

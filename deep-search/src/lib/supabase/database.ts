@@ -469,6 +469,7 @@ export async function updateUserPreferences(
 // ============================================
 
 export interface UserCredits {
+  user_tier?: 'free' | 'vip' | 'admin';
   monthly_free_credits: number;
   free_credits_used: number;
   free_credits_remaining: number;
@@ -520,13 +521,16 @@ export async function getUserCredits(): Promise<UserCredits | null> {
   const { data, error } = await supabase.rpc('get_user_credits');
 
   if (error) {
-    console.error('Error getting user credits:', error);
-    throw error;
+    // Function doesn't exist - return null
+    if (error.code === '42883') {
+      return null;
+    }
+    console.error('Error getting user credits:', error.message);
+    return null;
   }
 
   // Handle error response from function
   if (data?.error) {
-    console.error('Credit function error:', data.error);
     return null;
   }
 
