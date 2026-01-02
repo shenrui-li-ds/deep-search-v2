@@ -1130,7 +1130,7 @@ function BillingTab() {
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-medium text-[var(--text-secondary)]">Credit Balance</h3>
-          <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full ${currentTier.color} ${currentTier.textColor}`}>
+          <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${currentTier.color} ${currentTier.textColor}`}>
             {currentTier.label}
           </span>
         </div>
