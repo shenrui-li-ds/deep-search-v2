@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation';
 import MainLayout from '@/components/MainLayout';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { createClient } from '@/lib/supabase/client';
-import { getUserPreferences, updateUserPreferences, getUserLimits, type UserPreferences, type UserLimits } from '@/lib/supabase/database';
+import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, CREDIT_COSTS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats } from '@/lib/supabase/database';
 
 // Tab types
-type TabId = 'profile' | 'preferences' | 'usage';
+type TabId = 'profile' | 'preferences' | 'billing' | 'usage';
 
 // Security cooldown: 15 minutes after login before sensitive actions
 const SECURITY_COOLDOWN_SECONDS = 15 * 60; // 15 minutes
@@ -959,9 +959,9 @@ function PreferencesTab() {
   ] as const;
 
   const modes = [
-    { id: 'web', name: 'Web', description: 'Quick search with summary' },
+    { id: 'web', name: 'Web Search', description: 'Quick web search with AI summary' },
     { id: 'pro', name: 'Research', description: 'Multi-angle comprehensive research' },
-    { id: 'brainstorm', name: 'Brainstorm', description: 'Creative ideation with cross-domain inspiration' },
+    { id: 'brainstorm', name: 'Brainstorm', description: 'Creative exploration of ideas' },
   ] as const;
 
   if (isLoading) {
@@ -1067,6 +1067,195 @@ function PreferencesTab() {
   );
 }
 
+// Billing Tab Content
+function BillingTab() {
+  const [credits, setCredits] = useState<UserCredits | null>(null);
+  const [purchases, setPurchases] = useState<CreditPurchase[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadBillingData = async () => {
+      try {
+        const [creditsData, purchasesData] = await Promise.all([
+          getUserCredits(),
+          getPurchaseHistory(),
+        ]);
+        setCredits(creditsData);
+        setPurchases(purchasesData);
+      } catch (error) {
+        console.error('Failed to load billing data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadBillingData();
+  }, []);
+
+  const creditPacks = [
+    { id: 'starter', name: 'Getting Started', credits: 500, price: '$5', pricePerCredit: '$0.01/credit' },
+    { id: 'plus', name: 'I Like It', credits: 2000, price: '$15', pricePerCredit: '$0.0075/credit', bonus: '33% bonus' },
+    { id: 'pro', name: 'Power User', credits: 6000, price: '$40', pricePerCredit: '$0.0067/credit', bonus: '50% bonus' },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <div className="animate-pulse space-y-4">
+            <div className="h-5 w-32 bg-[var(--border)] rounded" />
+            <div className="h-10 w-full bg-[var(--border)] rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const totalAvailable = credits?.total_available ?? 0;
+  const freeRemaining = credits?.free_credits_remaining ?? 0;
+  const purchasedCredits = credits?.purchased_credits ?? 0;
+  const daysUntilReset = credits?.days_until_reset ?? 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Credit Balance */}
+      <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Credit Balance</h3>
+
+        {/* Total Credits Display */}
+        <div className="mb-6">
+          <div className="flex items-baseline gap-2">
+            <span className="text-4xl font-bold text-[var(--text-primary)]">{totalAvailable.toLocaleString()}</span>
+            <span className="text-sm text-[var(--text-muted)]">credits available</span>
+          </div>
+        </div>
+
+        {/* Credit Breakdown */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="p-4 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+              <span className="text-xs text-[var(--text-muted)]">Free Credits</span>
+            </div>
+            <span className="text-xl font-semibold text-[var(--text-primary)]">{freeRemaining.toLocaleString()}</span>
+            <span className="text-xs text-[var(--text-muted)] ml-1">/ {(credits?.monthly_free_credits ?? 1000).toLocaleString()}</span>
+          </div>
+          <div className="p-4 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-xs text-[var(--text-muted)]">Purchased Credits</span>
+            </div>
+            <span className="text-xl font-semibold text-[var(--text-primary)]">{purchasedCredits.toLocaleString()}</span>
+          </div>
+        </div>
+
+        <p className="text-xs text-[var(--text-muted)]">
+          Free credits reset in {daysUntilReset} day{daysUntilReset !== 1 ? 's' : ''}. Purchased credits never expire.
+        </p>
+      </div>
+
+      {/* Credit Costs Info */}
+      <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+        <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Credits Per Search</h4>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--text-muted)]">Web Search:</span>
+            <span className="font-medium text-[var(--text-primary)]">{CREDIT_COSTS.web} credit</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--text-muted)]">Research:</span>
+            <span className="font-medium text-[var(--text-primary)]">{CREDIT_COSTS.pro} credits</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[var(--text-muted)]">Brainstorm:</span>
+            <span className="font-medium text-[var(--text-primary)]">{CREDIT_COSTS.brainstorm} credits</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Credit Packs */}
+      <div>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Purchase Credits</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {creditPacks.map((pack) => (
+            <div
+              key={pack.id}
+              className="relative p-5 rounded-lg bg-[var(--card)] border border-[var(--border)] opacity-60"
+            >
+              {pack.bonus && (
+                <div className="absolute -top-2 right-4 px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-500 rounded-full border border-emerald-500/30">
+                  {pack.bonus}
+                </div>
+              )}
+              <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-1">{pack.name}</h3>
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-2xl font-bold text-[var(--text-primary)]">{pack.credits.toLocaleString()}</span>
+                <span className="text-sm text-[var(--text-muted)]">credits</span>
+              </div>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xl font-semibold text-[var(--accent)]">{pack.price}</span>
+                <span className="text-xs text-[var(--text-muted)]">{pack.pricePerCredit}</span>
+              </div>
+              <button
+                disabled
+                className="w-full py-2.5 px-4 bg-[var(--accent)]/50 text-white/70 rounded-lg font-medium cursor-not-allowed"
+              >
+                Coming Soon
+              </button>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-[var(--text-muted)] mt-3 text-center">
+          Credit purchases will be available soon.
+        </p>
+      </div>
+
+      {/* Purchase History */}
+      <div>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Purchase History</h2>
+        <div className="rounded-lg bg-[var(--card)] border border-[var(--border)] overflow-hidden">
+          {purchases.length === 0 ? (
+            <div className="p-8 text-center">
+              <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[var(--border)] flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                </svg>
+              </div>
+              <p className="text-sm text-[var(--text-muted)]">No purchases yet</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Your purchase history will appear here</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--border)]">
+              {purchases.map((purchase) => (
+                <div key={purchase.id} className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-[var(--text-primary)] capitalize">{purchase.pack_type}</span>
+                      <span className={`px-1.5 py-0.5 text-xs rounded ${
+                        purchase.status === 'completed' ? 'bg-green-500/20 text-green-500' :
+                        purchase.status === 'pending' ? 'bg-yellow-500/20 text-yellow-500' :
+                        purchase.status === 'refunded' ? 'bg-blue-500/20 text-blue-500' :
+                        'bg-red-500/20 text-red-500'
+                      }`}>
+                        {purchase.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {new Date(purchase.created_at).toLocaleDateString()} • {purchase.credits.toLocaleString()} credits
+                    </p>
+                  </div>
+                  <span className="font-medium text-[var(--text-primary)]">
+                    ${(purchase.amount_cents / 100).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Usage Progress Bar Component
 function UsageProgressBar({
   label,
@@ -1104,23 +1293,117 @@ function UsageProgressBar({
   );
 }
 
+// Simple horizontal bar chart component
+function HorizontalBarChart({
+  data,
+  labelKey,
+  valueKey,
+  formatLabel,
+}: {
+  data: Record<string, unknown>[];
+  labelKey: string;
+  valueKey: string;
+  formatLabel?: (label: string) => string;
+}) {
+  if (data.length === 0) {
+    return (
+      <div className="text-center py-6 text-sm text-[var(--text-muted)]">
+        No data yet
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(...data.map((d) => d[valueKey] as number));
+  const total = data.reduce((sum, d) => sum + (d[valueKey] as number), 0);
+
+  return (
+    <div className="space-y-3">
+      {data.map((item) => {
+        const label = item[labelKey] as string;
+        const value = item[valueKey] as number;
+        const percent = maxValue > 0 ? (value / maxValue) * 100 : 0;
+        const displayLabel = formatLabel ? formatLabel(label) : label;
+
+        return (
+          <div key={label} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-[var(--text-primary)]">{displayLabel}</span>
+              <span className="text-[var(--text-muted)]">
+                {value.toLocaleString()} ({total > 0 ? Math.round((value / total) * 100) : 0}%)
+              </span>
+            </div>
+            <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all bg-[var(--accent)]"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Mini activity chart (last 30 days)
+function ActivityChart({ data }: { data: { date: string; count: number }[] }) {
+  if (data.length === 0) return null;
+
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+  const last7Days = data.slice(-7);
+
+  return (
+    <div className="flex items-end gap-1 h-16">
+      {last7Days.map((day, i) => {
+        const height = maxCount > 0 ? (day.count / maxCount) * 100 : 0;
+        const isToday = i === last7Days.length - 1;
+
+        return (
+          <div
+            key={day.date}
+            className="flex-1 flex flex-col items-center gap-1"
+            title={`${new Date(day.date).toLocaleDateString()}: ${day.count} searches`}
+          >
+            <div className="w-full flex items-end justify-center" style={{ height: '48px' }}>
+              <div
+                className={`w-full rounded-t transition-all ${
+                  isToday ? 'bg-[var(--accent)]' : 'bg-[var(--accent)]/50'
+                }`}
+                style={{ height: `${Math.max(height, 4)}%`, minHeight: day.count > 0 ? '4px' : '2px' }}
+              />
+            </div>
+            <span className="text-[10px] text-[var(--text-muted)]">
+              {new Date(day.date).toLocaleDateString('en-US', { weekday: 'narrow' })}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Usage Tab Content
 function UsageTab() {
   const [limits, setLimits] = useState<UserLimits | null>(null);
+  const [stats, setStats] = useState<UsageStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadLimits = async () => {
+    const loadData = async () => {
       try {
-        const userLimits = await getUserLimits();
+        const [userLimits, usageStats] = await Promise.all([
+          getUserLimits(),
+          getUsageStats(30),
+        ]);
         setLimits(userLimits);
+        setStats(usageStats);
       } catch (error) {
-        console.error('Failed to load usage limits:', error);
+        console.error('Failed to load usage data:', error);
       } finally {
         setIsLoading(false);
       }
     };
-    loadLimits();
+    loadData();
   }, []);
 
   if (isLoading) {
@@ -1138,11 +1421,88 @@ function UsageTab() {
 
   const formatNumber = (n: number) => n.toLocaleString();
 
+  const modeLabels: Record<string, string> = {
+    web: 'Web Search',
+    pro: 'Research',
+    brainstorm: 'Brainstorm',
+  };
+
+  const providerLabels: Record<string, string> = {
+    deepseek: 'DeepSeek',
+    openai: 'OpenAI',
+    grok: 'Grok',
+    claude: 'Claude',
+    gemini: 'Gemini',
+    'vercel-gateway': 'Vercel Gateway',
+  };
+
   return (
     <div className="space-y-6">
-      {/* Daily Usage Section */}
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <p className="text-xs text-[var(--text-muted)] mb-1">Total Searches (30d)</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">{stats?.totalSearches.toLocaleString() || 0}</p>
+        </div>
+        <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <p className="text-xs text-[var(--text-muted)] mb-1">Daily Searches</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">
+            {limits?.daily_searches_used || 0}
+            <span className="text-sm font-normal text-[var(--text-muted)]"> / {limits?.daily_search_limit || 50}</span>
+          </p>
+        </div>
+        <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <p className="text-xs text-[var(--text-muted)] mb-1">Monthly Searches</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">
+            {limits?.monthly_searches_used || 0}
+            <span className="text-sm font-normal text-[var(--text-muted)]"> / {limits?.monthly_search_limit || 1000}</span>
+          </p>
+        </div>
+        <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <p className="text-xs text-[var(--text-muted)] mb-1">Monthly Tokens</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">
+            {formatNumber(limits?.monthly_tokens_used || 0)}
+            <span className="text-sm font-normal text-[var(--text-muted)]"> / {formatNumber(limits?.monthly_token_limit || 500000)}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* Weekly Activity */}
+      {stats && stats.last30Days.length > 0 && (
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">Weekly Activity</h3>
+          <ActivityChart data={stats.last30Days} />
+        </div>
+      )}
+
+      {/* Breakdown Charts */}
+      <div className="grid md:grid-cols-2 gap-6">
+        {/* By Search Mode */}
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">By Search Mode</h3>
+          <HorizontalBarChart
+            data={stats?.byMode || []}
+            labelKey="mode"
+            valueKey="count"
+            formatLabel={(label) => modeLabels[label] || label}
+          />
+        </div>
+
+        {/* By Provider */}
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">By Provider</h3>
+          <HorizontalBarChart
+            data={stats?.byProvider || []}
+            labelKey="provider"
+            valueKey="count"
+            formatLabel={(label) => providerLabels[label] || label}
+          />
+        </div>
+      </div>
+
+      {/* Daily Usage Bars */}
       <div>
-        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Daily Usage</h2>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Daily Limits</h2>
         <div className="space-y-4">
           <UsageProgressBar
             label="Searches"
@@ -1160,9 +1520,9 @@ function UsageTab() {
         </div>
       </div>
 
-      {/* Monthly Usage Section */}
+      {/* Monthly Usage Bars */}
       <div>
-        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Monthly Usage</h2>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Monthly Limits</h2>
         <div className="space-y-4">
           <UsageProgressBar
             label="Searches"
@@ -1179,27 +1539,6 @@ function UsageTab() {
           />
         </div>
       </div>
-
-      {/* Reset Info */}
-      {limits && (
-        <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-          <div className="flex items-center gap-4 text-sm">
-            <div>
-              <span className="text-[var(--text-muted)]">Daily reset: </span>
-              <span className="text-[var(--text-primary)]">
-                {limits.last_daily_reset ? new Date(limits.last_daily_reset).toLocaleDateString() : 'N/A'}
-              </span>
-            </div>
-            <div className="w-px h-4 bg-[var(--border)]" />
-            <div>
-              <span className="text-[var(--text-muted)]">Monthly reset: </span>
-              <span className="text-[var(--text-primary)]">
-                {limits.last_monthly_reset ? new Date(limits.last_monthly_reset).toLocaleDateString() : 'N/A'}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1240,6 +1579,11 @@ export default function AccountPage() {
       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    )},
+    { id: 'billing' as const, label: 'Billing', icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
       </svg>
     )},
     { id: 'usage' as const, label: 'Usage', icon: (
@@ -1291,6 +1635,7 @@ export default function AccountPage() {
           />
         )}
         {activeTab === 'preferences' && <PreferencesTab />}
+        {activeTab === 'billing' && <BillingTab />}
         {activeTab === 'usage' && <UsageTab />}
       </div>
 

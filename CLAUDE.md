@@ -181,9 +181,10 @@ See `src/lib/supabase/CLAUDE.md` for auth and database documentation.
 
 ### `src/app/account/` - Account Management
 - `page.tsx` - Account settings with tabbed interface
-  - **Profile tab**: User info, security (change password), sign out
+  - **Profile tab**: User info, security (change password, change email), sign out
   - **Preferences tab**: Default provider and search mode selection
-  - **Usage tab**: Daily search and monthly token usage with progress bars
+  - **Billing tab**: Credit balance, purchase history, credit pack pricing (Stripe coming soon)
+  - **Usage tab**: Search statistics, mode/provider breakdowns, daily/monthly usage bars
 
 ## Tech Stack
 
@@ -216,8 +217,33 @@ Uses Supabase Auth with email/password and GitHub OAuth. See `src/lib/supabase/C
 | `/auth/callback` | OAuth and email verification handler |
 | `/auth/error` | Authentication error display |
 
-### Usage Limits
-Limits checked in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for defaults and database schema.
+### Credit System (Billing)
+
+Users get 1000 free credits per month. Additional credits can be purchased.
+
+| Mode | Credit Cost |
+|------|-------------|
+| Web Search | 1 credit |
+| Research | 2 credits |
+| Brainstorm | 2 credits |
+
+**Credit Packs** (Stripe integration TODO):
+- Getting Started: 500 credits for $5 ($0.01/credit)
+- I Like It: 2,000 credits for $15 ($0.0075/credit, 33% bonus)
+- Power User: 6,000 credits for $40 ($0.0067/credit, 50% bonus)
+
+**Database:**
+- `user_limits` table stores credit balances (free and purchased)
+- `credit_purchases` table tracks purchase history
+- `check_and_use_credits()` function deducts credits atomically
+- `get_user_credits()` function returns balance without side effects
+
+**Migration files:**
+- `supabase/add-credit-system.sql` - Full migration for existing databases
+- Schema integrated in `supabase/schema.sql`
+
+### Usage Limits (Legacy)
+Legacy daily/monthly search and token limits are still tracked for visualization purposes. Credit checks run in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for database schema.
 
 ## Path Alias
 

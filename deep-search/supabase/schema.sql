@@ -77,12 +77,17 @@ CREATE POLICY "Users can insert their own API usage"
 -- ============================================
 CREATE TABLE IF NOT EXISTS user_limits (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  -- Daily limits
+  -- Credit system
+  monthly_free_credits INTEGER DEFAULT 1000,
+  free_credits_used INTEGER DEFAULT 0,
+  purchased_credits INTEGER DEFAULT 0,
+  lifetime_credits_purchased INTEGER DEFAULT 0,
+  -- Legacy: Daily limits (kept for visualization)
   daily_search_limit INTEGER DEFAULT 50,
   daily_searches_used INTEGER DEFAULT 0,
   daily_token_limit INTEGER DEFAULT 100000,
   daily_tokens_used INTEGER DEFAULT 0,
-  -- Monthly limits
+  -- Legacy: Monthly limits (kept for visualization)
   monthly_search_limit INTEGER DEFAULT 1000,
   monthly_searches_used INTEGER DEFAULT 0,
   monthly_token_limit INTEGER DEFAULT 500000,
@@ -104,6 +109,39 @@ CREATE POLICY "Users can view their own limits"
 CREATE POLICY "Users can update their own usage counts"
   ON user_limits FOR UPDATE
   USING ((select auth.uid()) = user_id);
+
+-- ============================================
+-- CREDIT PURCHASES TABLE
+-- ============================================
+CREATE TABLE IF NOT EXISTS credit_purchases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  stripe_session_id TEXT,
+  stripe_payment_intent TEXT,
+  pack_type TEXT NOT NULL CHECK (pack_type IN ('starter', 'plus', 'pro')),
+  credits INTEGER NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  currency TEXT DEFAULT 'usd',
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- RLS for credit_purchases
+ALTER TABLE credit_purchases ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own purchases"
+  ON credit_purchases FOR SELECT
+  USING ((SELECT auth.uid()) = user_id);
+
+-- Only service role can insert/update (via Stripe webhooks)
+CREATE POLICY "Service role can manage purchases"
+  ON credit_purchases FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+-- Index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_credit_purchases_user_id ON credit_purchases(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_purchases_stripe_session ON credit_purchases(stripe_session_id);
 
 -- ============================================
 -- FUNCTIONS
@@ -340,6 +378,178 @@ BEGIN
   RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
+-- CREDIT SYSTEM FUNCTIONS
+-- ============================================
+
+-- Check if user has enough credits and deduct them
+-- Uses free credits first, then purchased credits
+-- Returns JSON: { allowed: boolean, source: 'free'|'purchased'|null, remaining_free: number, remaining_purchased: number }
+CREATE OR REPLACE FUNCTION public.check_and_use_credits(p_credits_needed INTEGER)
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_monthly_free INTEGER;
+  v_free_used INTEGER;
+  v_purchased INTEGER;
+  v_free_available INTEGER;
+  v_source TEXT;
+  v_last_reset DATE;
+BEGIN
+  -- Get current user
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('allowed', FALSE, 'error', 'Not authenticated');
+  END IF;
+
+  -- Get or create user limits
+  INSERT INTO user_limits (user_id)
+  VALUES (v_user_id)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  -- Get current credit state
+  SELECT
+    monthly_free_credits,
+    free_credits_used,
+    purchased_credits,
+    last_monthly_reset
+  INTO v_monthly_free, v_free_used, v_purchased, v_last_reset
+  FROM user_limits
+  WHERE user_id = v_user_id;
+
+  -- Check if monthly reset is needed (first of month)
+  IF v_last_reset IS NULL OR v_last_reset < date_trunc('month', CURRENT_DATE)::DATE THEN
+    v_free_used := 0;
+    UPDATE user_limits
+    SET free_credits_used = 0,
+        last_monthly_reset = CURRENT_DATE
+    WHERE user_id = v_user_id;
+  END IF;
+
+  -- Calculate available free credits
+  v_free_available := v_monthly_free - v_free_used;
+
+  -- Check if we have enough credits
+  IF v_free_available >= p_credits_needed THEN
+    -- Use free credits
+    UPDATE user_limits
+    SET free_credits_used = free_credits_used + p_credits_needed
+    WHERE user_id = v_user_id;
+
+    v_source := 'free';
+    v_free_available := v_free_available - p_credits_needed;
+
+  ELSIF v_purchased >= p_credits_needed THEN
+    -- Use purchased credits
+    UPDATE user_limits
+    SET purchased_credits = purchased_credits - p_credits_needed
+    WHERE user_id = v_user_id;
+
+    v_source := 'purchased';
+    v_purchased := v_purchased - p_credits_needed;
+
+  ELSE
+    -- Not enough credits
+    RETURN json_build_object(
+      'allowed', FALSE,
+      'error', 'Insufficient credits',
+      'needed', p_credits_needed,
+      'remaining_free', v_free_available,
+      'remaining_purchased', v_purchased
+    );
+  END IF;
+
+  RETURN json_build_object(
+    'allowed', TRUE,
+    'source', v_source,
+    'credits_used', p_credits_needed,
+    'remaining_free', v_free_available,
+    'remaining_purchased', v_purchased
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Set search_path for security
+ALTER FUNCTION public.check_and_use_credits(INTEGER) SET search_path = public;
+
+-- Get current credit balances (read-only, no side effects)
+CREATE OR REPLACE FUNCTION public.get_user_credits()
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_monthly_free INTEGER;
+  v_free_used INTEGER;
+  v_purchased INTEGER;
+  v_last_reset DATE;
+  v_free_available INTEGER;
+  v_days_until_reset INTEGER;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('error', 'Not authenticated');
+  END IF;
+
+  -- Get or create user limits
+  INSERT INTO user_limits (user_id)
+  VALUES (v_user_id)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  SELECT
+    monthly_free_credits,
+    free_credits_used,
+    purchased_credits,
+    last_monthly_reset
+  INTO v_monthly_free, v_free_used, v_purchased, v_last_reset
+  FROM user_limits
+  WHERE user_id = v_user_id;
+
+  -- Check if monthly reset is needed
+  IF v_last_reset IS NULL OR v_last_reset < date_trunc('month', CURRENT_DATE)::DATE THEN
+    v_free_used := 0;
+  END IF;
+
+  v_free_available := v_monthly_free - v_free_used;
+
+  -- Calculate days until next reset (first of next month)
+  v_days_until_reset := (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month')::DATE - CURRENT_DATE;
+
+  RETURN json_build_object(
+    'monthly_free_credits', v_monthly_free,
+    'free_credits_used', v_free_used,
+    'free_credits_remaining', v_free_available,
+    'purchased_credits', v_purchased,
+    'total_available', v_free_available + v_purchased,
+    'days_until_reset', v_days_until_reset
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.get_user_credits() SET search_path = public;
+
+-- Add purchased credits to user account (for Stripe webhooks)
+CREATE OR REPLACE FUNCTION public.add_purchased_credits(
+  p_user_id UUID,
+  p_credits INTEGER
+)
+RETURNS JSON AS $$
+BEGIN
+  UPDATE user_limits
+  SET
+    purchased_credits = purchased_credits + p_credits,
+    lifetime_credits_purchased = lifetime_credits_purchased + p_credits
+  WHERE user_id = p_user_id;
+
+  IF NOT FOUND THEN
+    INSERT INTO user_limits (user_id, purchased_credits, lifetime_credits_purchased)
+    VALUES (p_user_id, p_credits, p_credits);
+  END IF;
+
+  RETURN json_build_object('success', TRUE, 'credits_added', p_credits);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.add_purchased_credits(UUID, INTEGER) SET search_path = public;
 
 -- ============================================
 -- USER PREFERENCES TABLE
@@ -649,6 +859,12 @@ GRANT EXECUTE ON FUNCTION public.increment_token_usage(UUID, INTEGER) TO authent
 GRANT EXECUTE ON FUNCTION public.check_token_limits(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.upsert_user_preferences(TEXT, TEXT) TO authenticated;
+
+-- Credit system functions
+GRANT EXECUTE ON FUNCTION public.check_and_use_credits(INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_credits() TO authenticated;
+-- Only service role can add credits (via Stripe webhooks)
+GRANT EXECUTE ON FUNCTION public.add_purchased_credits(UUID, INTEGER) TO service_role;
 
 -- Login lockout functions need to be callable from client during login
 GRANT EXECUTE ON FUNCTION public.check_login_lockout(TEXT) TO anon, authenticated;

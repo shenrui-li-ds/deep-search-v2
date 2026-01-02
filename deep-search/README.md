@@ -17,7 +17,8 @@ An AI-powered search application that provides a Perplexity-like search experien
 - **Streaming Responses**: Real-time content generation with smooth UI updates
 - **Two-Tier Caching**: In-memory LRU + Supabase persistent cache for cost reduction
 - **User Authentication**: Supabase Auth with email/password and GitHub OAuth
-- **Usage Limits**: Daily/monthly search and token limits per user
+- **Credit System**: 1000 free credits/month with optional credit purchases
+- **Usage Tracking**: Search mode and provider breakdowns with visual charts
 - **Copy & Share**: Copy answers, share formatted text, export to PDF
 - **Dark/Light Theme**: System-aware theme support
 - **LaTeX Math Rendering**: KaTeX for mathematical expressions
@@ -83,6 +84,7 @@ Run the SQL schema in your Supabase SQL Editor:
 - `supabase/schema.sql` - Full schema for new projects
 - `supabase/add-cache-table.sql` - Add caching (if upgrading)
 - `supabase/add-extended-limits.sql` - Add extended limits (if upgrading)
+- `supabase/add-credit-system.sql` - Add credit-based billing (if upgrading)
 
 ### Development
 
@@ -114,6 +116,7 @@ deep-search/
 │   │   │   ├── research/           # Research mode (plan, synthesize)
 │   │   │   └── brainstorm/         # Brainstorm mode (reframe, synthesize)
 │   │   ├── auth/                   # Auth pages (login, signup)
+│   │   ├── account/                # Account settings (profile, billing, usage)
 │   │   ├── search/                 # Search results page
 │   │   ├── library/                # Search history page
 │   │   └── page.tsx                # Home page
@@ -162,7 +165,26 @@ Two-tier caching reduces API costs:
 
 Cached endpoints: `/api/search`, `/api/refine`, `/api/related-searches`, `/api/research/plan`
 
-### User Limits
+### Credit System
+
+Users get 1000 free credits per month. Credits are deducted per search:
+
+| Search Mode | Credit Cost |
+|-------------|-------------|
+| Web Search | 1 credit |
+| Research | 2 credits |
+| Brainstorm | 2 credits |
+
+**Credit Packs** (coming soon):
+| Pack | Credits | Price |
+|------|---------|-------|
+| Getting Started | 500 | $5 |
+| I Like It | 2,000 | $15 (33% bonus) |
+| Power User | 6,000 | $40 (50% bonus) |
+
+Free credits reset on the 1st of each month. Purchased credits never expire.
+
+### Legacy Usage Limits (for visualization)
 
 | Limit | Default | Reset |
 |-------|---------|-------|

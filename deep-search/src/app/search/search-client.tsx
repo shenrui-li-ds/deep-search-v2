@@ -148,7 +148,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({ query, provider }),
             signal: abortController.signal
           }),
-          fetch('/api/check-limit', { method: 'POST' }).then(res => res.json())
+          fetch('/api/check-limit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'pro' })
+          }).then(res => res.json())
         ]);
 
         if (!isActive) return;
@@ -370,7 +374,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({ query, provider }),
             signal: abortController.signal
           }),
-          fetch('/api/check-limit', { method: 'POST' }).then(res => res.json())
+          fetch('/api/check-limit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'brainstorm' })
+          }).then(res => res.json())
         ]);
 
         if (!isActive) return;
@@ -591,7 +599,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             body: JSON.stringify({ query, provider }),
             signal: abortController.signal
           }).then(res => res.ok ? res.json() : { refinedQuery: query }).catch(() => ({ refinedQuery: query })),
-          fetch('/api/check-limit', { method: 'POST' }).then(res => res.json())
+          fetch('/api/check-limit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'web' })
+          }).then(res => res.json())
         ]);
 
         if (!isActive) return;

@@ -109,6 +109,22 @@ Client-side database operations for search history and usage limits.
 | `getUserPreferences()` | Get user's default provider and mode |
 | `updateUserPreferences(prefs)` | Update default provider and/or mode |
 
+**Credit System:**
+
+| Function | Description |
+|----------|-------------|
+| `getUserCredits()` | Get current credit balances (free + purchased) |
+| `checkAndUseCredits(mode)` | Check and deduct credits atomically |
+| `hasEnoughCredits(mode)` | Preview credit check without deduction |
+| `getPurchaseHistory(limit)` | Get user's credit purchase history |
+| `CREDIT_COSTS` | Credit costs per mode: web=1, pro=2, brainstorm=2 |
+
+**Usage Statistics:**
+
+| Function | Description |
+|----------|-------------|
+| `getUsageStats(days)` | Get usage breakdown by mode, provider, and daily activity |
+
 **Types:**
 ```typescript
 interface SearchHistoryEntry {
@@ -146,6 +162,32 @@ interface UserPreferences {
   default_mode: 'web' | 'pro' | 'brainstorm';
   created_at?: string;
   updated_at?: string;
+}
+
+interface UserCredits {
+  monthly_free_credits: number;     // Default: 1000
+  free_credits_used: number;
+  free_credits_remaining: number;
+  purchased_credits: number;
+  total_available: number;
+  days_until_reset: number;
+}
+
+interface CreditPurchase {
+  id: string;
+  user_id: string;
+  pack_type: 'starter' | 'plus' | 'pro';
+  credits: number;
+  amount_cents: number;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  created_at: string;
+}
+
+interface UsageStats {
+  totalSearches: number;
+  byMode: { mode: string; count: number }[];
+  byProvider: { provider: string; count: number }[];
+  last30Days: { date: string; count: number }[];
 }
 ```
 

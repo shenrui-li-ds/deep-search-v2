@@ -10,7 +10,7 @@ const mockSupabaseClient: Record<string, jest.Mock | unknown> = {};
 
 // Helper to reset mock chain (called in beforeEach)
 const resetMockChain = () => {
-  const chainableMethods = ['from', 'select', 'insert', 'delete', 'update', 'eq', 'or', 'order', 'range', 'limit', 'single'];
+  const chainableMethods = ['from', 'select', 'insert', 'delete', 'update', 'eq', 'or', 'order', 'range', 'limit', 'single', 'gte'];
   chainableMethods.forEach(method => {
     if (!mockSupabaseClient[method]) {
       mockSupabaseClient[method] = jest.fn();
@@ -54,6 +54,12 @@ import {
   canPerformSearch,
   getUserPreferences,
   updateUserPreferences,
+  getUserCredits,
+  checkAndUseCredits,
+  hasEnoughCredits,
+  getPurchaseHistory,
+  getUsageStats,
+  CREDIT_COSTS,
 } from '@/lib/supabase/database';
 
 describe('Supabase Database Functions', () => {
@@ -624,6 +630,305 @@ describe('Supabase Database Functions', () => {
       await expect(
         updateUserPreferences({ default_provider: 'claude' })
       ).rejects.toEqual({ message: 'RPC error' });
+    });
+  });
+
+  // ============================================
+  // CREDIT SYSTEM TESTS
+  // ============================================
+
+  describe('CREDIT_COSTS', () => {
+    it('should have correct credit costs for each mode', () => {
+      expect(CREDIT_COSTS.web).toBe(1);
+      expect(CREDIT_COSTS.pro).toBe(2);
+      expect(CREDIT_COSTS.brainstorm).toBe(2);
+    });
+  });
+
+  describe('getUserCredits', () => {
+    it('should return user credits from RPC', async () => {
+      const mockCredits = {
+        monthly_free_credits: 1000,
+        free_credits_used: 100,
+        free_credits_remaining: 900,
+        purchased_credits: 500,
+        total_available: 1400,
+        days_until_reset: 15,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockCredits,
+        error: null,
+      });
+
+      const result = await getUserCredits();
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('get_user_credits');
+      expect(result).toEqual(mockCredits);
+    });
+
+    it('should return null if RPC returns error response', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: { error: 'Not authenticated' },
+        error: null,
+      });
+
+      const result = await getUserCredits();
+
+      expect(result).toBeNull();
+    });
+
+    it('should throw error if RPC fails', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Database error' },
+      });
+
+      await expect(getUserCredits()).rejects.toEqual({ message: 'Database error' });
+    });
+  });
+
+  describe('checkAndUseCredits', () => {
+    it('should check and use credits for web mode (1 credit)', async () => {
+      const mockResult = {
+        allowed: true,
+        source: 'free',
+        credits_used: 1,
+        remaining_free: 899,
+        remaining_purchased: 0,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockResult,
+        error: null,
+      });
+
+      const result = await checkAndUseCredits('web');
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
+        p_credits_needed: 1,
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should check and use credits for pro mode (2 credits)', async () => {
+      const mockResult = {
+        allowed: true,
+        source: 'purchased',
+        credits_used: 2,
+        remaining_free: 0,
+        remaining_purchased: 498,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockResult,
+        error: null,
+      });
+
+      const result = await checkAndUseCredits('pro');
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
+        p_credits_needed: 2,
+      });
+      expect(result).toEqual(mockResult);
+    });
+
+    it('should check and use credits for brainstorm mode (2 credits)', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: { allowed: true, source: 'free', credits_used: 2, remaining_free: 998, remaining_purchased: 0 },
+        error: null,
+      });
+
+      const result = await checkAndUseCredits('brainstorm');
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
+        p_credits_needed: 2,
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('should return not allowed if insufficient credits', async () => {
+      const mockResult = {
+        allowed: false,
+        error: 'Insufficient credits',
+        needed: 2,
+        remaining_free: 0,
+        remaining_purchased: 1,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockResult,
+        error: null,
+      });
+
+      const result = await checkAndUseCredits('pro');
+
+      expect(result.allowed).toBe(false);
+      expect(result.error).toBe('Insufficient credits');
+    });
+
+    it('should return safe default on RPC error', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: null,
+        error: { message: 'RPC error' },
+      });
+
+      const result = await checkAndUseCredits('web');
+
+      expect(result.allowed).toBe(false);
+      expect(result.error).toBe('Failed to check credits');
+    });
+  });
+
+  describe('hasEnoughCredits', () => {
+    it('should return true if user has enough credits', async () => {
+      const mockCredits = {
+        monthly_free_credits: 1000,
+        free_credits_used: 100,
+        free_credits_remaining: 900,
+        purchased_credits: 0,
+        total_available: 900,
+        days_until_reset: 15,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockCredits,
+        error: null,
+      });
+
+      const result = await hasEnoughCredits('web');
+
+      expect(result.hasCredits).toBe(true);
+      expect(result.totalAvailable).toBe(900);
+      expect(result.creditsNeeded).toBe(1);
+    });
+
+    it('should return false if user does not have enough credits', async () => {
+      const mockCredits = {
+        monthly_free_credits: 1000,
+        free_credits_used: 1000,
+        free_credits_remaining: 0,
+        purchased_credits: 1,
+        total_available: 1,
+        days_until_reset: 15,
+      };
+
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: mockCredits,
+        error: null,
+      });
+
+      const result = await hasEnoughCredits('pro'); // Needs 2 credits
+
+      expect(result.hasCredits).toBe(false);
+      expect(result.totalAvailable).toBe(1);
+      expect(result.creditsNeeded).toBe(2);
+    });
+
+    it('should return false if getUserCredits returns null', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        data: { error: 'Not authenticated' },
+        error: null,
+      });
+
+      const result = await hasEnoughCredits('web');
+
+      expect(result.hasCredits).toBe(false);
+      expect(result.totalAvailable).toBe(0);
+    });
+  });
+
+  describe('getPurchaseHistory', () => {
+    it('should fetch purchase history with default limit', async () => {
+      const mockPurchases = [
+        { id: '1', pack_type: 'starter', credits: 500, amount_cents: 500, status: 'completed', created_at: '2024-01-15' },
+        { id: '2', pack_type: 'plus', credits: 2000, amount_cents: 1500, status: 'completed', created_at: '2024-01-10' },
+      ];
+
+      mockSupabaseClient.limit.mockResolvedValueOnce({
+        data: mockPurchases,
+        error: null,
+      });
+
+      const result = await getPurchaseHistory();
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('credit_purchases');
+      expect(mockSupabaseClient.order).toHaveBeenCalledWith('created_at', { ascending: false });
+      expect(mockSupabaseClient.limit).toHaveBeenCalledWith(50);
+      expect(result).toEqual(mockPurchases);
+    });
+
+    it('should respect custom limit', async () => {
+      mockSupabaseClient.limit.mockResolvedValueOnce({ data: [], error: null });
+
+      await getPurchaseHistory(10);
+
+      expect(mockSupabaseClient.limit).toHaveBeenCalledWith(10);
+    });
+
+    it('should throw error if query fails', async () => {
+      mockSupabaseClient.limit.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Query error' },
+      });
+
+      await expect(getPurchaseHistory()).rejects.toEqual({ message: 'Query error' });
+    });
+  });
+
+  describe('getUsageStats', () => {
+    it('should return usage statistics', async () => {
+      const mockSearchHistory = [
+        { mode: 'web', provider: 'deepseek', created_at: new Date().toISOString() },
+        { mode: 'web', provider: 'deepseek', created_at: new Date().toISOString() },
+        { mode: 'pro', provider: 'openai', created_at: new Date().toISOString() },
+        { mode: 'brainstorm', provider: 'claude', created_at: new Date().toISOString() },
+      ];
+
+      mockSupabaseClient.gte.mockResolvedValueOnce({
+        data: mockSearchHistory,
+        error: null,
+      });
+
+      const result = await getUsageStats(30);
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.select).toHaveBeenCalledWith('mode, provider, created_at');
+      expect(result.totalSearches).toBe(4);
+      expect(result.byMode).toEqual([
+        { mode: 'web', count: 2 },
+        { mode: 'pro', count: 1 },
+        { mode: 'brainstorm', count: 1 },
+      ]);
+      expect(result.byProvider).toEqual([
+        { provider: 'deepseek', count: 2 },
+        { provider: 'openai', count: 1 },
+        { provider: 'claude', count: 1 },
+      ]);
+      expect(result.last30Days.length).toBe(30);
+    });
+
+    it('should return empty stats if no search history', async () => {
+      mockSupabaseClient.gte.mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+      const result = await getUsageStats();
+
+      expect(result.totalSearches).toBe(0);
+      expect(result.byMode).toEqual([]);
+      expect(result.byProvider).toEqual([]);
+      expect(result.last30Days.length).toBe(30);
+    });
+
+    it('should throw error if query fails', async () => {
+      mockSupabaseClient.gte.mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Query error' },
+      });
+
+      await expect(getUsageStats()).rejects.toEqual({ message: 'Query error' });
     });
   });
 });

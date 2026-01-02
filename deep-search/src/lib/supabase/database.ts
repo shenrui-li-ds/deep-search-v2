@@ -463,3 +463,215 @@ export async function updateUserPreferences(
 
   return data;
 }
+
+// ============================================
+// CREDIT SYSTEM
+// ============================================
+
+export interface UserCredits {
+  monthly_free_credits: number;
+  free_credits_used: number;
+  free_credits_remaining: number;
+  purchased_credits: number;
+  total_available: number;
+  days_until_reset: number;
+}
+
+export interface CreditPurchase {
+  id: string;
+  user_id: string;
+  stripe_session_id?: string;
+  stripe_payment_intent?: string;
+  pack_type: 'starter' | 'plus' | 'pro';
+  credits: number;
+  amount_cents: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+  created_at: string;
+}
+
+export interface CreditCheckResult {
+  allowed: boolean;
+  error?: string;
+  source?: 'free' | 'purchased';
+  credits_used?: number;
+  needed?: number;
+  remaining_free: number;
+  remaining_purchased: number;
+}
+
+// Credit costs per search mode
+export const CREDIT_COSTS = {
+  web: 1,
+  pro: 2,      // Research mode
+  brainstorm: 2,
+} as const;
+
+/**
+ * Get current credit balances (read-only, no side effects)
+ */
+export async function getUserCredits(): Promise<UserCredits | null> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase.rpc('get_user_credits');
+
+  if (error) {
+    console.error('Error getting user credits:', error);
+    throw error;
+  }
+
+  // Handle error response from function
+  if (data?.error) {
+    console.error('Credit function error:', data.error);
+    return null;
+  }
+
+  return data as UserCredits;
+}
+
+/**
+ * Check if user has enough credits and deduct them.
+ * Uses free credits first, then purchased credits.
+ * @param mode - The search mode to get credit cost
+ * @returns Result with allowed status and remaining credits
+ */
+export async function checkAndUseCredits(mode: 'web' | 'pro' | 'brainstorm'): Promise<CreditCheckResult> {
+  const supabase = createClient();
+  const creditsNeeded = CREDIT_COSTS[mode];
+
+  const { data, error } = await supabase.rpc('check_and_use_credits', {
+    p_credits_needed: creditsNeeded,
+  });
+
+  if (error) {
+    console.error('Error checking/using credits:', error);
+    // On error, return a safe default that blocks the search
+    return {
+      allowed: false,
+      error: 'Failed to check credits',
+      remaining_free: 0,
+      remaining_purchased: 0,
+    };
+  }
+
+  return data as CreditCheckResult;
+}
+
+/**
+ * Check if user has enough credits without deducting them (preview only)
+ * @param mode - The search mode to check
+ */
+export async function hasEnoughCredits(mode: 'web' | 'pro' | 'brainstorm'): Promise<{
+  hasCredits: boolean;
+  totalAvailable: number;
+  creditsNeeded: number;
+}> {
+  const credits = await getUserCredits();
+  const creditsNeeded = CREDIT_COSTS[mode];
+
+  if (!credits) {
+    return { hasCredits: false, totalAvailable: 0, creditsNeeded };
+  }
+
+  return {
+    hasCredits: credits.total_available >= creditsNeeded,
+    totalAvailable: credits.total_available,
+    creditsNeeded,
+  };
+}
+
+/**
+ * Get user's credit purchase history
+ */
+export async function getPurchaseHistory(limit = 50): Promise<CreditPurchase[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('credit_purchases')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching purchase history:', error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+// ============================================
+// USAGE STATISTICS
+// ============================================
+
+export interface UsageStats {
+  totalSearches: number;
+  byMode: { mode: string; count: number }[];
+  byProvider: { provider: string; count: number }[];
+  last30Days: { date: string; count: number }[];
+}
+
+/**
+ * Get usage statistics for visualization
+ * @param days - Number of days to look back (default 30)
+ */
+export async function getUsageStats(days = 30): Promise<UsageStats> {
+  const supabase = createClient();
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('search_history')
+    .select('mode, provider, created_at')
+    .gte('created_at', startDate.toISOString());
+
+  if (error) {
+    console.error('Error fetching usage stats:', error);
+    throw error;
+  }
+
+  const records = data || [];
+
+  // Count by mode
+  const modeCount: Record<string, number> = {};
+  const providerCount: Record<string, number> = {};
+  const dailyCount: Record<string, number> = {};
+
+  records.forEach((record) => {
+    // Mode counts
+    modeCount[record.mode] = (modeCount[record.mode] || 0) + 1;
+
+    // Provider counts
+    providerCount[record.provider] = (providerCount[record.provider] || 0) + 1;
+
+    // Daily counts
+    const date = new Date(record.created_at).toISOString().split('T')[0];
+    dailyCount[date] = (dailyCount[date] || 0) + 1;
+  });
+
+  // Convert to arrays and sort
+  const byMode = Object.entries(modeCount)
+    .map(([mode, count]) => ({ mode, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const byProvider = Object.entries(providerCount)
+    .map(([provider, count]) => ({ provider, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Create daily array with all days (fill gaps with 0)
+  const last30Days: { date: string; count: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    last30Days.push({ date: dateStr, count: dailyCount[dateStr] || 0 });
+  }
+
+  return {
+    totalSearches: records.length,
+    byMode,
+    byProvider,
+    last30Days,
+  };
+}
