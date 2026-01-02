@@ -85,6 +85,7 @@ Run the SQL schema in your Supabase SQL Editor:
 - `supabase/add-cache-table.sql` - Add caching (if upgrading)
 - `supabase/add-extended-limits.sql` - Add extended limits (if upgrading)
 - `supabase/add-credit-system.sql` - Add credit-based billing (if upgrading)
+- `supabase/add-combined-auth-check.sql` - Optimized auth check (if upgrading)
 
 ### Development
 

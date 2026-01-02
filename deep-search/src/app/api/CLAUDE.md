@@ -296,8 +296,10 @@ Performs a two-phase check: rate limits (security) then credits (billing). Both 
 | brainstorm | 2 |
 
 **Features:**
-- **Phase 1 (Security)**: Rate limits via `check_and_increment_search_v2` (daily/monthly caps)
-- **Phase 2 (Billing)**: Credits via `check_and_use_credits` (deducts if allowed)
+- **Optimized Path**: Single `check_and_authorize_search` RPC call (~30-50ms saved)
+- **Legacy Fallback**: Two-call system if combined function unavailable
+  - Phase 1 (Security): `check_and_increment_search_v2` for rate limits
+  - Phase 2 (Billing): `check_and_use_credits` for credit deduction
 - Falls back to v1 rate limits if v2 unavailable
 - Falls back to rate-limits-only mode if credit functions unavailable
 - Fail-open on errors (allows search, logs error)

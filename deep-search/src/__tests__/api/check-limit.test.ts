@@ -47,65 +47,8 @@ describe('/api/check-limit', () => {
     });
   });
 
-  describe('rate limits check (security)', () => {
-    it('should block when daily rate limit is reached', async () => {
-      // Rate limit check returns not allowed
-      mockSupabaseClient.rpc.mockResolvedValueOnce({
-        data: {
-          allowed: false,
-          reason: 'Daily search limit reached (50 searches). Resets at midnight.',
-          daily_limit: 50,
-          daily_used: 50,
-        },
-        error: null,
-      });
-
-      const request = new NextRequest('http://localhost/api/check-limit', {
-        method: 'POST',
-        body: JSON.stringify({ mode: 'web' }),
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(data.allowed).toBe(false);
-      expect(data.reason).toContain('Daily search limit reached');
-      // Should NOT call credit check if rate limit fails
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledTimes(1);
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_increment_search_v2');
-    });
-
-    it('should block when monthly rate limit is reached', async () => {
-      mockSupabaseClient.rpc.mockResolvedValueOnce({
-        data: {
-          allowed: false,
-          reason: 'Monthly search limit reached (1000 searches). Resets on the 1st.',
-          daily_limit: 50,
-          daily_used: 10,
-        },
-        error: null,
-      });
-
-      const request = new NextRequest('http://localhost/api/check-limit', {
-        method: 'POST',
-      });
-
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(data.allowed).toBe(false);
-      expect(data.reason).toContain('Monthly search limit reached');
-    });
-  });
-
-  describe('credit check (billing)', () => {
-    it('should check credits after rate limits pass', async () => {
-      // Rate limit passes
-      mockSupabaseClient.rpc.mockResolvedValueOnce({
-        data: { allowed: true, daily_limit: 50, daily_used: 10 },
-        error: null,
-      });
-      // Credit check passes
+  describe('combined function (optimized path)', () => {
+    it('should use check_and_authorize_search for single-call optimization', async () => {
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: {
           allowed: true,
@@ -113,6 +56,8 @@ describe('/api/check-limit', () => {
           credits_used: 1,
           remaining_free: 999,
           remaining_purchased: 0,
+          daily_limit: 50,
+          daily_used: 1,
         },
         error: null,
       });
@@ -128,24 +73,41 @@ describe('/api/check-limit', () => {
       expect(data.allowed).toBe(true);
       expect(data.creditsUsed).toBe(1);
       expect(data.source).toBe('free');
-      expect(mockSupabaseClient.rpc).toHaveBeenCalledTimes(2);
-      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(1, 'check_and_increment_search_v2');
-      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(2, 'check_and_use_credits', {
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledTimes(1);
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_authorize_search', {
         p_credits_needed: 1,
       });
     });
 
-    it('should block when insufficient credits', async () => {
-      // Rate limit passes
-      mockSupabaseClient.rpc.mockResolvedValueOnce({
-        data: { allowed: true, daily_limit: 50, daily_used: 10 },
-        error: null,
-      });
-      // Credit check fails
+    it('should block when rate limit fails (combined function)', async () => {
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: {
           allowed: false,
-          error: 'Insufficient credits',
+          phase: 'rate_limit',
+          reason: 'Daily search limit reached (50 searches). Resets at midnight.',
+          daily_limit: 50,
+          daily_used: 50,
+        },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/check-limit', {
+        method: 'POST',
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.allowed).toBe(false);
+      expect(data.reason).toContain('Daily search limit reached');
+    });
+
+    it('should block when credits insufficient (combined function)', async () => {
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: {
+          allowed: false,
+          phase: 'credits',
+          reason: 'Insufficient credits. Purchase more credits to continue.',
           needed: 2,
           remaining_free: 0,
           remaining_purchased: 1,
@@ -167,12 +129,6 @@ describe('/api/check-limit', () => {
     });
 
     it('should use correct credit cost for each mode', async () => {
-      // Rate limit passes for all tests
-      mockSupabaseClient.rpc.mockResolvedValue({
-        data: { allowed: true, daily_limit: 50, daily_used: 10 },
-        error: null,
-      });
-
       const modes = [
         { mode: 'web', expectedCredits: 1 },
         { mode: 'pro', expectedCredits: 2 },
@@ -181,10 +137,7 @@ describe('/api/check-limit', () => {
 
       for (const { mode, expectedCredits } of modes) {
         jest.clearAllMocks();
-        mockSupabaseClient.rpc.mockResolvedValueOnce({
-          data: { allowed: true, daily_limit: 50, daily_used: 10 },
-          error: null,
-        });
+        mockSupabaseClient.auth.getUser.mockResolvedValue({ data: { user: mockUser } });
         mockSupabaseClient.rpc.mockResolvedValueOnce({
           data: { allowed: true, source: 'free', credits_used: expectedCredits },
           error: null,
@@ -197,15 +150,81 @@ describe('/api/check-limit', () => {
 
         await POST(request);
 
-        expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(2, 'check_and_use_credits', {
+        expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_authorize_search', {
           p_credits_needed: expectedCredits,
         });
       }
     });
   });
 
-  describe('fallback behavior', () => {
+  describe('legacy fallback (two-call system)', () => {
+    it('should fall back to legacy system when combined function does not exist', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
+      // Rate limit v2 passes
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: { allowed: true, daily_limit: 50, daily_used: 10 },
+        error: null,
+      });
+      // Credit check passes
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: { allowed: true, source: 'free', credits_used: 1 },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/check-limit', {
+        method: 'POST',
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.allowed).toBe(true);
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledTimes(3);
+      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(1, 'check_and_authorize_search', { p_credits_needed: 1 });
+      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(2, 'check_and_increment_search_v2');
+      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(3, 'check_and_use_credits', { p_credits_needed: 1 });
+    });
+
+    it('should block when rate limit fails in legacy mode', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
+      // Rate limit check fails
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: {
+          allowed: false,
+          reason: 'Daily search limit reached (50 searches). Resets at midnight.',
+          daily_limit: 50,
+          daily_used: 50,
+        },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/check-limit', {
+        method: 'POST',
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.allowed).toBe(false);
+      expect(data.reason).toContain('Daily search limit reached');
+      // Should NOT call credit check if rate limit fails
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledTimes(2);
+    });
+
     it('should allow if credit functions do not exist (rate limits only)', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
       // Rate limit passes
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: { allowed: true, daily_limit: 50, daily_used: 10 },
@@ -229,6 +248,11 @@ describe('/api/check-limit', () => {
     });
 
     it('should fallback to v1 rate limit if v2 does not exist', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
       // v2 doesn't exist
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: null,
@@ -253,11 +277,16 @@ describe('/api/check-limit', () => {
       const data = await response.json();
 
       expect(data.allowed).toBe(true);
-      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(1, 'check_and_increment_search_v2');
-      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(2, 'check_and_increment_search');
+      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(2, 'check_and_increment_search_v2');
+      expect(mockSupabaseClient.rpc).toHaveBeenNthCalledWith(3, 'check_and_increment_search');
     });
 
     it('should skip rate limits if no rate limit functions exist', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
       // v2 doesn't exist
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: null,
@@ -286,7 +315,30 @@ describe('/api/check-limit', () => {
   });
 
   describe('error handling', () => {
-    it('should allow on rate limit error (fail open for availability)', async () => {
+    it('should allow on combined function error (fail open for availability)', async () => {
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: 'UNKNOWN', message: 'Database error' },
+      });
+
+      const request = new NextRequest('http://localhost/api/check-limit', {
+        method: 'POST',
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      // Fail open - allow on error to maintain availability
+      expect(data.allowed).toBe(true);
+    });
+
+    it('should allow on rate limit error in legacy mode', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
+      // Rate limit errors
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: null,
         error: { code: 'UNKNOWN', message: 'Database error' },
@@ -304,6 +356,11 @@ describe('/api/check-limit', () => {
     });
 
     it('should allow on credit check error after rate limits pass', async () => {
+      // Combined function doesn't exist
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: '42883', message: 'function does not exist' },
+      });
       // Rate limit passes
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: { allowed: true, daily_limit: 50, daily_used: 10 },

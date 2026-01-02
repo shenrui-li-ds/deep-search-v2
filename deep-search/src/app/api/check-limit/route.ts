@@ -12,10 +12,11 @@ const CREDIT_COSTS: Record<string, number> = {
  * POST /api/check-limit
  *
  * Checks if the user can perform a search using BOTH:
- * 1. Credit system (billing) - deducts credits if allowed
- * 2. Rate limits (security) - daily/monthly search limits to prevent abuse
+ * 1. Rate limits (security) - daily/monthly search limits to prevent abuse
+ * 2. Credit system (billing) - deducts credits if allowed
  *
  * Both checks must pass for search to be allowed.
+ * Uses optimized single-call function when available, falls back to two-call system.
  *
  * Request body:
  * - mode: 'web' | 'pro' | 'brainstorm' - search mode (determines credit cost)
@@ -26,8 +27,6 @@ const CREDIT_COSTS: Record<string, number> = {
  * - creditsUsed: number - credits deducted (if allowed)
  * - remainingCredits: number - total remaining credits
  * - source: 'free' | 'purchased' - which credit pool was used
- *
- * Falls back to legacy search limit system if credit functions don't exist.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -51,47 +50,40 @@ export async function POST(request: NextRequest) {
 
     const creditsNeeded = CREDIT_COSTS[mode] || 1;
 
-    // SECURITY CHECK: Always check rate limits first (daily/monthly caps)
-    // This prevents abuse even if user has credits
-    const rateLimitResult = await checkRateLimits(supabase);
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json({
-        allowed: false,
-        reason: rateLimitResult.reason,
-        remaining: rateLimitResult.remaining,
-        limit: rateLimitResult.limit,
-      });
-    }
-
-    // BILLING CHECK: Then check and deduct credits
-    const { data, error } = await supabase.rpc('check_and_use_credits', {
+    // Try optimized single-call function first
+    const { data, error } = await supabase.rpc('check_and_authorize_search', {
       p_credits_needed: creditsNeeded,
     });
 
     if (error) {
-      // Fall back to legacy system if credit functions don't exist
+      // Fall back to two-call system if combined function doesn't exist
       if (error.code === '42883') { // function does not exist
-        console.warn('check_and_use_credits not found, using rate limits only');
-        // Rate limits already passed, so allow the search
-        return NextResponse.json({
-          allowed: true,
-          remaining: rateLimitResult.remaining,
-          limit: rateLimitResult.limit,
-        });
+        console.warn('check_and_authorize_search not found, using legacy two-call system');
+        return await legacyDualCheck(supabase, creditsNeeded);
       }
-      console.error('Error checking credits:', error);
-      // On error, allow but log (rate limits already passed)
+      console.error('Error in check_and_authorize_search:', error);
+      // On error, allow but log (fail-open for availability)
       return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
     }
 
-    // Credit check result
+    // Handle combined function result
     if (!data.allowed) {
-      return NextResponse.json({
-        allowed: false,
-        reason: data.error || 'Insufficient credits. Purchase more credits to continue.',
-        creditsNeeded: data.needed || creditsNeeded,
-        remainingCredits: (data.remaining_free || 0) + (data.remaining_purchased || 0),
-      });
+      if (data.phase === 'rate_limit') {
+        return NextResponse.json({
+          allowed: false,
+          reason: data.reason,
+          remaining: 0,
+          limit: data.daily_limit || data.monthly_limit,
+        });
+      } else {
+        // Credits phase
+        return NextResponse.json({
+          allowed: false,
+          reason: data.reason,
+          creditsNeeded: data.needed || creditsNeeded,
+          remainingCredits: (data.remaining_free || 0) + (data.remaining_purchased || 0),
+        });
+      }
     }
 
     // Both checks passed - search allowed
@@ -107,6 +99,62 @@ export async function POST(request: NextRequest) {
     console.error('Error in check-limit:', error);
     return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
   }
+}
+
+/**
+ * Legacy two-call system for backwards compatibility.
+ * Used when check_and_authorize_search function is not available.
+ */
+async function legacyDualCheck(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  creditsNeeded: number
+) {
+  // PHASE 1: Rate limits (security)
+  const rateLimitResult = await checkRateLimits(supabase);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json({
+      allowed: false,
+      reason: rateLimitResult.reason,
+      remaining: rateLimitResult.remaining,
+      limit: rateLimitResult.limit,
+    });
+  }
+
+  // PHASE 2: Credits (billing)
+  const { data, error } = await supabase.rpc('check_and_use_credits', {
+    p_credits_needed: creditsNeeded,
+  });
+
+  if (error) {
+    if (error.code === '42883') { // function does not exist
+      console.warn('check_and_use_credits not found, using rate limits only');
+      return NextResponse.json({
+        allowed: true,
+        remaining: rateLimitResult.remaining,
+        limit: rateLimitResult.limit,
+      });
+    }
+    console.error('Error checking credits:', error);
+    return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
+  }
+
+  if (!data.allowed) {
+    return NextResponse.json({
+      allowed: false,
+      reason: data.error || 'Insufficient credits. Purchase more credits to continue.',
+      creditsNeeded: data.needed || creditsNeeded,
+      remainingCredits: (data.remaining_free || 0) + (data.remaining_purchased || 0),
+    });
+  }
+
+  return NextResponse.json({
+    allowed: true,
+    creditsUsed: data.credits_used,
+    source: data.source,
+    remainingCredits: (data.remaining_free || 0) + (data.remaining_purchased || 0),
+    remainingFree: data.remaining_free || 0,
+    remainingPurchased: data.remaining_purchased || 0,
+  });
 }
 
 /**
