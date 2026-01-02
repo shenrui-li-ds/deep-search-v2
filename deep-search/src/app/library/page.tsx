@@ -90,6 +90,7 @@ interface HistoryItemProps {
 
 function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: HistoryItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}`;
 
@@ -103,6 +104,17 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
   const handleMenuBookmark = () => {
     if (entry.id) {
       onToggleBookmark(entry.id);
+    }
+    setIsMenuOpen(false);
+  };
+
+  const handleCopyQuery = async () => {
+    try {
+      await navigator.clipboard.writeText(entry.query);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
     }
     setIsMenuOpen(false);
   };
@@ -131,6 +143,19 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
         </svg>
         <span>{entry.bookmarked ? 'Remove Bookmark' : 'Bookmark'}</span>
+      </button>
+      <button
+        onClick={handleCopyQuery}
+        className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg transition-colors ${
+          copied
+            ? 'bg-green-500/10 text-green-500'
+            : 'bg-[var(--card)] text-[var(--text-secondary)] hover:bg-[var(--card-hover)]'
+        }`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        <span>{copied ? 'Copied!' : 'Copy Query'}</span>
       </button>
       <button
         disabled
@@ -214,6 +239,15 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
                   {entry.bookmarked ? 'Remove Bookmark' : 'Bookmark'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleCopyQuery}
+                  className={`cursor-pointer ${copied ? 'text-green-500 focus:text-green-500 focus:bg-green-500/10' : ''}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  {copied ? 'Copied!' : 'Copy Query'}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
