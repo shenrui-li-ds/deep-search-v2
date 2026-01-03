@@ -63,10 +63,14 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
+      if (!response.ok) {
+        console.error('Turnstile verification failed:', response.status, response.statusText);
+        return false;
+      }
       const data = await response.json();
       return data.success === true;
-    } catch {
-      console.error('Turnstile verification request failed');
+    } catch (error) {
+      console.error('Turnstile verification request failed:', error);
       return false;
     }
   };
