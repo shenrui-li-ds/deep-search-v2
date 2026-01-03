@@ -46,7 +46,7 @@ Required in `deep-search/.env.local`:
 
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
-- `OPENAI_API_KEY` - OpenAI GPT-4.1 mini
+- `OPENAI_API_KEY` - OpenAI GPT-5.1 Chat
 - `GROK_API_KEY` - xAI Grok 4.1 Fast
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 - `GEMINI_API_KEY` - Google Gemini 3 Flash

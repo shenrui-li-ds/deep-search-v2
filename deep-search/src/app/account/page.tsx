@@ -950,8 +950,8 @@ function PreferencesTab() {
   };
 
   const providers = [
-    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat v3.2', experimental: false },
-    { id: 'openai', name: 'OpenAI', description: 'GPT-4.1 mini', experimental: false },
+    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
+    { id: 'openai', name: 'OpenAI', description: 'GPT-5.1 Chat', experimental: false },
     { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast', experimental: false },
     { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
     { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash', experimental: false },

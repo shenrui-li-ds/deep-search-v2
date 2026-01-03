@@ -6,6 +6,7 @@ import {
   formatSearchResultsForSummarization,
   getCurrentDate,
   detectLanguage,
+  ChatMessage,
 } from '@/lib/api-utils';
 
 // Mock fetch globally
@@ -35,7 +36,7 @@ describe('API Utils', () => {
   });
 
   describe('callOpenAI', () => {
-    const mockMessages = [{ role: 'user', content: 'Hello' }];
+    const mockMessages: ChatMessage[] = [{ role: 'user', content: 'Hello' }];
 
     it('makes request with correct headers', async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
@@ -72,12 +73,13 @@ describe('API Utils', () => {
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
 
-      expect(body.model).toBe('gpt-4.1-mini');
-      expect(body.temperature).toBe(0.7);
+      expect(body.model).toBe('gpt-5.1-chat-latest');
+      // gpt-5.1 models don't support custom temperature, so it should not be included
+      expect(body.temperature).toBeUndefined();
       expect(body.stream).toBe(false);
     });
 
-    it('allows custom model and temperature', async () => {
+    it('allows custom model and temperature for supported models', async () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -85,12 +87,13 @@ describe('API Utils', () => {
         }),
       });
 
-      await callOpenAI(mockMessages, 'gpt-4.1-mini', 0.5);
+      // Use gpt-4o which supports temperature
+      await callOpenAI(mockMessages, 'gpt-4o', 0.5);
 
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
 
-      expect(body.model).toBe('gpt-4.1-mini');
+      expect(body.model).toBe('gpt-4o');
       expect(body.temperature).toBe(0.5);
     });
 
@@ -111,7 +114,7 @@ describe('API Utils', () => {
       const mockResponse = { ok: true, body: {} };
       (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
 
-      const result = await callOpenAI(mockMessages, 'gpt-4.1-mini', 0.7, true);
+      const result = await callOpenAI(mockMessages, 'gpt-5.1-chat-latest', 0.7, true);
 
       expect(result).toBe(mockResponse);
     });

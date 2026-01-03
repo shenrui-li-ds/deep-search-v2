@@ -112,23 +112,33 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-4.1-mini',
+  model: string = 'gpt-5.1-chat-latest',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
   try {
+    // Some models (reasoning models like o1, o3, gpt-5.1) don't support custom temperature
+    const noTemperatureModels = ['o1', 'o3', 'gpt-5.1'];
+    const supportsTemperature = !noTemperatureModels.some(m => model.startsWith(m));
+
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      stream,
+    };
+
+    // Only include temperature for models that support it
+    if (supportsTemperature) {
+      requestBody.temperature = temperature;
+    }
+
     const response = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        stream,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -558,7 +568,7 @@ function callLLMForProvider(
       return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
     case 'openai':
       console.log('Using OpenAI API');
-      return callOpenAI(messages, 'gpt-4.1-mini', temperature, stream);
+      return callOpenAI(messages, 'gpt-5.1-chat-latest', temperature, stream);
     case 'grok':
       console.log('Using Grok API');
       return callGrok(messages, 'grok-4-1-fast', temperature, stream);
