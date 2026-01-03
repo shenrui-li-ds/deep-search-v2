@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import Turnstile from '@/components/Turnstile';
 
 interface LockoutStatus {
   locked: boolean;
@@ -19,6 +20,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [lockoutSeconds, setLockoutSeconds] = useState(0);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0); // For resetting widget
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get('redirectTo') || '/';
@@ -32,6 +35,41 @@ export default function LoginPage() {
       return () => clearInterval(timer);
     }
   }, [lockoutSeconds]);
+
+  // Turnstile callbacks
+  const handleTurnstileVerify = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken(null);
+    setError('Security verification failed. Please try again.');
+  }, []);
+
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    setTurnstileKey((prev) => prev + 1);
+  }, []);
+
+  // Verify turnstile token server-side
+  const verifyTurnstileToken = async (token: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const data = await response.json();
+      return data.success === true;
+    } catch {
+      console.error('Turnstile verification request failed');
+      return false;
+    }
+  };
 
   const handleGitHubLogin = async () => {
     setOauthLoading(true);
@@ -56,6 +94,24 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // Verify turnstile token first (if configured)
+    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    if (siteKey) {
+      if (!turnstileToken) {
+        setError('Please complete the security verification.');
+        setLoading(false);
+        return;
+      }
+
+      const isValid = await verifyTurnstileToken(turnstileToken);
+      if (!isValid) {
+        setError('Security verification failed. Please try again.');
+        resetTurnstile();
+        setLoading(false);
+        return;
+      }
+    }
 
     const supabase = createClient();
 
@@ -101,6 +157,7 @@ export default function LoginPage() {
       }
 
       setError(error.message);
+      resetTurnstile();
       setLoading(false);
       return;
     }
@@ -194,9 +251,23 @@ export default function LoginPage() {
             />
           </div>
 
+          {/* Turnstile Bot Protection */}
+          {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+            <div className="flex justify-center">
+              <Turnstile
+                key={turnstileKey}
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                onVerify={handleTurnstileVerify}
+                onError={handleTurnstileError}
+                onExpire={handleTurnstileExpire}
+                theme="auto"
+              />
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={loading || oauthLoading || lockoutSeconds > 0}
+            disabled={loading || oauthLoading || lockoutSeconds > 0 || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Signing in...' : lockoutSeconds > 0 ? `Locked (${formatTime(lockoutSeconds)})` : 'Sign in'}

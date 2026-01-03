@@ -190,6 +190,58 @@ shadcn/ui components. Do not modify directly - regenerate using shadcn CLI if ne
 - `tooltip.tsx` - Hover tooltips
 - `dropdown-menu.tsx` - Dropdown menus
 
+## Auth Components
+
+### `Turnstile.tsx`
+Cloudflare Turnstile bot protection widget for auth forms.
+
+**Props:**
+```typescript
+{
+  siteKey: string;              // Cloudflare Turnstile site key
+  onVerify: (token: string) => void;  // Called when verification succeeds
+  onError?: () => void;         // Called when verification fails
+  onExpire?: () => void;        // Called when token expires
+  theme?: 'light' | 'dark' | 'auto';  // Widget theme (default: 'auto')
+  className?: string;           // Additional CSS classes
+}
+```
+
+**Usage:**
+```tsx
+import Turnstile from '@/components/Turnstile';
+
+<Turnstile
+  siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+  onVerify={(token) => setTurnstileToken(token)}
+  onError={() => setTurnstileToken(null)}
+  onExpire={() => setTurnstileToken(null)}
+  theme="auto"
+/>
+```
+
+**Features:**
+- Dynamically loads Cloudflare Turnstile script
+- Renders "Managed" widget (auto-detects if challenge needed)
+- Cleans up widget on unmount
+- Supports theme switching via `theme` prop
+- Widget auto-refreshes before token expiration
+
+**Integration Flow:**
+1. Widget renders and generates token automatically
+2. Token passed to parent via `onVerify` callback
+3. Before form submit, validate token via `/api/auth/verify-turnstile`
+4. Reset widget on error using key prop: `<Turnstile key={resetKey} .../>`
+
+**Environment Variables Required:**
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` - Public site key (client-side)
+- `TURNSTILE_SECRET_KEY` - Secret key (server-side only)
+
+**Used in:**
+- `/auth/login` - Login form
+- `/auth/signup` - Signup form
+- `/auth/forgot-password` - Password reset request form
+
 ## Styling Patterns
 
 ### CSS Variables

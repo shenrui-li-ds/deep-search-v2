@@ -454,6 +454,39 @@ This is especially important for `SECURITY DEFINER` functions.
 
 Enable in Supabase → Authentication → Settings to check passwords against HaveIBeenPwned database.
 
+### Cloudflare Turnstile (Bot Protection)
+
+All auth forms (login, signup, forgot-password) are protected by Cloudflare Turnstile.
+
+**Environment Variables:**
+```
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_site_key
+TURNSTILE_SECRET_KEY=your_secret_key
+```
+
+**Implementation Files:**
+- `src/components/Turnstile.tsx` - Reusable widget component
+- `src/app/api/auth/verify-turnstile/route.ts` - Server-side token validation
+
+**Flow:**
+1. User fills form, Turnstile widget generates token
+2. User submits form
+3. Frontend calls `/api/auth/verify-turnstile` to validate token
+4. If valid, proceed with Supabase auth call
+5. If invalid, show error and reset widget
+
+**Setup:**
+1. Go to Cloudflare Dashboard → Turnstile
+2. Create a new site, select "Managed" widget mode
+3. Add domains: `localhost`, production domain
+4. Copy Site Key and Secret Key to `.env.local`
+
+**Notes:**
+- Widget is only shown when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set
+- Token validation is server-side (secret key never exposed)
+- Each token is single-use, widget resets after validation
+- Tokens expire after 300 seconds (widget auto-refreshes)
+
 ### Account Lockout (Brute Force Protection)
 
 Progressive account lockout after failed login attempts. Migration: `supabase/add-login-lockout.sql`

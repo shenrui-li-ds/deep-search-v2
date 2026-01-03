@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import Turnstile from '@/components/Turnstile';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,43 @@ export default function SignUpPage() {
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileKey, setTurnstileKey] = useState(0);
+
+  // Turnstile callbacks
+  const handleTurnstileVerify = useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken(null);
+    setError('Security verification failed. Please try again.');
+  }, []);
+
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    setTurnstileKey((prev) => prev + 1);
+  }, []);
+
+  // Verify turnstile token server-side
+  const verifyTurnstileToken = async (token: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+      const data = await response.json();
+      return data.success === true;
+    } catch {
+      console.error('Turnstile verification request failed');
+      return false;
+    }
+  };
 
   const handleGitHubSignUp = async () => {
     setOauthLoading(true);
@@ -52,6 +90,24 @@ export default function SignUpPage() {
       return;
     }
 
+    // Verify turnstile token (if configured)
+    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    if (siteKey) {
+      if (!turnstileToken) {
+        setError('Please complete the security verification.');
+        setLoading(false);
+        return;
+      }
+
+      const isValid = await verifyTurnstileToken(turnstileToken);
+      if (!isValid) {
+        setError('Security verification failed. Please try again.');
+        resetTurnstile();
+        setLoading(false);
+        return;
+      }
+    }
+
     const supabase = createClient();
 
     const { error } = await supabase.auth.signUp({
@@ -64,6 +120,7 @@ export default function SignUpPage() {
 
     if (error) {
       setError(error.message);
+      resetTurnstile();
       setLoading(false);
       return;
     }
@@ -168,9 +225,23 @@ export default function SignUpPage() {
             />
           </div>
 
+          {/* Turnstile Bot Protection */}
+          {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+            <div className="flex justify-center">
+              <Turnstile
+                key={turnstileKey}
+                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                onVerify={handleTurnstileVerify}
+                onError={handleTurnstileError}
+                onExpire={handleTurnstileExpire}
+                theme="auto"
+              />
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={loading || oauthLoading}
+            disabled={loading || oauthLoading || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating account...' : 'Create account'}

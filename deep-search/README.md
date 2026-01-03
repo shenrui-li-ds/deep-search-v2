@@ -264,6 +264,30 @@ npm run test:coverage       # With coverage report
    ```
 3. Copy Client ID and Client Secret to Supabase → Authentication → Providers → GitHub
 
+### Cloudflare Turnstile (Bot Protection)
+
+Protect auth pages from bots with [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/):
+
+1. **Create Widget** at Cloudflare Dashboard → Turnstile
+   - Click "Add site"
+   - Choose "Cloudflare dashboard" method
+   - Enter site name (e.g., "Athenius Auth")
+   - Add hostnames: `localhost`, `your-domain.com`, `*.vercel.app`
+   - Select "Managed" widget mode
+   - Skip pre-clearance (choose No)
+
+2. **Add Environment Variables**
+   ```env
+   NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_site_key
+   TURNSTILE_SECRET_KEY=your_secret_key
+   ```
+
+3. **Add to Vercel** (for production)
+   - Go to Vercel → Project → Settings → Environment Variables
+   - Add both keys for Production/Preview environments
+
+The widget automatically appears on login, signup, and forgot-password pages when keys are configured.
+
 ### Email with Resend
 
 Supabase's default email has strict rate limits. Use [Resend](https://resend.com) for reliable email delivery:
