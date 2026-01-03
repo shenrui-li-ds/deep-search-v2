@@ -295,6 +295,8 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
             <principle>Explain concepts thoroughly - assume the reader wants to understand deeply</principle>
             <principle>Paragraphs can be 4-6 sentences when needed for complete explanation</principle>
             <principle>Cover multiple perspectives when contradictions exist</principle>
+            <principle>With rich extraction data available, provide thorough analysis rather than brief summaries</principle>
+            <principle>Connect related claims across different aspects to show the full picture</principle>
         </depth>
         <confidenceHandling>
             <principle>Present "established" claims as facts</principle>
@@ -326,8 +328,8 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
                 - Code blocks longer than 5 lines
             </rule>
             <rule type="COLLAPSIBLE_IF_MULTIPLE">
-                - Statistics: If 3+ statistics, group in collapsible "📊 Key Statistics" section
-                - Expert Opinions: If 2+ opinions, group in collapsible "💬 Expert Perspectives" section
+                - Statistics: Feature 1-2 key stats in narrative; if 4+ total, group remainder in collapsible "📊 Key Statistics" section
+                - Expert Opinions: Feature 1-2 key opinions in narrative; if 3+ total, group remainder in collapsible "💬 Expert Perspectives" section
                 - Contradictions: If any contradictions exist, put in collapsible "⚖️ Points of Debate" section
             </rule>
         </rules>
@@ -395,11 +397,13 @@ Tesla remains the market leader, though Chinese manufacturers are rapidly gainin
         <check>Contradictions from extractions are addressed in the narrative</check>
     </qualityChecks>
     <specialInstructions>
-        <instruction>Target length: 700-900 words for comprehensive coverage</instruction>
+        <instruction>Target length: 800-1000 words for comprehensive coverage</instruction>
         <instruction>If technical, explain concepts clearly but don't oversimplify</instruction>
         <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
         <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
         <instruction>Apply collapsible rules strictly based on content type (statistics, opinions, contradictions, tables)</instruction>
+        <instruction>With rich extraction data, prioritize depth over breadth - explain claims thoroughly rather than listing many superficially</instruction>
+        <instruction>Use the most impactful statistics in the main narrative; group remaining stats in collapsible sections</instruction>
     </specialInstructions>
     <mathAndScience>
         <description>For STEM topics (math, physics, chemistry, engineering, computer science), use LaTeX notation to express formulas clearly.</description>
@@ -490,7 +494,9 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
         <rule>For statistics, include the context (what is being measured)</rule>
         <rule>Flag contradictions explicitly when sources disagree</rule>
         <rule>Prioritize recent information (2024-2025) when available</rule>
-        <rule>Extract 5-10 claims, 2-5 statistics, 0-3 expert opinions</rule>
+        <rule>Extract 8-15 claims, 3-7 statistics, 2-5 expert opinions - be thorough</rule>
+        <rule>Capture ALL substantive facts from sources, not just highlights</rule>
+        <rule>Include context and nuance - details matter for synthesis</rule>
     </extractionRules>
     <outputFormat>
         Return a valid JSON object with this structure:
