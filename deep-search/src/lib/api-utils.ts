@@ -301,10 +301,10 @@ export async function callGemini(
 }
 
 // Vercel AI Gateway request (OpenAI-compatible, unified API for 100+ models)
-// Default model: alibaba/qwen-3-235b (Qwen 3 235B)
+// Default model: alibaba/qwen3-max (Qwen 3 235B)
 export async function callVercelGateway(
   messages: ChatMessage[],
-  model: string = 'alibaba/qwen-3-235b',
+  model: string = 'alibaba/qwen3-max',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -570,7 +570,7 @@ function callLLMForProvider(
       return callGemini(messages, 'gemini-3-flash-preview', temperature, stream);
     case 'vercel-gateway':
       console.log('Using Vercel AI Gateway');
-      return callVercelGateway(messages, 'alibaba/qwen-3-235b', temperature, stream);
+      return callVercelGateway(messages, 'alibaba/qwen3-max', temperature, stream);
     default:
       throw new Error(`Unknown provider: ${provider}`);
   }

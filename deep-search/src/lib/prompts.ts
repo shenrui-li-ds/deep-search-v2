@@ -309,47 +309,62 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <section type="conclusion">End with "Key Takeaways" section: 5-7 bullet points (always visible)</section>
     </structure>
     <collapsibleSections>
-        <description>Use HTML details/summary tags for detailed technical content that not all readers need</description>
-        <whenToUse>
-            <use>Technical explanations that go deeper than the main narrative</use>
-            <use>Extended examples or case studies</use>
-            <use>Comparison tables with many rows</use>
-            <use>Historical context or background information</use>
-        </whenToUse>
-        <whenNotToUse>
-            <avoid>Executive summary - always visible</avoid>
-            <avoid>Key definitions needed to understand the main content</avoid>
-            <avoid>Key Takeaways section - always visible</avoid>
-            <avoid>Main points that directly answer the query</avoid>
-        </whenNotToUse>
+        <description>
+            Use HTML details/summary tags based on CONTENT TYPE from the extracted data.
+            This makes the output predictable and consistent.
+        </description>
+        <rules>
+            <rule type="ALWAYS_VISIBLE">
+                - Executive summary (opening paragraph)
+                - Claims from extractions (main narrative)
+                - Definitions (explain inline on first use)
+                - Key Takeaways section
+            </rule>
+            <rule type="ALWAYS_COLLAPSIBLE">
+                - Tables (especially comparison tables with 3+ rows)
+                - Charts or data visualizations
+                - Code blocks longer than 5 lines
+            </rule>
+            <rule type="COLLAPSIBLE_IF_MULTIPLE">
+                - Statistics: If 3+ statistics, group in collapsible "📊 Key Statistics" section
+                - Expert Opinions: If 2+ opinions, group in collapsible "💬 Expert Perspectives" section
+                - Contradictions: If any contradictions exist, put in collapsible "⚖️ Points of Debate" section
+            </rule>
+        </rules>
         <syntax>
 <details>
 <summary><strong>Section Title Here</strong></summary>
 
-Detailed content goes here. Can include multiple paragraphs,
-bullet points, tables, etc.
+Content goes here.
 
 </details>
         </syntax>
         <example>
-## How It Works
+## Market Overview
 
-The basic principle is straightforward: quantum bits can exist in superposition [1].
+The electric vehicle market has grown significantly, with global sales reaching 10 million units [1].
 
 <details>
-<summary><strong>Technical Deep Dive: Quantum Gates</strong></summary>
+<summary><strong>📊 Key Statistics</strong></summary>
 
-Quantum gates manipulate qubits through unitary transformations. The most common gates include:
-
-- **Hadamard Gate**: Creates superposition from a basis state [2]
-- **CNOT Gate**: Entangles two qubits [3]
-- **T Gate**: Adds a phase rotation [2]
-
-These gates form a universal set for quantum computation.
+| Metric | Value | Year |
+|--------|-------|------|
+| Global EV sales | 10.5 million | 2023 [1] |
+| Market share | 18% | 2023 [2] |
+| YoY growth | 35% | 2023 [1] |
+| Projected 2030 sales | 40 million | [3] |
 
 </details>
 
-This allows quantum computers to explore multiple solutions simultaneously.
+Tesla remains the market leader, though Chinese manufacturers are rapidly gaining ground [2].
+
+<details>
+<summary><strong>💬 Expert Perspectives</strong></summary>
+
+- **Elon Musk** (Tesla CEO): "EVs will represent 50% of new car sales by 2027" [1]
+- **Mary Barra** (GM CEO): "The transition will take longer than optimists expect" [3]
+
+</details>
         </example>
     </collapsibleSections>
     <formatting>
@@ -360,7 +375,7 @@ This allows quantum computers to explore multiple solutions simultaneously.
         <rule>Bold **key terms** on first use</rule>
         <rule>Use bullet points for lists, but write full paragraphs for explanations</rule>
         <rule>Add blank lines between paragraphs for readability</rule>
-        <rule>Use 1-2 collapsible sections for technical deep-dives when appropriate</rule>
+        <rule>Use collapsible sections based on content type rules above (statistics, expert opinions, tables, contradictions)</rule>
     </formatting>
     <citationRules>
         <rule>Use simple [1], [2], [3] format only</rule>
@@ -384,7 +399,7 @@ This allows quantum computers to explore multiple solutions simultaneously.
         <instruction>If technical, explain concepts clearly but don't oversimplify</instruction>
         <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
         <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
-        <instruction>Use 1-2 collapsible sections maximum - don't overuse them</instruction>
+        <instruction>Apply collapsible rules strictly based on content type (statistics, opinions, contradictions, tables)</instruction>
     </specialInstructions>
     <mathAndScience>
         <description>For STEM topics (math, physics, chemistry, engineering, computer science), use LaTeX notation to express formulas clearly.</description>
@@ -475,7 +490,7 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
         <rule>For statistics, include the context (what is being measured)</rule>
         <rule>Flag contradictions explicitly when sources disagree</rule>
         <rule>Prioritize recent information (2024-2025) when available</rule>
-        <rule>Extract 5-10 claims, 2-5 statistics, 1-3 expert opinions</rule>
+        <rule>Extract 5-10 claims, 2-5 statistics, 0-3 expert opinions</rule>
     </extractionRules>
     <outputFormat>
         Return a valid JSON object with this structure:

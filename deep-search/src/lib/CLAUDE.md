@@ -48,7 +48,7 @@ TAVILY_API_URL = 'https://api.tavily.com/search'
        ↓ (on failure)
 2. Other primary providers: deepseek → openai → grok → claude → gemini
        ↓ (on failure)
-3. Vercel AI Gateway (last resort, uses alibaba/qwen-3-235b)
+3. Vercel AI Gateway (last resort, uses alibaba/qwen3-max)
 ```
 
 Usage:
@@ -76,8 +76,23 @@ XML-structured prompts for consistent LLM behavior.
 | Prompt | Purpose |
 |--------|---------|
 | `researchPlannerPrompt(query, date)` | Generate 3-4 research angles for comprehensive topic coverage |
-| `researchSynthesizerPrompt(query, date)` | Synthesize multi-source research into 700-900 word document |
+| `aspectExtractorPrompt(aspect, query)` | Extract structured knowledge (claims, stats, opinions, contradictions) |
+| `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 700-900 word document with collapsible sections |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
+
+**Collapsible Content Rules (Content-Type Based):**
+
+The synthesizer uses deterministic rules based on content type:
+
+| Content Type | Visibility | Rationale |
+|--------------|------------|-----------|
+| Claims | Always visible | Core narrative answering the query |
+| Definitions | Always visible | Needed to understand main content |
+| Statistics (3+) | Collapsible `📊 Key Statistics` | Data tables can be long |
+| Expert Opinions (2+) | Collapsible `💬 Expert Perspectives` | Supporting detail |
+| Contradictions | Collapsible `⚖️ Points of Debate` | Nuance for interested readers |
+| Tables (3+ rows) | Collapsible | Take up significant screen space |
+| Key Takeaways | Always visible | Summary must be scannable |
 
 **Brainstorm Pipeline Prompts:**
 
