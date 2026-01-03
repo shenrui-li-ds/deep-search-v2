@@ -517,7 +517,7 @@ html.dark .source-hover-card {
   animation: fade-out 0.2s ease-in forwards;
 }
 
-/* Thin scrollbar for tables on mobile */
+/* Thin scrollbar for horizontally scrollable content */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
