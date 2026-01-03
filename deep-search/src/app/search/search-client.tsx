@@ -317,6 +317,30 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Step 4: Synthesize with extracted data
         setLoadingStage('synthesizing');
 
+        // Start related searches early using plan data (in parallel with synthesis)
+        // Use research plan aspects to generate context for related searches
+        const planContext = researchPlan.map((p: { aspect: string; query: string }) =>
+          `${p.aspect}: ${p.query}`
+        ).join('; ');
+
+        fetch('/api/related-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            content: `Research aspects explored: ${planContext}`,
+            provider
+          }),
+          signal: abortController.signal
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (isActive && data.relatedSearches) {
+              setRelatedSearches(data.relatedSearches);
+            }
+          })
+          .catch(() => {});
+
         const synthesizeResponse = await fetch('/api/research/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -360,25 +384,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         const cleanedContent = cleanupFinalContent(synthesizedContent);
-
-        // Fetch related searches in background
-        fetch('/api/related-searches', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            content: cleanedContent.substring(0, 1000),
-            provider
-          }),
-          signal: abortController.signal
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (isActive && data.relatedSearches) {
-              setRelatedSearches(data.relatedSearches);
-            }
-          })
-          .catch(() => {});
 
         // Step 4: Quick proofread (regex-only, no LLM) to avoid content shrinkage
         setLoadingStage('proofreading');
@@ -561,6 +566,29 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Step 3: Synthesize cross-domain inspiration into ideas
         setLoadingStage('ideating');
 
+        // Start related searches early using creative angles (in parallel with synthesis)
+        const anglesContext = creativeAngles.map((a: { angle: string; query: string }) =>
+          `${a.angle}: ${a.query}`
+        ).join('; ');
+
+        fetch('/api/related-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query,
+            content: `Creative angles explored: ${anglesContext}`,
+            provider
+          }),
+          signal: abortController.signal
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (isActive && data.relatedSearches) {
+              setRelatedSearches(data.relatedSearches);
+            }
+          })
+          .catch(() => {});
+
         const synthesizeResponse = await fetch('/api/brainstorm/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -603,25 +631,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         const cleanedContent = cleanupFinalContent(synthesizedContent);
-
-        // Fetch related searches in background
-        fetch('/api/related-searches', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            content: cleanedContent.substring(0, 1000),
-            provider
-          }),
-          signal: abortController.signal
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (isActive && data.relatedSearches) {
-              setRelatedSearches(data.relatedSearches);
-            }
-          })
-          .catch(() => {});
 
         // Step 4: Quick proofread (regex-only)
         setLoadingStage('proofreading');
@@ -752,6 +761,31 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         setSources(fetchedSources);
         setImages(fetchedImages);
 
+        // Start related searches immediately using refined query + search context
+        // This runs in parallel with summarization for faster results
+        const searchContext = searchData.rawResults.results
+          .slice(0, 5)
+          .map((r: { title: string }) => r.title)
+          .join('; ');
+
+        fetch('/api/related-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: refinedQuery,
+            content: `Search results: ${searchContext}`,
+            provider
+          }),
+          signal: abortController.signal
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (isActive && data.relatedSearches) {
+              setRelatedSearches(data.relatedSearches);
+            }
+          })
+          .catch(() => {});
+
         // Step 3: Summarize search results (stream for all modes)
         setLoadingStage('summarizing');
 
@@ -775,6 +809,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Stream summarization to UI
         let summarizedContent = '';
+
         await streamResponse(
           summarizeResponse,
           (content) => {
@@ -797,25 +832,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         const cleanedContent = cleanupFinalContent(summarizedContent);
-
-        // Fetch related searches in background (non-blocking)
-        fetch('/api/related-searches', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query,
-            content: cleanedContent.substring(0, 1000),
-            provider
-          }),
-          signal: abortController.signal
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (isActive && data.relatedSearches) {
-              setRelatedSearches(data.relatedSearches);
-            }
-          })
-          .catch(() => {});
 
         // NON-PRO MODE: Just set final result (no proofreading)
         if (!isActive) return;
