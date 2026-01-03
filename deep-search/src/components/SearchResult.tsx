@@ -56,7 +56,7 @@ interface Source {
   snippet?: string;
 }
 
-type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
+type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
 
 interface SearchResultProps {
   query: string;
@@ -174,10 +174,20 @@ ${sourcesText}
   };
 
   const processContent = (content: string) => {
-    // Convert citations to superscript
+    // Step 1: Escape currency dollar signs to prevent LaTeX interpretation
+    // Matches patterns like $100, $10.99, $1,000, $1,000.00, $1.5B, $2M
+    // Also handles negative currency like -$100
+    // Uses \$ to escape the dollar sign for LaTeX
+    // Note: In JS regex replacement, $$ produces a literal $, so \\$$$ produces \$
+    const processed = content.replace(
+      /(-?)\$(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?[BMKbmk]?|\d+(?:\.\d{1,2})?[BMKbmk]?)/g,
+      '$1\\$$$2'
+    );
+
+    // Step 2: Convert citations to superscript
     // Matches [1], [2], [1, 2], [1, 2, 3], etc.
     // Also handles legacy [1][2] format by first converting to [1, 2]
-    return content
+    return processed
       // First, convert adjacent brackets [1][2] to comma-separated [1, 2]
       .replace(/\](\s*)\[(\d+)/g, ', $2')
       // Then convert all citations to superscript
@@ -203,6 +213,7 @@ ${sourcesText}
                loadingStage === 'searching' ? 'Searching the web...' :
                loadingStage === 'planning' ? 'Planning research approach...' :
                loadingStage === 'researching' ? 'Searching multiple sources...' :
+               loadingStage === 'extracting' ? 'Extracting key insights...' :
                loadingStage === 'synthesizing' ? 'Synthesizing findings...' :
                loadingStage === 'reframing' ? 'Finding creative angles...' :
                loadingStage === 'exploring' ? 'Exploring cross-domain inspiration...' :

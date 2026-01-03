@@ -89,9 +89,9 @@ The Research mode uses a sophisticated agentic pipeline for in-depth research:
 User Query → Navigate Immediately
     ↓
 1. Planning + Limit Check (parallel): /api/research/plan
-   → Generates 2-4 research angles (fundamentals, applications, comparison, current state)
+   → Generates 3-4 research angles (fundamentals, applications, comparison, current state)
     ↓
-2. Parallel Search: /api/search × 2-4
+2. Parallel Search: /api/search × 3-4
    → Executes multiple searches concurrently (10 results each)
     ↓
 3. Synthesis: /api/research/synthesize (streaming)

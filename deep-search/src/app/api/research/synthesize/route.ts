@@ -8,6 +8,7 @@ import {
 } from '@/lib/api-utils';
 import { researchSynthesizerPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { AspectExtraction } from '../extract/route';
 
 interface SearchResultItem {
   title: string;
@@ -21,6 +22,7 @@ interface AspectSearchResults {
   results: SearchResultItem[];
 }
 
+// Format raw search results for synthesis (legacy mode)
 function formatResearchResultsForSynthesis(
   aspectResults: AspectSearchResults[],
   globalSourceIndex: Map<string, number>
@@ -51,14 +53,84 @@ function formatResearchResultsForSynthesis(
   return formatted;
 }
 
+// Format structured extractions for synthesis (new mode)
+function formatExtractionsForSynthesis(extractions: AspectExtraction[]): string {
+  let formatted = '';
+
+  for (const extraction of extractions) {
+    formatted += `<aspectExtraction name="${extraction.aspect}">\n`;
+
+    // Key insight summary
+    if (extraction.keyInsight) {
+      formatted += `  <keyInsight>${extraction.keyInsight}</keyInsight>\n`;
+    }
+
+    // Claims
+    if (extraction.claims && extraction.claims.length > 0) {
+      formatted += `  <claims>\n`;
+      for (const claim of extraction.claims) {
+        formatted += `    <claim sources="[${claim.sources.join(', ')}]" confidence="${claim.confidence}">${claim.statement}</claim>\n`;
+      }
+      formatted += `  </claims>\n`;
+    }
+
+    // Statistics
+    if (extraction.statistics && extraction.statistics.length > 0) {
+      formatted += `  <statistics>\n`;
+      for (const stat of extraction.statistics) {
+        formatted += `    <stat source="[${stat.source}]"${stat.year ? ` year="${stat.year}"` : ''}>${stat.metric}: ${stat.value}</stat>\n`;
+      }
+      formatted += `  </statistics>\n`;
+    }
+
+    // Definitions
+    if (extraction.definitions && extraction.definitions.length > 0) {
+      formatted += `  <definitions>\n`;
+      for (const def of extraction.definitions) {
+        formatted += `    <definition term="${def.term}" source="[${def.source}]">${def.definition}</definition>\n`;
+      }
+      formatted += `  </definitions>\n`;
+    }
+
+    // Expert opinions
+    if (extraction.expertOpinions && extraction.expertOpinions.length > 0) {
+      formatted += `  <expertOpinions>\n`;
+      for (const opinion of extraction.expertOpinions) {
+        formatted += `    <opinion expert="${opinion.expert}" source="[${opinion.source}]">${opinion.opinion}</opinion>\n`;
+      }
+      formatted += `  </expertOpinions>\n`;
+    }
+
+    // Contradictions
+    if (extraction.contradictions && extraction.contradictions.length > 0) {
+      formatted += `  <contradictions>\n`;
+      for (const contra of extraction.contradictions) {
+        formatted += `    <contradiction sources="[${contra.sources.join(', ')}]">\n`;
+        formatted += `      <view1>${contra.claim1}</view1>\n`;
+        formatted += `      <view2>${contra.claim2}</view2>\n`;
+        formatted += `    </contradiction>\n`;
+      }
+      formatted += `  </contradictions>\n`;
+    }
+
+    formatted += `</aspectExtraction>\n\n`;
+  }
+
+  return formatted;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResults, stream = true, provider } = await req.json();
+    const { query, aspectResults, extractedData, stream = true, provider } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
-    if (!query || !aspectResults || !Array.isArray(aspectResults)) {
+    // Support both old format (aspectResults) and new format (extractedData)
+    const hasExtractedData = extractedData && Array.isArray(extractedData) && extractedData.length > 0;
+    const hasAspectResults = aspectResults && Array.isArray(aspectResults) && aspectResults.length > 0;
+
+    if (!query || (!hasExtractedData && !hasAspectResults)) {
       return NextResponse.json(
-        { error: 'Query and aspectResults parameters are required' },
+        { error: 'Query and either extractedData or aspectResults parameters are required' },
         { status: 400 }
       );
     }
@@ -69,21 +141,39 @@ export async function POST(req: NextRequest) {
     const detectedLanguage = detectLanguage(query);
     console.log(`Detected research topic language: ${detectedLanguage}`);
 
-    // Build a global source index map to ensure consistent citation numbers
-    const globalSourceIndex = new Map<string, number>();
-    const formattedResults = formatResearchResultsForSynthesis(aspectResults, globalSourceIndex);
+    let formattedData: string;
+    let dataDescription: string;
+    let systemPrompt: string;
+
+    if (hasExtractedData) {
+      // New mode: structured extractions
+      formattedData = formatExtractionsForSynthesis(extractedData);
+      dataDescription = `You have been provided structured extractions from ${extractedData.length} different research aspects.
+Each extraction contains pre-analyzed claims, statistics, definitions, expert opinions, and contradictions.
+Synthesize this structured knowledge into a comprehensive research document.
+Use the source index numbers [1], [2], etc. as shown in the extractions for your citations.
+Address any contradictions by presenting multiple perspectives fairly.
+Use HTML <details> tags for technical deep-dives as instructed in the prompt.`;
+      systemPrompt = 'You are a research synthesis expert. You create comprehensive, well-organized research documents from structured knowledge extractions. Format your response in Markdown with proper citations. Use HTML details/summary tags for collapsible technical sections.';
+    } else {
+      // Legacy mode: raw search results
+      const globalSourceIndex = new Map<string, number>();
+      formattedData = formatResearchResultsForSynthesis(aspectResults, globalSourceIndex);
+      dataDescription = `You have been provided search results from ${aspectResults.length} different research angles.
+Synthesize ALL the information into a comprehensive research document.
+Use the source index numbers [1], [2], etc. as shown in the results for your citations.`;
+      systemPrompt = 'You are a research synthesis expert. You create comprehensive, well-organized research documents from multiple search results covering different aspects of a topic. Always format your response in Markdown with proper citations.';
+    }
 
     // Create the complete prompt
     const completePrompt = `
 ${researchSynthesizerPrompt(query, currentDate, detectedLanguage)}
 
 <researchData>
-${formattedResults}
+${formattedData}
 </researchData>
 
-Important: You have been provided search results from ${aspectResults.length} different research angles.
-Synthesize ALL the information into a comprehensive research document.
-Use the source index numbers [1], [2], etc. as shown in the results for your citations.
+${dataDescription}
 Your response must be well-formatted in Markdown syntax with proper headers, sections, and formatting.
 Target length: 700-900 words for comprehensive coverage.
 `;
@@ -91,7 +181,7 @@ Target length: 700-900 words for comprehensive coverage.
     const messages: OpenAIMessage[] = [
       {
         role: 'system',
-        content: 'You are a research synthesis expert. You create comprehensive, well-organized research documents from multiple search results covering different aspects of a topic. Always format your response in Markdown with proper citations.'
+        content: systemPrompt
       },
       { role: 'user', content: completePrompt }
     ];

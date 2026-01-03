@@ -114,15 +114,87 @@ Generates a multi-angle research plan for comprehensive topic coverage.
 ```
 
 **Features:**
-- Generates 2-4 distinct research angles
+- Generates 3-4 distinct research angles
 - Preserves original query language
 - Falls back to single query on parse errors
 - Limits to 4 queries maximum
 
-### `/api/research/synthesize` - Research Synthesis
-Synthesizes multiple search results into a comprehensive research document.
+### `/api/research/extract` - Knowledge Extraction
+Extracts structured knowledge from search results for one aspect. Called in parallel for each research aspect.
 
 **Request:**
+```json
+{
+  "query": "original research topic",
+  "aspectResult": {
+    "aspect": "fundamentals",
+    "query": "search query used",
+    "results": [{ "title": "...", "url": "...", "content": "..." }]
+  },
+  "globalSourceIndex": { "https://example.com": 1 },
+  "provider": "deepseek"
+}
+```
+
+**Response:**
+```json
+{
+  "extraction": {
+    "aspect": "fundamentals",
+    "claims": [
+      { "statement": "...", "sources": [1, 2], "confidence": "established" }
+    ],
+    "statistics": [
+      { "metric": "...", "value": "...", "source": 1, "year": "2024" }
+    ],
+    "definitions": [
+      { "term": "...", "definition": "...", "source": 1 }
+    ],
+    "expertOpinions": [
+      { "expert": "...", "opinion": "...", "source": 1 }
+    ],
+    "contradictions": [
+      { "claim1": "...", "claim2": "...", "sources": [1, 3] }
+    ],
+    "keyInsight": "One sentence summary"
+  },
+  "updatedSourceIndex": { "https://example.com": 1 }
+}
+```
+
+**Features:**
+- Extracts structured claims, statistics, definitions, expert opinions
+- Identifies contradictions between sources
+- Uses low temperature (0.3) for factual extraction
+- Maintains global source index for consistent citations
+- Falls back to minimal extraction on parse errors
+
+**Confidence Levels:**
+- `established`: Multiple sources agree, well-documented
+- `emerging`: Recent research, fewer sources
+- `contested`: Sources disagree
+
+### `/api/research/synthesize` - Research Synthesis
+Synthesizes extracted knowledge or raw search results into a comprehensive research document.
+
+**Request (with extracted data - preferred):**
+```json
+{
+  "query": "original research topic",
+  "extractedData": [
+    {
+      "aspect": "fundamentals",
+      "claims": [...],
+      "statistics": [...],
+      "keyInsight": "..."
+    }
+  ],
+  "stream": true,
+  "provider": "deepseek"
+}
+```
+
+**Request (legacy - raw results):**
 ```json
 {
   "query": "original research topic",

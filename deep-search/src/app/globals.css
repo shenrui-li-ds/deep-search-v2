@@ -263,6 +263,74 @@ body {
   margin: 1rem 0;
 }
 
+/* Collapsible details/summary sections */
+.markdown-content details {
+  margin: 1rem 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.markdown-content details summary {
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--card);
+  transition: background-color 0.15s ease;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.markdown-content details summary::-webkit-details-marker {
+  display: none;
+}
+
+.markdown-content details summary::before {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.markdown-content details[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.markdown-content details summary:hover {
+  background: var(--card-hover);
+}
+
+.markdown-content details[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-content details > *:not(summary) {
+  padding: 0 1rem;
+}
+
+.markdown-content details > *:not(summary):first-of-type {
+  padding-top: 0.75rem;
+}
+
+.markdown-content details > *:not(summary):last-child {
+  padding-bottom: 0.75rem;
+}
+
+/* Remove strong styling from summary since we style it ourselves */
+.markdown-content details summary strong {
+  font-weight: inherit;
+}
+
 /* Nested lists */
 .markdown-content ul ul,
 .markdown-content ol ol,
@@ -549,6 +617,23 @@ html.dark .source-hover-card {
     content: " (" attr(href) ")";
     font-size: 0.8em;
     color: #666;
+  }
+
+  /* Collapsible sections for print - always expand */
+  .markdown-content details {
+    border: 1px solid #ccc !important;
+    background: #f9f9f9 !important;
+  }
+
+  .markdown-content details[open] summary,
+  .markdown-content details summary {
+    background: #f0f0f0 !important;
+    color: black !important;
+    border-bottom: 1px solid #ccc !important;
+  }
+
+  .markdown-content details summary::before {
+    display: none !important;
   }
 
   /* Header for print */

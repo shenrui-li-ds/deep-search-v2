@@ -114,7 +114,7 @@ Main result display component with floating follow-up input.
 }
 
 type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
-                  | 'planning' | 'researching' | 'synthesizing'
+                  | 'planning' | 'researching' | 'extracting' | 'synthesizing'
                   | 'reframing' | 'exploring' | 'ideating';
 ```
 
@@ -163,6 +163,7 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 *Research Mode:*
 - `planning`: "Planning research approach..."
 - `researching`: "Searching multiple sources..."
+- `extracting`: "Extracting key insights..."
 - `synthesizing`: "Synthesizing findings..." + cursor
 - `proofreading`: "Polishing response..."
 - `complete`: No banner
@@ -220,6 +221,22 @@ Defined in `globals.css` (all 0.15s duration):
 - Paragraphs: `mb-4`, `leading-relaxed`
 - Lists: `space-y-1` for breathing room
 - First headers: `first:mt-0` to remove top margin
+
+**LaTeX Support:**
+- Uses `remark-math` and `rehype-katex` for math rendering
+- Inline math: `$E = mc^2$`
+- Block math: `$$\frac{a}{b}$$`
+- KaTeX CSS imported for proper styling
+
+**Currency Escaping:**
+- Dollar signs followed by numbers are auto-escaped to prevent LaTeX misinterpretation
+- Patterns escaped: `$100`, `$10.99`, `$1,000`, `$1.5B`, `-$50`
+- Uses regex pre-processing before markdown parsing
+
+**Collapsible Sections:**
+- HTML `<details>/<summary>` elements are supported via `rehype-raw`
+- Custom styling in `globals.css` for theme-aware collapsible UI
+- Chevron rotates on open/close
 
 ## Component Hierarchy
 

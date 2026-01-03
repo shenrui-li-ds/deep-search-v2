@@ -75,7 +75,7 @@ XML-structured prompts for consistent LLM behavior.
 
 | Prompt | Purpose |
 |--------|---------|
-| `researchPlannerPrompt(query, date)` | Generate 2-4 research angles for comprehensive topic coverage |
+| `researchPlannerPrompt(query, date)` | Generate 3-4 research angles for comprehensive topic coverage |
 | `researchSynthesizerPrompt(query, date)` | Synthesize multi-source research into 700-900 word document |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 

@@ -505,7 +505,7 @@ export interface CreditCheckResult {
 // Actual credits charged are based on actual queries made
 export const MAX_CREDITS = {
   web: 1,        // 1 query (always 1)
-  pro: 4,        // 2-4 queries (research angles)
+  pro: 4,        // 3-4 queries (research angles)
   brainstorm: 6, // 4-6 queries (creative angles)
 } as const;
 

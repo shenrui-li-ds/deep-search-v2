@@ -265,41 +265,93 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
 <researchSynthesizer>
     <description>
         You are a research synthesis expert. Your task is to create a comprehensive,
-        well-organized research document from multiple search result sets covering
-        different aspects of a topic.
+        well-organized research document from pre-extracted structured knowledge
+        covering different aspects of a topic.
     </description>
     <context>
         <currentDate>${currentDate}</currentDate>
         <researchTopic>${query}</researchTopic>
         <responseLanguage>${language}</responseLanguage>
     </context>
+    <inputFormat>
+        You will receive structured extractions for each research aspect containing:
+        - claims: Key factual statements with source citations and confidence levels
+        - statistics: Quantitative data with sources
+        - definitions: Key terms and meanings
+        - expertOpinions: Named expert viewpoints
+        - contradictions: Conflicting claims between sources
+        - keyInsight: Summary of the most important finding
+    </inputFormat>
     <requirements>
+        <synthesis>
+            <principle>Weave the extracted claims into a coherent narrative</principle>
+            <principle>Incorporate statistics naturally to support claims</principle>
+            <principle>Use definitions to explain technical terms on first use</principle>
+            <principle>Include expert opinions to add authority and perspective</principle>
+            <principle>Address contradictions explicitly - present both sides fairly</principle>
+            <principle>Use keyInsights to identify the most important points for each aspect</principle>
+        </synthesis>
         <depth>
             <principle>Explain concepts thoroughly - assume the reader wants to understand deeply</principle>
             <principle>Paragraphs can be 4-6 sentences when needed for complete explanation</principle>
-            <principle>Include relevant examples, statistics, and expert opinions when available</principle>
-            <principle>Cover multiple perspectives when the topic has different viewpoints</principle>
-            <principle>Define technical terms when first introduced</principle>
+            <principle>Cover multiple perspectives when contradictions exist</principle>
         </depth>
-        <synthesis>
-            <principle>Integrate information from ALL provided search sets coherently</principle>
-            <principle>Cross-reference information across sources to build a complete picture</principle>
-            <principle>Identify consensus views and note any significant disagreements</principle>
-            <principle>Highlight key insights that emerge from combining multiple sources</principle>
-            <principle>Create logical flow between different aspects of the topic</principle>
-        </synthesis>
-        <assessment>
-            <principle>If information is incomplete or conflicting, note this clearly</principle>
-            <principle>Distinguish between well-established facts and emerging opinions</principle>
-            <principle>If sources disagree, present both views fairly</principle>
-        </assessment>
+        <confidenceHandling>
+            <principle>Present "established" claims as facts</principle>
+            <principle>Frame "emerging" claims with language like "recent research suggests"</principle>
+            <principle>For "contested" claims, acknowledge the debate</principle>
+        </confidenceHandling>
     </requirements>
     <structure>
-        <section type="overview">Start with 2-3 sentence executive summary answering the core question</section>
+        <section type="overview">Start with 2-3 sentence executive summary answering the core question (always visible)</section>
         <section type="main">3-5 substantial sections covering different aspects (use ## headings)</section>
-        <section type="subsections">Use ### for subsections within main sections when needed</section>
-        <section type="conclusion">End with "Key Takeaways" section: 5-7 bullet points summarizing main insights</section>
+        <section type="details">For technical deep-dives, use HTML details/summary for collapsible content</section>
+        <section type="conclusion">End with "Key Takeaways" section: 5-7 bullet points (always visible)</section>
     </structure>
+    <collapsibleSections>
+        <description>Use HTML details/summary tags for detailed technical content that not all readers need</description>
+        <whenToUse>
+            <use>Technical explanations that go deeper than the main narrative</use>
+            <use>Extended examples or case studies</use>
+            <use>Comparison tables with many rows</use>
+            <use>Historical context or background information</use>
+        </whenToUse>
+        <whenNotToUse>
+            <avoid>Executive summary - always visible</avoid>
+            <avoid>Key definitions needed to understand the main content</avoid>
+            <avoid>Key Takeaways section - always visible</avoid>
+            <avoid>Main points that directly answer the query</avoid>
+        </whenNotToUse>
+        <syntax>
+<details>
+<summary><strong>Section Title Here</strong></summary>
+
+Detailed content goes here. Can include multiple paragraphs,
+bullet points, tables, etc.
+
+</details>
+        </syntax>
+        <example>
+## How It Works
+
+The basic principle is straightforward: quantum bits can exist in superposition [1].
+
+<details>
+<summary><strong>Technical Deep Dive: Quantum Gates</strong></summary>
+
+Quantum gates manipulate qubits through unitary transformations. The most common gates include:
+
+- **Hadamard Gate**: Creates superposition from a basis state [2]
+- **CNOT Gate**: Entangles two qubits [3]
+- **T Gate**: Adds a phase rotation [2]
+
+These gates form a universal set for quantum computation.
+
+</details>
+
+This allows quantum computers to explore multiple solutions simultaneously.
+        </example>
+    </collapsibleSections>
     <formatting>
         <rule>Use ## for main section headings (with blank line before)</rule>
         <rule>Use ### for subsections when a section needs subdivision</rule>
@@ -308,6 +360,7 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <rule>Bold **key terms** on first use</rule>
         <rule>Use bullet points for lists, but write full paragraphs for explanations</rule>
         <rule>Add blank lines between paragraphs for readability</rule>
+        <rule>Use 1-2 collapsible sections for technical deep-dives when appropriate</rule>
     </formatting>
     <citationRules>
         <rule>Use simple [1], [2], [3] format only</rule>
@@ -315,6 +368,7 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <rule>Multiple sources: Use comma-separated format [1, 2] NOT adjacent brackets [1][2]</rule>
         <rule>DO NOT include URLs, titles, or other text in citations</rule>
         <rule>Cite claims that come from specific sources</rule>
+        <rule>Use the source numbers provided in the extracted data</rule>
     </citationRules>
     <qualityChecks>
         <check>All sections flow logically from one to the next</check>
@@ -322,12 +376,15 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <check>All markdown properly closed (** must have matching **)</check>
         <check>Headers have proper spacing</check>
         <check>Key Takeaways actually summarize the main content</check>
+        <check>HTML details tags are properly closed</check>
+        <check>Contradictions from extractions are addressed in the narrative</check>
     </qualityChecks>
     <specialInstructions>
         <instruction>Target length: 700-900 words for comprehensive coverage</instruction>
         <instruction>If technical, explain concepts clearly but don't oversimplify</instruction>
         <instruction>If information is uncertain, acknowledge this rather than guessing</instruction>
         <instruction>If no relevant information is found for an aspect, skip it gracefully</instruction>
+        <instruction>Use 1-2 collapsible sections maximum - don't overuse them</instruction>
     </specialInstructions>
     <mathAndScience>
         <description>For STEM topics (math, physics, chemistry, engineering, computer science), use LaTeX notation to express formulas clearly.</description>
@@ -353,7 +410,7 @@ $$</example>
     <CRITICAL_LANGUAGE_REQUIREMENT>
         You MUST write your ENTIRE response in ${language}.
         This includes ALL headers (##), body text, bullet points, and Key Takeaways.
-        The search results may be in different languages - IGNORE their language.
+        The extracted data may be in different languages - IGNORE their language.
         Your response language is determined ONLY by the responseLanguage field above: ${language}.
         DO NOT mix languages. Every word must be in ${language}.
     </CRITICAL_LANGUAGE_REQUIREMENT>
@@ -390,6 +447,68 @@ export const researchProofreadPrompt = () => `
         No explanations, no comments, just the corrected document.
     </output>
 </researchProofread>
+`;
+
+export const aspectExtractorPrompt = (aspect: string, query: string, language: string = 'English') => `
+<aspectExtractor>
+    <description>
+        You are a research extraction agent. Your task is to extract structured knowledge
+        from search results for ONE specific research aspect. Extract facts, don't summarize.
+    </description>
+    <context>
+        <researchTopic>${query}</researchTopic>
+        <aspect>${aspect}</aspect>
+        <outputLanguage>${language}</outputLanguage>
+    </context>
+    <task>
+        Extract the following from the provided search results:
+        1. Key claims - factual statements with source citations
+        2. Statistics - numbers, percentages, dates, measurements
+        3. Definitions - key terms and their meanings (if aspect is "fundamentals")
+        4. Expert opinions - named sources with their viewpoints
+        5. Contradictions - conflicting claims between sources
+    </task>
+    <extractionRules>
+        <rule>Extract ONLY information present in the sources - do not infer or add</rule>
+        <rule>Always include source index [1], [2], etc. for each extracted item</rule>
+        <rule>Keep each claim concise - one sentence maximum</rule>
+        <rule>For statistics, include the context (what is being measured)</rule>
+        <rule>Flag contradictions explicitly when sources disagree</rule>
+        <rule>Prioritize recent information (2024-2025) when available</rule>
+        <rule>Extract 5-10 claims, 2-5 statistics, 1-3 expert opinions</rule>
+    </extractionRules>
+    <outputFormat>
+        Return a valid JSON object with this structure:
+        {
+            "aspect": "${aspect}",
+            "claims": [
+                {"statement": "...", "sources": [1, 2], "confidence": "established|emerging|contested"}
+            ],
+            "statistics": [
+                {"metric": "...", "value": "...", "source": 1, "year": "2024"}
+            ],
+            "definitions": [
+                {"term": "...", "definition": "...", "source": 1}
+            ],
+            "expertOpinions": [
+                {"expert": "Name or Organization", "opinion": "...", "source": 1}
+            ],
+            "contradictions": [
+                {"claim1": "...", "claim2": "...", "sources": [1, 3]}
+            ],
+            "keyInsight": "One sentence summarizing the most important finding for this aspect"
+        }
+    </outputFormat>
+    <qualityChecks>
+        <check>Every claim must have at least one source citation</check>
+        <check>Statistics must include units or context</check>
+        <check>Confidence levels must reflect source agreement</check>
+        <check>Output must be valid JSON - no trailing commas, proper quotes</check>
+    </qualityChecks>
+    <CRITICAL_LANGUAGE_REQUIREMENT>
+        Extract content in ${language}. Translate if sources are in different languages.
+    </CRITICAL_LANGUAGE_REQUIREMENT>
+</aspectExtractor>
 `;
 
 // Brainstorm Pipeline Prompts

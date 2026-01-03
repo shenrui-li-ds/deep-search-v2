@@ -16,7 +16,7 @@ interface SearchClientProps {
   deep?: boolean;
 }
 
-type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
+type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
 
 export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
@@ -279,7 +279,42 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         setSources(allSources);
         setImages(allImages);
 
-        // Step 3: Synthesize research results
+        // Step 3: Extract structured knowledge from each aspect in parallel
+        setLoadingStage('extracting');
+
+        // Build global source index for consistent citation numbers
+        const globalSourceIndex: Record<string, number> = {};
+        let sourceIdx = 1;
+        for (const result of aspectResults) {
+          for (const r of result.results) {
+            if (!globalSourceIndex[r.url]) {
+              globalSourceIndex[r.url] = sourceIdx++;
+            }
+          }
+        }
+
+        const extractionPromises = aspectResults.map(aspectResult =>
+          fetch('/api/research/extract', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              aspectResult,
+              globalSourceIndex,
+              provider
+            }),
+            signal: abortController.signal
+          }).then(res => res.json()).then(data => data.extraction)
+        );
+
+        const extractions = await Promise.all(extractionPromises);
+
+        if (!isActive) return;
+
+        // Filter out failed extractions
+        const validExtractions = extractions.filter(e => e && e.aspect);
+
+        // Step 4: Synthesize with extracted data
         setLoadingStage('synthesizing');
 
         const synthesizeResponse = await fetch('/api/research/synthesize', {
@@ -287,7 +322,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query,
-            aspectResults,
+            extractedData: validExtractions.length > 0 ? validExtractions : undefined,
+            aspectResults: validExtractions.length === 0 ? aspectResults : undefined, // Fallback to raw results
             stream: true,
             provider
           }),
@@ -925,7 +961,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     : images;
 
   // Determine loading state indicators
-  const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'reframing' || loadingStage === 'exploring';
+  const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'extracting' || loadingStage === 'reframing' || loadingStage === 'exploring';
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
 
