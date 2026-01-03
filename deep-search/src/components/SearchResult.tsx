@@ -426,6 +426,16 @@ ${sourcesText}
                     );
                   },
                   strong: ({children, ...props}) => <strong className="font-semibold text-[var(--text-primary)]" {...props}>{children}</strong>,
+                  table: ({children, ...props}) => (
+                    <div className="overflow-x-auto mb-4 -mx-1 px-1 scrollbar-thin">
+                      <table className="min-w-full border-collapse text-sm" {...props}>{children}</table>
+                    </div>
+                  ),
+                  thead: ({children, ...props}) => <thead className="bg-[var(--card)]" {...props}>{children}</thead>,
+                  tbody: ({children, ...props}) => <tbody className="divide-y divide-[var(--border)]" {...props}>{children}</tbody>,
+                  tr: ({children, ...props}) => <tr className="border-b border-[var(--border)]" {...props}>{children}</tr>,
+                  th: ({children, ...props}) => <th className="px-3 py-2 text-left font-semibold text-[var(--text-primary)] whitespace-nowrap" {...props}>{children}</th>,
+                  td: ({children, ...props}) => <td className="px-3 py-2 text-[var(--text-secondary)]" {...props}>{children}</td>,
                 }}
               >
                 {processContent(result.content)}

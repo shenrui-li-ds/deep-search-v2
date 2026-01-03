@@ -517,6 +517,29 @@ html.dark .source-hover-card {
   animation: fade-out 0.2s ease-in forwards;
 }
 
+/* Thin scrollbar for tables on mobile */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
 /* Print styles for PDF export */
 @media print {
   /* Hide non-essential elements */
