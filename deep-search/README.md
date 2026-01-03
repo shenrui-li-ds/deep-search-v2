@@ -88,6 +88,7 @@ Run the SQL schema in your Supabase SQL Editor:
 - `supabase/add-combined-auth-check.sql` - Optimized auth check (if upgrading)
 - `supabase/add-credit-reservation.sql` - Dynamic credit billing (if upgrading)
 - `supabase/add-user-tiers.sql` - User tiers and admin functions (if upgrading)
+- `supabase/migrate-vip-to-pro.sql` - Rename VIP tier to PRO (if upgrading from older version)
 
 ### Development
 
@@ -187,7 +188,7 @@ The system uses a reserve→finalize approach for fair billing:
 | Tier | Monthly Free Credits |
 |------|---------------------|
 | free | 1,000 |
-| vip | 2,000 |
+| pro | 2,000 |
 | admin | 10,000 |
 
 **Credit Packs** (coming soon):

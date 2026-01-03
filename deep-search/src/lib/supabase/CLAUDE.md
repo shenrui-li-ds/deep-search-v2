@@ -124,13 +124,13 @@ Client-side database operations for search history and usage limits.
 | Tier | Credits |
 |------|---------|
 | free | 1,000 |
-| vip | 2,000 |
+| pro | 2,000 |
 | admin | 10,000 |
 
 **Admin Functions (SQL, service_role only):**
 | Function | Description |
 |----------|-------------|
-| `set_user_tier(email, tier)` | Set user's tier ('free', 'vip', 'admin') |
+| `set_user_tier(email, tier)` | Set user's tier ('free', 'pro', 'admin') |
 | `grant_bonus_credits(email, credits)` | Grant one-time bonus credits |
 | `admin_user_credits` view | View all users and their credit info |
 

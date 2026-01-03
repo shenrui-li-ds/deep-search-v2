@@ -45,11 +45,13 @@ RETURNS INTEGER AS $$
 BEGIN
   RETURN CASE p_tier
     WHEN 'admin' THEN 10000
-    WHEN 'vip' THEN 2000
+    WHEN 'pro' THEN 2000
     ELSE 1000  -- 'free' tier
   END;
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
+ALTER FUNCTION public.get_tier_free_credits(TEXT) SET search_path = public;
 
 -- Ensure user_tier column exists with proper default
 DO $$
@@ -70,7 +72,7 @@ BEGIN
     WHERE constraint_name = 'user_limits_user_tier_check'
   ) THEN
     ALTER TABLE user_limits ADD CONSTRAINT user_limits_user_tier_check
-    CHECK (user_tier IN ('free', 'vip', 'admin'));
+    CHECK (user_tier IN ('free', 'pro', 'admin'));
   END IF;
 EXCEPTION WHEN duplicate_object THEN
   -- Constraint already exists, ignore

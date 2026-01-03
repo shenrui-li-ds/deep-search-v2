@@ -950,11 +950,11 @@ function PreferencesTab() {
   };
 
   const providers = [
-    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
-    { id: 'openai', name: 'OpenAI', description: 'GPT-5.1 Chat', experimental: false },
-    { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast', experimental: false },
+    { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast · Recommended', experimental: false },
     { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
+    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
     { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
+    { id: 'openai', name: 'OpenAI', description: 'GPT-5.1 Chat', experimental: false },
     { id: 'vercel-gateway', name: 'Vercel Gateway', description: 'Experimental', experimental: true },
   ] as const;
 
@@ -1118,7 +1118,15 @@ function BillingTab() {
 
   const tierConfig = {
     free: { label: 'Free', color: 'bg-gray-500', textColor: 'text-gray-100' },
-    vip: { label: 'VIP', color: 'bg-purple-500', textColor: 'text-purple-100' },
+    pro: {
+      label: 'Pro',
+      color: '',
+      textColor: 'text-white',
+      customStyle: {
+        background: 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
+        boxShadow: '0 0 12px rgba(59, 130, 246, 0.6), inset 0 1px 0 rgba(255,255,255,0.2)',
+      }
+    },
     admin: { label: 'Admin', color: 'bg-amber-500', textColor: 'text-amber-100' },
   };
 
@@ -1130,7 +1138,10 @@ function BillingTab() {
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-medium text-[var(--text-secondary)]">Credit Balance</h3>
-          <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${currentTier.color} ${currentTier.textColor}`}>
+          <span
+            className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${currentTier.color} ${currentTier.textColor}`}
+            style={'customStyle' in currentTier ? currentTier.customStyle as React.CSSProperties : undefined}
+          >
             {currentTier.label}
           </span>
         </div>

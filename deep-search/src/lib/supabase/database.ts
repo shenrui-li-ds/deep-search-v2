@@ -469,7 +469,7 @@ export async function updateUserPreferences(
 // ============================================
 
 export interface UserCredits {
-  user_tier?: 'free' | 'vip' | 'admin';
+  user_tier?: 'free' | 'pro' | 'admin';
   monthly_free_credits: number;
   free_credits_used: number;
   free_credits_remaining: number;
