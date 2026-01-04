@@ -681,6 +681,7 @@ export default function LibraryPage() {
       {/* Undo Toast */}
       {pendingDeletion && (
         <UndoToast
+          key={pendingDeletion.id}
           message="Search deleted"
           onUndo={handleUndo}
           onDismiss={handleDismissUndo}
