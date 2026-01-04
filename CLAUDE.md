@@ -95,7 +95,7 @@ User Query → Navigate Immediately
    → Executes multiple searches concurrently (10 results each)
     ↓
 3. Synthesis: /api/research/synthesize (streaming)
-   → Combines all search results into 700-900 word research document
+   → Combines all search results into 800-1000 word research document
     ↓
 4. Proofreading: /api/proofread (mode='quick')
    → Quick regex-based cleanup to preserve synthesized content
@@ -105,7 +105,7 @@ User Query → Navigate Immediately
 
 **Key Differences from Web Search:**
 - Multi-angle research instead of single query
-- Longer, more comprehensive output (700-900 words vs 200-300)
+- Longer, more comprehensive output (800-1000 words vs 200-300)
 - Synthesizes from 30-40 sources vs 10-15
 - Skips refine step (plan already optimizes queries)
 
@@ -124,7 +124,7 @@ User Topic → Navigate Immediately
    → Searches for inspiration in each cross-domain angle (6 results each)
     ↓
 3. Ideation: /api/brainstorm/synthesize (streaming)
-   → Synthesizes cross-domain inspiration into 700-900 word document
+   → Synthesizes cross-domain inspiration into 800-1000 word document
    → Output: Idea cards, Unexpected Connections, Experiments to Try
     ↓
 4. Proofreading: /api/proofread (mode='quick')

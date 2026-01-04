@@ -494,7 +494,8 @@ export const aspectExtractorPrompt = (aspect: string, query: string, language: s
         <rule>For statistics, include the context (what is being measured)</rule>
         <rule>Flag contradictions explicitly when sources disagree</rule>
         <rule>Prioritize recent information (2024-2025) when available</rule>
-        <rule>Extract 8-15 claims, 3-7 statistics, 2-5 expert opinions - be thorough</rule>
+        <rule>Extract 8-16 claims, 3-8 statistics, 2-6 expert opinions - be thorough</rule>
+        <rule>Extract fundamental definitions, contradictions if they are presented, not mandatory</rule>
         <rule>Capture ALL substantive facts from sources, not just highlights</rule>
         <rule>Include context and nuance - details matter for synthesis</rule>
     </extractionRules>
@@ -676,7 +677,7 @@ export const brainstormSynthesizerPrompt = (query: string, currentDate: string, 
         <check>No generic advice - everything should trace back to the cross-domain research</check>
     </qualityChecks>
     <specialInstructions>
-        <instruction>Target length: 700-900 words</instruction>
+        <instruction>Target length: 800-1000 words</instruction>
         <instruction>If an angle didn't yield useful inspiration, skip it - don't force it</instruction>
         <instruction>Prioritize quality of ideas over quantity</instruction>
         <instruction>Make it feel like the output of an exciting brainstorm session</instruction>

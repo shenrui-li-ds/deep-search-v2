@@ -220,7 +220,7 @@ data: {"done": true}
 **Features:**
 - Integrates results from multiple research angles
 - Assigns consistent global source indices across all aspects
-- Targets 700-900 words for comprehensive coverage
+- Targets 800-1000 words for comprehensive coverage
 - Includes Key Takeaways section
 - Supports both streaming and non-streaming modes
 
@@ -290,7 +290,7 @@ data: {"done": true}
 - Higher temperature (0.8) for creative output
 - Focus on actionable experiments
 - Cross-domain synthesis
-- Targets 700-900 words
+- Targets 800-1000 words
 
 ### `/api/related-searches` - Related Search Suggestions
 Generates related search queries based on the original query and content.

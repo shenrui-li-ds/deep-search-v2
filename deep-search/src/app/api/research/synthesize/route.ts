@@ -175,7 +175,7 @@ ${formattedData}
 
 ${dataDescription}
 Your response must be well-formatted in Markdown syntax with proper headers, sections, and formatting.
-Target length: 700-900 words for comprehensive coverage.
+Target length: 800-1000 words for comprehensive coverage.
 `;
 
     const messages: OpenAIMessage[] = [

@@ -77,7 +77,7 @@ XML-structured prompts for consistent LLM behavior.
 |--------|---------|
 | `researchPlannerPrompt(query, date)` | Generate 3-4 research angles for comprehensive topic coverage |
 | `aspectExtractorPrompt(aspect, query)` | Extract structured knowledge (claims, stats, opinions, contradictions) |
-| `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 700-900 word document with collapsible sections |
+| `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with collapsible sections |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
 **Collapsible Content Rules (Content-Type Based):**
@@ -117,7 +117,7 @@ The synthesizer uses deterministic rules based on content type:
 | Aspect | summarizeSearchResultsPrompt | researchSynthesizerPrompt |
 |--------|------------------------------|---------------------------|
 | Length | 2-3 sentences per paragraph | 4-6 sentences allowed |
-| Output | 200-300 words | 700-900 words |
+| Output | 200-300 words | 800-1000 words |
 | Input | Single search result set | Multiple aspect-based result sets |
 | Depth | Quick scannable answer | Comprehensive research document |
 | Structure | Direct answer + sections | Executive summary + sections + Key Takeaways |

@@ -12,7 +12,7 @@ An AI-powered search application that provides a Perplexity-like search experien
 - **Multi-Provider LLM Support**: DeepSeek, OpenAI, Grok, Claude, Gemini
 - **Three Search Modes**:
   - **Web Search**: Quick answers with cited sources
-  - **Research**: Multi-angle deep research with 700-900 word synthesis
+  - **Research**: Multi-angle deep research with 800-1000 word synthesis
   - **Brainstorm**: Creative ideation using cross-domain inspiration
 - **Streaming Responses**: Real-time content generation with smooth UI updates
 - **Two-Tier Caching**: In-memory LRU + Supabase persistent cache for cost reduction

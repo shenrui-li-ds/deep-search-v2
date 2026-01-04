@@ -200,7 +200,7 @@ describe('Prompts', () => {
 
     it('specifies target word count', () => {
       const prompt = researchSynthesizerPrompt('test', 'date');
-      expect(prompt).toContain('700-900 words');
+      expect(prompt).toContain('800-1000 words');
     });
 
     it('includes citation format rules', () => {
