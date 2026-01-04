@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
@@ -77,13 +76,27 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const router = useRouter();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const maxHeight = large ? 200 : 120; // Max height in pixels
+      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    }
+  }, [large]);
 
   useEffect(() => {
-    if (autoFocus && inputRef.current) {
-      inputRef.current.focus();
+    if (autoFocus && textareaRef.current) {
+      textareaRef.current.focus();
     }
   }, [autoFocus]);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [query, adjustTextareaHeight]);
 
   // Update state when default props change (async preference loading)
   useEffect(() => {
@@ -95,12 +108,14 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   }, [defaultMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter without Shift: submit search
       if (query.trim()) {
         performSearch();
       }
       e.preventDefault();
     }
+    // Shift+Enter: allow newline (default textarea behavior)
   };
 
   const performSearch = async () => {
@@ -141,11 +156,11 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             isFocused ? 'border-[var(--accent)] shadow-lg' : 'border-[var(--border)] shadow-sm'
           } ${large ? 'p-4' : 'p-3'}`}
         >
-          <Input
-            ref={inputRef}
-            type="text"
-            className={`w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 p-0 ${
-              large ? 'text-base h-auto' : 'text-sm h-auto'
+          <textarea
+            ref={textareaRef}
+            rows={1}
+            className={`w-full border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none p-0 resize-none overflow-y-auto scrollbar-thin ${
+              large ? 'text-base min-h-[24px]' : 'text-sm min-h-[20px]'
             }`}
             placeholder={placeholder}
             value={query}

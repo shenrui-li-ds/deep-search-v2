@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -13,7 +13,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
@@ -90,7 +89,22 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
   const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const followUpTextareaRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
+
+  // Auto-resize follow-up textarea
+  const adjustFollowUpHeight = useCallback(() => {
+    const textarea = followUpTextareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const maxHeight = 80; // Max height in pixels for follow-up input
+      textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustFollowUpHeight();
+  }, [followUpQuery, adjustFollowUpHeight]);
 
   const currentFollowUpMode = searchModes.find(m => m.id === followUpMode);
 
@@ -158,11 +172,13 @@ ${sourcesText}
     router.push(`/search?${params.toString()}`);
   }, [followUpQuery, provider, followUpMode, router]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      // Enter without Shift: submit follow-up
       e.preventDefault();
       handleFollowUp();
     }
+    // Shift+Enter: allow newline (default textarea behavior)
   }, [handleFollowUp]);
 
   const getDomain = (url: string) => {
@@ -629,13 +645,14 @@ ${sourcesText}
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Input
-            type="text"
+          <textarea
+            ref={followUpTextareaRef}
+            rows={1}
             placeholder="Ask a follow-up"
             value={followUpQuery}
             onChange={(e) => setFollowUpQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+            className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 focus:outline-none text-sm resize-none overflow-y-auto scrollbar-thin min-h-[20px]"
           />
           <Button
             size="icon"
