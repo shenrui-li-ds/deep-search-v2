@@ -90,7 +90,7 @@ Cleans up and polishes content. Used in Pro Search mode.
 - `research`: Research-specific proofreading (preserves depth, improves flow)
 
 ### `/api/research/plan` - Research Planning
-Generates a multi-angle research plan for comprehensive topic coverage.
+Generates a multi-angle research plan with intelligent query routing for specialized strategies.
 
 **Request:**
 ```json
@@ -104,20 +104,36 @@ Generates a multi-angle research plan for comprehensive topic coverage.
 ```json
 {
   "originalQuery": "research topic",
+  "queryType": "shopping",
   "plan": [
-    { "aspect": "fundamentals", "query": "topic basics explained" },
-    { "aspect": "applications", "query": "topic real world uses" },
-    { "aspect": "comparison", "query": "topic vs alternatives" },
-    { "aspect": "current state", "query": "topic latest developments 2024" }
+    { "aspect": "product_discovery", "query": "best products matching criteria 2024" },
+    { "aspect": "feature_comparison", "query": "product comparison features specs" },
+    { "aspect": "expert_reviews", "query": "brand product expert reviews" },
+    { "aspect": "user_experiences", "query": "product reddit user reviews long term" }
   ]
 }
 ```
 
+**Query Types:**
+| Type | Strategy | Example Query |
+|------|----------|--------------|
+| `shopping` | Product discovery → Reviews → Comparison | "best hiking camera bag 30L" |
+| `travel` | Attractions → Activities → Accommodations → Tips | "things to do in Cozumel" |
+| `technical` | Specs → Expert analysis → Comparisons → Real-world | "hiking watches under 45mm" |
+| `academic` | Foundations → Key findings → Methodology → Debates | "quantum entanglement research" |
+| `explanatory` | Definition → Mechanism → Examples → Misconceptions | "how does HTTPS work" |
+| `finance` | Fundamentals → Metrics → Analyst views → Risks | "NVIDIA stock analysis" |
+| `general` | Fundamentals → Applications → Comparison → Current state | fallback for unclassified |
+
 **Features:**
-- Generates 3-4 distinct research angles
+- **Query Router**: Classifies query into specialized category for optimized planning
+- Generates 3-4 distinct research angles tailored to query type
+- Uses user's selected provider for both routing and planning
 - Preserves original query language
+- Falls back to `general` on classification errors
 - Falls back to single query on parse errors
 - Limits to 4 queries maximum
+- Results are cached (48 hours)
 
 ### `/api/research/extract` - Knowledge Extraction
 Extracts structured knowledge from search results for one aspect. Called in parallel for each research aspect.

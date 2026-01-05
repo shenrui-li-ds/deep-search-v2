@@ -49,7 +49,7 @@ const modelProviders = [
   { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
   { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
   { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
-  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-5.1 Chat', experimental: false },
+  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-5.1 · Reference', experimental: false },
   { id: 'vercel-gateway' as ModelProvider, label: 'Vercel Gateway', description: 'Experimental', experimental: true },
 ];
 

@@ -111,6 +111,8 @@ Main result display component with floating follow-up input.
   historyEntryId?: string | null;  // ID of the search history entry (enables bookmark button)
   isBookmarked?: boolean;           // Whether this search is bookmarked
   onToggleBookmark?: () => void;    // Callback to toggle bookmark status
+  queryType?: QueryType | null;     // Research query classification (pro mode only)
+  researchPlan?: ResearchPlanItem[] | null;  // Research plan aspects (pro mode only)
 }
 
 type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
@@ -120,6 +122,7 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 
 **Features:**
 - Status banner (shown during all loading stages)
+- **Research Thinking Panel** (pro mode only, collapsible)
 - Tabbed interface (Answer, Links) with Share dropdown
 - Markdown rendering with custom component styling
 - **Superscript citations**: `[1]` → `<sup>1</sup>`, `[1, 2]` → `<sup>1, 2</sup>`
@@ -128,6 +131,27 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - Floating follow-up input with mode selector (both desktop and mobile)
 - Copy/Share functionality
 - Print-to-PDF support via browser print dialog
+
+**Research Thinking Panel (Pro Mode):**
+
+Collapsible `<details>` section shown in Research mode that displays the query classification and research plan.
+
+| Query Type | Label | Strategy |
+|------------|-------|----------|
+| `shopping` | Shopping Research | Product discovery → Reviews → Comparison |
+| `travel` | Travel Guide | Attractions → Activities → Accommodations → Tips |
+| `technical` | Technical Analysis | Specs → Expert analysis → Comparisons |
+| `academic` | Academic Research | Foundations → Findings → Methodology → Debates |
+| `explanatory` | Concept Explanation | Definition → Mechanism → Examples → Misconceptions |
+| `finance` | Financial Analysis | Fundamentals → Metrics → Analyst views → Risks |
+| `general` | General Research | Fundamentals → Applications → Comparison → Current state |
+
+**Behavior:**
+- Opens automatically during research (while `loadingStage !== 'complete'`)
+- Collapses automatically when research completes
+- Shows query type badge (e.g., "Shopping Research")
+- Lists research plan aspects with their search queries
+- Can be manually toggled open/closed by user
 
 **Action Bar Buttons:**
 
@@ -300,6 +324,7 @@ MainLayout
     └── SearchClient (in /search)
         └── SearchResult
             ├── Status Banner
+            ├── Research Thinking Panel (pro mode, collapsible)
             ├── Tabs (Answer, Links)
             ├── Action Bar
             ├── Related Searches
@@ -315,6 +340,7 @@ MainLayout
     └── SearchClient (in /search)
         └── SearchResult
             ├── Status Banner
+            ├── Research Thinking Panel (pro mode, collapsible)
             ├── Tabs (Answer, Links)
             ├── Action Bar
             ├── Related Searches

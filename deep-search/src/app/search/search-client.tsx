@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { SearchResult, Source, SearchImage } from '@/lib/types';
 import SearchResultComponent from '@/components/SearchResult';
+import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
@@ -30,6 +31,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  // Research thinking state
+  const [queryType, setQueryType] = useState<QueryType | null>(null);
+  const [researchPlan, setResearchPlan] = useState<ResearchPlanItem[] | null>(null);
   const router = useRouter();
 
   // Ref to track content for batched updates
@@ -161,6 +165,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
       setHistoryEntryId(null);
       setIsBookmarked(false);
+      // Reset research thinking state
+      setQueryType(null);
+      setResearchPlan(null);
 
       let reservationId: string | undefined;
       let tavilyQueryCount = 0;
@@ -198,12 +205,18 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         }
 
         const planData = await planResponse.json();
-        const researchPlan = planData.plan || [{ aspect: 'general', query }];
+        const plan = planData.plan || [{ aspect: 'general', query }];
+
+        // Store research thinking state for UI display
+        if (planData.queryType) {
+          setQueryType(planData.queryType);
+        }
+        setResearchPlan(plan);
 
         // Step 2: Execute multiple searches in parallel
         setLoadingStage('researching');
 
-        const searchPromises = researchPlan.map((planItem: { aspect: string; query: string }) =>
+        const searchPromises = plan.map((planItem: { aspect: string; query: string }) =>
           fetch('/api/search', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -319,7 +332,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Start related searches early using plan data (in parallel with synthesis)
         // Use research plan aspects to generate context for related searches
-        const planContext = researchPlan.map((p: { aspect: string; query: string }) =>
+        const planContext = plan.map((p: { aspect: string; query: string }) =>
           `${p.aspect}: ${p.query}`
         ).join('; ');
 
@@ -1005,6 +1018,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       historyEntryId={historyEntryId}
       isBookmarked={isBookmarked}
       onToggleBookmark={handleToggleBookmark}
+      queryType={queryType}
+      researchPlan={researchPlan}
     />
   );
 }

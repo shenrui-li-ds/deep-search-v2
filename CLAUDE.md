@@ -46,7 +46,7 @@ Required in `deep-search/.env.local`:
 
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
-- `OPENAI_API_KEY` - OpenAI GPT-5.1 Chat
+- `OPENAI_API_KEY` - OpenAI GPT-5.1
 - `GROK_API_KEY` - xAI Grok 4.1 Fast
 - `ANTHROPIC_API_KEY` - Anthropic Claude Haiku 4.5
 - `GEMINI_API_KEY` - Google Gemini 3 Flash
@@ -338,6 +338,11 @@ Two-tier caching system (Memory → Supabase → API) reduces costs. See `src/li
 ### Grok
 - OpenAI-compatible API at `api.x.ai`
 - Model: `grok-4.1-fast`
+
+### OpenAI
+- Model: `gpt-5.1-2025-11-13` (labeled as "GPT-5.1 · Reference" in UI)
+- GPT-5 family models are reasoning models and do not support custom temperature
+- Temperature parameter is automatically omitted for models starting with `o1`, `o3`, or `gpt-5.1`
 
 ## Performance Optimizations
 

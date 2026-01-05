@@ -75,10 +75,31 @@ XML-structured prompts for consistent LLM behavior.
 
 | Prompt | Purpose |
 |--------|---------|
-| `researchPlannerPrompt(query, date)` | Generate 3-4 research angles for comprehensive topic coverage |
+| `researchRouterPrompt(query)` | Classify query type for specialized planning |
+| `researchPlannerPrompt(query, date)` | General fallback: 3-4 research angles |
+| `researchPlannerShoppingPrompt(query, date)` | Shopping: product discovery → reviews → comparison |
+| `researchPlannerTravelPrompt(query, date)` | Travel: attractions → activities → accommodations → tips |
+| `researchPlannerTechnicalPrompt(query, date)` | Technical: specs → expert analysis → comparisons |
+| `researchPlannerAcademicPrompt(query, date)` | Academic: foundations → findings → methodology → debates |
+| `researchPlannerExplanatoryPrompt(query, date)` | Explanatory: definition → mechanism → examples → misconceptions |
+| `researchPlannerFinancePrompt(query, date)` | Finance: fundamentals → metrics → analyst views → risks |
 | `aspectExtractorPrompt(aspect, query)` | Extract structured knowledge (claims, stats, opinions, contradictions) |
 | `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with collapsible sections |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
+
+**Query Type Classification:**
+
+The router classifies queries into specialized categories for optimized research planning:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `shopping` | Product recommendations, buying guides, gear comparisons | "best hiking camera bag 30L" |
+| `travel` | Destinations, itineraries, things to do, hotels | "things to do in Cozumel" |
+| `technical` | Specifications, technical comparisons, detailed specs | "hiking watches under 45mm with offline maps" |
+| `academic` | Scientific research, studies, papers, theoretical concepts | "quantum entanglement research" |
+| `explanatory` | How something works, concepts explained, tutorials | "how does HTTPS work" |
+| `finance` | Stocks, investments, market analysis, financial metrics | "NVIDIA stock analysis" |
+| `general` | Everything else (fallback) | "what happened at CES 2025" |
 
 **Collapsible Content Rules (Content-Type Based):**
 

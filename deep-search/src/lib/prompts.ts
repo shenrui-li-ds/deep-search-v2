@@ -209,6 +209,352 @@ export const proofreadParagraphPrompt = () => `
 
 // Research Pipeline Prompts
 
+// Query Router - Classifies query type for specialized planning
+export const researchRouterPrompt = (query: string) => `
+<researchRouter>
+    <description>
+        Classify the user's research query into ONE category to route to the appropriate research strategy.
+    </description>
+    <query>${query}</query>
+    <categories>
+        <category id="shopping">Product recommendations, buying guides, "best X for Y", gear comparisons, price research</category>
+        <category id="travel">Destinations, itineraries, things to do, hotels, travel tips, local attractions</category>
+        <category id="technical">Specifications, technical comparisons, how things work technically, detailed specs research</category>
+        <category id="academic">Scientific research, studies, papers, theoretical concepts, academic topics</category>
+        <category id="explanatory">How something works, concepts explained, tutorials, learning topics</category>
+        <category id="finance">Stocks, investments, market analysis, financial metrics, company financials</category>
+        <category id="general">Everything else - news, people, events, general knowledge</category>
+    </categories>
+    <rules>
+        <rule>Output ONLY the category id (one word)</rule>
+        <rule>Choose the MOST specific category that fits</rule>
+        <rule>When in doubt between categories, prefer "general"</rule>
+    </rules>
+    <examples>
+        <example input="best hiking camera bag 30L">shopping</example>
+        <example input="things to do in Cozumel Mexico">travel</example>
+        <example input="hiking watches under 45mm with offline maps">technical</example>
+        <example input="quantum entanglement research papers">academic</example>
+        <example input="how does HTTPS encryption work">explanatory</example>
+        <example input="NVIDIA stock analysis 2024">finance</example>
+        <example input="what happened at CES 2025">general</example>
+        <example input="iPhone 16 vs Samsung S24">shopping</example>
+        <example input="Paris 3 day itinerary">travel</example>
+        <example input="机器学习入门教程">explanatory</example>
+        <example input="科苏梅尔有什么好玩的">travel</example>
+        <example input="推荐几款30L相机背包">shopping</example>
+    </examples>
+    <output>Return ONLY the category id, nothing else. No quotes, no explanation.</output>
+</researchRouter>
+`;
+
+// Specialized Planner: Shopping
+export const researchPlannerShoppingPrompt = (query: string, currentDate: string) => `
+<researchPlannerShopping>
+    <description>
+        You are a shopping research expert. Plan multi-aspect research for product recommendations,
+        covering product discovery, features, expert reviews, and real user experiences.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>
+        <aspect type="product_discovery">Find available products matching the criteria</aspect>
+        <aspect type="feature_comparison">Compare key features, specs, pros/cons across options</aspect>
+        <aspect type="expert_reviews">Find professional reviews from trusted sources</aspect>
+        <aspect type="user_experiences">Real user feedback, Reddit/forum discussions, long-term reviews</aspect>
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Include specific product names, brands, or model numbers when relevant</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Include year (2024/2025) for recency</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>best hiking camera bag 30L with waist strap</input>
+            <output>[
+    {"aspect": "product_discovery", "query": "best 30L hiking camera backpacks waist strap 2024 2025"},
+    {"aspect": "feature_comparison", "query": "hiking camera bag comparison features waist belt support"},
+    {"aspect": "expert_reviews", "query": "Shimoda Lowepro Peak Design camera backpack reviews"},
+    {"aspect": "user_experiences", "query": "hiking photography backpack reddit user reviews long term"}
+]</output>
+        </example>
+        <example>
+            <input>推荐几款性价比高的机械键盘</input>
+            <output>[
+    {"aspect": "product_discovery", "query": "性价比机械键盘推荐 2024 2025"},
+    {"aspect": "feature_comparison", "query": "机械键盘轴体对比 红轴青轴茶轴"},
+    {"aspect": "expert_reviews", "query": "机械键盘评测 数码博主推荐"},
+    {"aspect": "user_experiences", "query": "机械键盘使用体验 知乎 值得买"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlannerShopping>
+`;
+
+// Specialized Planner: Travel
+export const researchPlannerTravelPrompt = (query: string, currentDate: string) => `
+<researchPlannerTravel>
+    <description>
+        You are a travel research expert. Plan multi-aspect research for destinations,
+        covering attractions, activities, accommodations, and practical travel tips.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>
+        <aspect type="attractions">Must-see sights, landmarks, popular spots</aspect>
+        <aspect type="activities">Things to do, experiences, tours, adventure options</aspect>
+        <aspect type="accommodations">Hotels, resorts, areas to stay, accommodation tips</aspect>
+        <aspect type="practical_tips">Transportation, best time to visit, local tips, costs</aspect>
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Include destination name in each query</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Include year for current information when relevant</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>things to do in Cozumel Mexico</input>
+            <output>[
+    {"aspect": "attractions", "query": "Cozumel top attractions must see places 2024"},
+    {"aspect": "activities", "query": "Cozumel diving snorkeling water activities tours"},
+    {"aspect": "accommodations", "query": "Cozumel best beaches resorts hotels"},
+    {"aspect": "practical_tips", "query": "Cozumel travel tips transportation getting around"}
+]</output>
+        </example>
+        <example>
+            <input>科苏梅尔有什么好玩的</input>
+            <output>[
+    {"aspect": "attractions", "query": "科苏梅尔必去景点推荐"},
+    {"aspect": "activities", "query": "科苏梅尔潜水浮潜水上活动"},
+    {"aspect": "accommodations", "query": "科苏梅尔最佳海滩度假村酒店"},
+    {"aspect": "practical_tips", "query": "科苏梅尔旅游攻略交通美食"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlannerTravel>
+`;
+
+// Specialized Planner: Technical
+export const researchPlannerTechnicalPrompt = (query: string, currentDate: string) => `
+<researchPlannerTechnical>
+    <description>
+        You are a technical research expert. Plan multi-aspect research for specifications,
+        technical comparisons, expert analysis, and real-world performance data.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>
+        <aspect type="specifications">Detailed specs, technical data, official specifications</aspect>
+        <aspect type="expert_analysis">In-depth technical reviews from expert sources (e.g., dcrainmaker, anandtech)</aspect>
+        <aspect type="comparison">Head-to-head technical comparisons, benchmarks</aspect>
+        <aspect type="real_world">Real-world performance, user testing, field reports</aspect>
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Include specific model numbers, versions, or technical parameters</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Target authoritative technical sources</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>hiking watches under 45mm with offline maps</input>
+            <output>[
+    {"aspect": "specifications", "query": "hiking GPS watches under 45mm offline maps specs 2024"},
+    {"aspect": "expert_analysis", "query": "Garmin Suunto Coros small watch in-depth review dcrainmaker"},
+    {"aspect": "comparison", "query": "Garmin Fenix 8 vs Suunto Race S vs Coros Apex comparison"},
+    {"aspect": "real_world", "query": "small hiking watch offline maps reddit user experience"}
+]</output>
+        </example>
+        <example>
+            <input>M4 MacBook Pro vs M3 性能对比</input>
+            <output>[
+    {"aspect": "specifications", "query": "M4 MacBook Pro 规格参数详细"},
+    {"aspect": "expert_analysis", "query": "M4 vs M3 芯片性能深度评测"},
+    {"aspect": "comparison", "query": "M4 MacBook Pro M3 跑分对比测试"},
+    {"aspect": "real_world", "query": "M4 MacBook Pro 实际使用体验 视频剪辑"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlannerTechnical>
+`;
+
+// Specialized Planner: Academic
+export const researchPlannerAcademicPrompt = (query: string, currentDate: string) => `
+<researchPlannerAcademic>
+    <description>
+        You are an academic research expert. Plan multi-aspect research for scholarly topics,
+        covering foundational concepts, key findings, methodologies, and current debates.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>
+        <aspect type="foundations">Core concepts, definitions, theoretical background</aspect>
+        <aspect type="key_findings">Major research findings, landmark studies, evidence</aspect>
+        <aspect type="methodology">Research methods, approaches, how studies are conducted</aspect>
+        <aspect type="current_debates">Ongoing controversies, open questions, recent developments</aspect>
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Use academic/scholarly language in queries</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Include terms like "research", "study", "review" to target scholarly content</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>quantum entanglement research</input>
+            <output>[
+    {"aspect": "foundations", "query": "quantum entanglement physics explained fundamentals"},
+    {"aspect": "key_findings", "query": "quantum entanglement experiments breakthroughs Nobel prize"},
+    {"aspect": "methodology", "query": "how quantum entanglement measured detected laboratory"},
+    {"aspect": "current_debates", "query": "quantum entanglement applications challenges 2024 research"}
+]</output>
+        </example>
+        <example>
+            <input>深度学习在医学影像中的应用研究</input>
+            <output>[
+    {"aspect": "foundations", "query": "深度学习医学影像基础原理综述"},
+    {"aspect": "key_findings", "query": "AI医学影像诊断研究成果准确率"},
+    {"aspect": "methodology", "query": "医学影像深度学习模型训练方法数据集"},
+    {"aspect": "current_debates", "query": "AI医学诊断挑战局限性伦理问题"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlannerAcademic>
+`;
+
+// Specialized Planner: Explanatory
+export const researchPlannerExplanatoryPrompt = (query: string, currentDate: string) => `
+<researchPlannerExplanatory>
+    <description>
+        You are an educational content expert. Plan multi-aspect research for explaining concepts,
+        covering definitions, how it works, examples, and common misconceptions.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>
+        <aspect type="definition">What it is, core definition, key terminology</aspect>
+        <aspect type="mechanism">How it works, underlying process, step-by-step explanation</aspect>
+        <aspect type="examples">Real-world examples, use cases, practical applications</aspect>
+        <aspect type="misconceptions">Common mistakes, myths, what people get wrong</aspect>
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Use educational/tutorial-oriented language</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Target beginner-friendly explanations</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>how does HTTPS encryption work</input>
+            <output>[
+    {"aspect": "definition", "query": "what is HTTPS SSL TLS encryption explained"},
+    {"aspect": "mechanism", "query": "how HTTPS handshake works step by step"},
+    {"aspect": "examples", "query": "HTTPS encryption real world examples websites"},
+    {"aspect": "misconceptions", "query": "HTTPS security myths common misconceptions"}
+]</output>
+        </example>
+        <example>
+            <input>机器学习是什么</input>
+            <output>[
+    {"aspect": "definition", "query": "机器学习是什么 定义 基本概念"},
+    {"aspect": "mechanism", "query": "机器学习如何工作 原理详解"},
+    {"aspect": "examples", "query": "机器学习实际应用例子 日常生活"},
+    {"aspect": "misconceptions", "query": "机器学习常见误解 AI区别"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlannerExplanatory>
+`;
+
+// Specialized Planner: Finance
+export const researchPlannerFinancePrompt = (query: string, currentDate: string) => `
+<researchPlannerFinance>
+    <description>
+        You are a financial research expert. Plan multi-aspect research for investment topics,
+        covering fundamentals, metrics, analyst opinions, and risks.
+    </description>
+    <context>
+        <currentDate>${currentDate}</currentDate>
+        <researchTopic>${query}</researchTopic>
+    </context>
+    <aspectStrategy>
+        <aspect type="fundamentals">Company/asset overview, business model, recent news</aspect>
+        <aspect type="metrics">Financial metrics, valuations, key numbers, performance data</aspect>
+        <aspect type="analyst_views">Analyst ratings, price targets, expert opinions</aspect>
+        <aspect type="risks_opportunities">Risk factors, growth opportunities, bull/bear cases</aspect>
+    </aspectStrategy>
+    <rules>
+        <rule>Output 3-4 distinct search queries covering different aspects</rule>
+        <rule>Include ticker symbols, company names, or specific financial terms</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Keep each query concise: 5-12 words</rule>
+        <rule>Include year for current data (2024/2025)</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>NVIDIA stock analysis</input>
+            <output>[
+    {"aspect": "fundamentals", "query": "NVIDIA company overview business AI chips 2024"},
+    {"aspect": "metrics", "query": "NVIDIA NVDA stock valuation PE ratio revenue growth"},
+    {"aspect": "analyst_views", "query": "NVIDIA stock analyst ratings price target 2025"},
+    {"aspect": "risks_opportunities", "query": "NVIDIA stock risks competition growth opportunities"}
+]</output>
+        </example>
+        <example>
+            <input>比亚迪股票分析</input>
+            <output>[
+    {"aspect": "fundamentals", "query": "比亚迪公司业务 新能源汽车 电池"},
+    {"aspect": "metrics", "query": "比亚迪股票估值 市盈率 营收增长 2024"},
+    {"aspect": "analyst_views", "query": "比亚迪股票分析师评级 目标价"},
+    {"aspect": "risks_opportunities", "query": "比亚迪投资风险 增长机会 竞争分析"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have "aspect" and "query" fields</instruction>
+    </output>
+</researchPlannerFinance>
+`;
+
+// General Planner (fallback - original prompt)
 export const researchPlannerPrompt = (query: string, currentDate: string) => `
 <researchPlanner>
     <description>

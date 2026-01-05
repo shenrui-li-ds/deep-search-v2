@@ -112,7 +112,7 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-5.1-chat-latest',
+  model: string = 'gpt-5.1-2025-11-13',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
@@ -568,7 +568,7 @@ function callLLMForProvider(
       return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
     case 'openai':
       console.log('Using OpenAI API');
-      return callOpenAI(messages, 'gpt-5.1-chat-latest', temperature, stream);
+      return callOpenAI(messages, 'gpt-5.1-2025-11-13', temperature, stream);
     case 'grok':
       console.log('Using Grok API');
       return callGrok(messages, 'grok-4-1-fast', temperature, stream);

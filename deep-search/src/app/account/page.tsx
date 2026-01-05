@@ -954,7 +954,7 @@ function PreferencesTab() {
     { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
     { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
     { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
-    { id: 'openai', name: 'OpenAI', description: 'GPT-5.1 Chat', experimental: false },
+    { id: 'openai', name: 'OpenAI', description: 'GPT-5.1', experimental: false },
     { id: 'vercel-gateway', name: 'Vercel Gateway', description: 'Experimental', experimental: true },
   ] as const;
 

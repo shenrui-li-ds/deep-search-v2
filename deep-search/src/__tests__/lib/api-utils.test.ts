@@ -73,8 +73,8 @@ describe('API Utils', () => {
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
 
-      expect(body.model).toBe('gpt-5.1-chat-latest');
-      // gpt-5.1 models don't support custom temperature, so it should not be included
+      expect(body.model).toBe('gpt-5.1-2025-11-13');
+      // GPT-5 family models are reasoning models and don't support custom temperature
       expect(body.temperature).toBeUndefined();
       expect(body.stream).toBe(false);
     });
@@ -114,7 +114,7 @@ describe('API Utils', () => {
       const mockResponse = { ok: true, body: {} };
       (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
 
-      const result = await callOpenAI(mockMessages, 'gpt-5.1-chat-latest', 0.7, true);
+      const result = await callOpenAI(mockMessages, 'gpt-5.1-2025-11-13', 0.7, true);
 
       expect(result).toBe(mockResponse);
     });

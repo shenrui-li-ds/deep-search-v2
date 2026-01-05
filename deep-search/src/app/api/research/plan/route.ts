@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callLLM, getCurrentDate, LLMProvider } from '@/lib/api-utils';
-import { researchPlannerPrompt } from '@/lib/prompts';
+import {
+  researchRouterPrompt,
+  researchPlannerPrompt,
+  researchPlannerShoppingPrompt,
+  researchPlannerTravelPrompt,
+  researchPlannerTechnicalPrompt,
+  researchPlannerAcademicPrompt,
+  researchPlannerExplanatoryPrompt,
+  researchPlannerFinancePrompt,
+} from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
+
+export type QueryType = 'shopping' | 'travel' | 'technical' | 'academic' | 'explanatory' | 'finance' | 'general';
 
 export interface ResearchPlanItem {
   aspect: string;
@@ -12,8 +23,58 @@ export interface ResearchPlanItem {
 
 export interface ResearchPlanResponse {
   originalQuery: string;
+  queryType: QueryType;
   plan: ResearchPlanItem[];
   cached?: boolean;
+}
+
+// Map query type to specialized planner prompt
+function getPlannerPrompt(queryType: QueryType, query: string, currentDate: string): string {
+  switch (queryType) {
+    case 'shopping':
+      return researchPlannerShoppingPrompt(query, currentDate);
+    case 'travel':
+      return researchPlannerTravelPrompt(query, currentDate);
+    case 'technical':
+      return researchPlannerTechnicalPrompt(query, currentDate);
+    case 'academic':
+      return researchPlannerAcademicPrompt(query, currentDate);
+    case 'explanatory':
+      return researchPlannerExplanatoryPrompt(query, currentDate);
+    case 'finance':
+      return researchPlannerFinancePrompt(query, currentDate);
+    case 'general':
+    default:
+      return researchPlannerPrompt(query, currentDate);
+  }
+}
+
+// Classify query type using router
+async function classifyQuery(query: string, provider: LLMProvider | undefined): Promise<QueryType> {
+  const prompt = researchRouterPrompt(query);
+
+  const messages: OpenAIMessage[] = [
+    { role: 'system', content: 'You are a query classifier. Output only the category id, nothing else.' },
+    { role: 'user', content: prompt }
+  ];
+
+  try {
+    const response = await callLLM(messages, 0.3, false, provider);
+    const category = response.trim().toLowerCase();
+
+    // Validate the category
+    const validCategories: QueryType[] = ['shopping', 'travel', 'technical', 'academic', 'explanatory', 'finance', 'general'];
+    if (validCategories.includes(category as QueryType)) {
+      console.log(`[Router] Query classified as: ${category}`);
+      return category as QueryType;
+    }
+
+    console.log(`[Router] Invalid category "${category}", defaulting to general`);
+    return 'general';
+  } catch (error) {
+    console.error('[Router] Classification failed, defaulting to general:', error);
+    return 'general';
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -55,12 +116,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Cache miss - call LLM
+    // Cache miss - first classify the query type
+    const queryType = await classifyQuery(query, llmProvider);
+
+    // Get the appropriate planner prompt based on query type
     const currentDate = getCurrentDate();
-    const prompt = researchPlannerPrompt(query, currentDate);
+    const prompt = getPlannerPrompt(queryType, query, currentDate);
 
     const messages: OpenAIMessage[] = [
-      { role: 'system', content: 'You are a research planning expert. You analyze topics and identify distinct research angles.' },
+      { role: 'system', content: 'You are a research planning expert. You analyze topics and identify distinct research angles for comprehensive coverage.' },
       { role: 'user', content: prompt }
     ];
 
@@ -97,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     const result: ResearchPlanResponse = {
       originalQuery: query,
+      queryType,
       plan
     };
 

@@ -23,8 +23,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import SearchLoading from './SearchLoading';
 import MobileBottomSheet from './MobileBottomSheet';
+import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route';
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
+
+// Human-readable labels for query types
+const queryTypeLabels: Record<QueryType, string> = {
+  shopping: 'Shopping Research',
+  travel: 'Travel Guide',
+  technical: 'Technical Analysis',
+  academic: 'Academic Research',
+  explanatory: 'Concept Explanation',
+  finance: 'Financial Analysis',
+  general: 'General Research',
+};
 
 const searchModes = [
   { id: 'web' as SearchMode, label: 'Web Search', shortLabel: 'Search', icon: (
@@ -80,9 +92,12 @@ interface SearchResultProps {
   historyEntryId?: string | null;
   isBookmarked?: boolean;
   onToggleBookmark?: () => void;
+  // Research thinking state
+  queryType?: QueryType | null;
+  researchPlan?: ResearchPlanItem[] | null;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
   const [followUpMode, setFollowUpMode] = useState<SearchMode>(mode as SearchMode);
@@ -240,6 +255,43 @@ ${sourcesText}
                isPolishing ? 'Polishing response...' : 'Generating response...'}
             </span>
           </div>
+        )}
+
+        {/* Research Thinking Panel - shows query type and research plan for Research mode */}
+        {mode === 'pro' && (queryType || researchPlan) && (
+          <details className="mb-4 border border-[var(--border)] rounded-lg bg-[var(--card)] overflow-hidden" open={loadingStage !== 'complete'}>
+            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-hover)] transition-colors flex items-center gap-2 select-none">
+              <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              Research Approach
+              {queryType && (
+                <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                  {queryTypeLabels[queryType]}
+                </Badge>
+              )}
+            </summary>
+            <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--background)]">
+              {researchPlan && researchPlan.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-[var(--text-muted)] mb-2">Searching for:</p>
+                  <ul className="space-y-1.5">
+                    {researchPlan.map((item, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm">
+                        <span className="flex-shrink-0 w-5 h-5 rounded bg-[var(--accent)]/10 text-[var(--accent)] text-xs flex items-center justify-center font-medium">
+                          {index + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[var(--text-muted)] text-xs">{item.aspect}:</span>
+                          <span className="ml-1 text-[var(--text-secondary)]">{item.query}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </details>
         )}
 
         {/* Tabs */}
