@@ -6,7 +6,7 @@ import {
   LLMProvider,
   detectLanguage
 } from '@/lib/api-utils';
-import { researchSynthesizerPrompt } from '@/lib/prompts';
+import { researchSynthesizerPrompt, deepResearchSynthesizerPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { AspectExtraction } from '../extract/route';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
@@ -127,7 +127,7 @@ function formatExtractionsForSynthesis(extractions: AspectExtraction[]): string 
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, aspectResults, extractedData, stream = true, provider } = await req.json();
+    const { query, aspectResults, extractedData, stream = true, provider, deep = false, gapDescriptions = [] } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
     // Support both old format (aspectResults) and new format (extractedData)
@@ -146,7 +146,8 @@ export async function POST(req: NextRequest) {
     const cacheKey = generateCacheKey('research-synthesis', {
       query,
       provider: llmProvider,
-      aspectResults: hasAspectResults ? aspectResults : undefined
+      aspectResults: hasAspectResults ? aspectResults : undefined,
+      deep // Include deep mode in cache key
     });
 
     const { data: cachedData } = await getFromCache<SynthesisCache>(cacheKey, supabase);
@@ -189,13 +190,28 @@ export async function POST(req: NextRequest) {
     if (hasExtractedData) {
       // New mode: structured extractions
       formattedData = formatExtractionsForSynthesis(extractedData);
-      dataDescription = `You have been provided structured extractions from ${extractedData.length} different research aspects.
+
+      const aspectCount = extractedData.length;
+      const gapCount = extractedData.filter((e: AspectExtraction) => e.aspect.startsWith('gap_')).length;
+      const round1Count = aspectCount - gapCount;
+
+      dataDescription = deep && gapCount > 0
+        ? `You have been provided structured extractions from ${round1Count} initial research aspects plus ${gapCount} gap-filling searches.
+Aspects prefixed with "gap_" are from targeted follow-up research addressing specific information gaps.
+Synthesize ALL the data into a unified, comprehensive document - integrate gap-filling content naturally, don't separate it.
+Use the source index numbers [1], [2], etc. as shown in the extractions for your citations.
+Address any contradictions by presenting multiple perspectives fairly.
+Use HTML <details> tags for technical deep-dives as instructed in the prompt.`
+        : `You have been provided structured extractions from ${aspectCount} different research aspects.
 Each extraction contains pre-analyzed claims, statistics, definitions, expert opinions, and contradictions.
 Synthesize this structured knowledge into a comprehensive research document.
 Use the source index numbers [1], [2], etc. as shown in the extractions for your citations.
 Address any contradictions by presenting multiple perspectives fairly.
 Use HTML <details> tags for technical deep-dives as instructed in the prompt.`;
-      systemPrompt = 'You are a research synthesis expert. You create comprehensive, well-organized research documents from structured knowledge extractions. Format your response in Markdown with proper citations. Use HTML details/summary tags for collapsible technical sections.';
+
+      systemPrompt = deep
+        ? 'You are a deep research synthesis expert. You create authoritative, comprehensive documents from multi-round research including gap-filling data. Integrate all sources seamlessly into a unified narrative. Format your response in Markdown with proper citations. Use HTML details/summary tags for collapsible sections.'
+        : 'You are a research synthesis expert. You create comprehensive, well-organized research documents from structured knowledge extractions. Format your response in Markdown with proper citations. Use HTML details/summary tags for collapsible technical sections.';
     } else {
       // Legacy mode: raw search results
       const globalSourceIndex = new Map<string, number>();
@@ -206,9 +222,15 @@ Use the source index numbers [1], [2], etc. as shown in the results for your cit
       systemPrompt = 'You are a research synthesis expert. You create comprehensive, well-organized research documents from multiple search results covering different aspects of a topic. Always format your response in Markdown with proper citations.';
     }
 
-    // Create the complete prompt
+    // Create the complete prompt - use deep research synthesizer if deep mode enabled
+    const synthesizerPrompt = deep
+      ? deepResearchSynthesizerPrompt(query, currentDate, detectedLanguage, gapDescriptions)
+      : researchSynthesizerPrompt(query, currentDate, detectedLanguage);
+
+    const targetLength = deep ? '1000-1200 words' : '800-1000 words';
+
     const completePrompt = `
-${researchSynthesizerPrompt(query, currentDate, detectedLanguage)}
+${synthesizerPrompt}
 
 <researchData>
 ${formattedData}
@@ -216,7 +238,7 @@ ${formattedData}
 
 ${dataDescription}
 Your response must be well-formatted in Markdown syntax with proper headers, sections, and formatting.
-Target length: 800-1000 words for comprehensive coverage.
+Target length: ${targetLength} for ${deep ? 'deep' : 'comprehensive'} coverage.
 `;
 
     const messages: OpenAIMessage[] = [

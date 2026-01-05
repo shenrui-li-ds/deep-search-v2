@@ -343,6 +343,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Filter out failed extractions
         let validExtractions = extractions.filter(e => e && e.aspect);
 
+        // Track gap descriptions for synthesizer
+        let gapDescriptions: string[] = [];
+
         // Deep Research: Gap Analysis + Round 2
         if (deep && validExtractions.length > 0) {
           setLoadingStage('analyzing_gaps');
@@ -367,6 +370,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           if (gapData.hasGaps && gapData.gaps.length > 0) {
             // Store gaps for UI display
             setResearchGaps(gapData.gaps);
+
+            // Extract gap descriptions for synthesizer prompt
+            gapDescriptions = gapData.gaps.map((gap: ResearchGap) => gap.gap);
 
             // Round 2: Execute searches for identified gaps
             setLoadingStage('deepening');
@@ -500,7 +506,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             extractedData: validExtractions.length > 0 ? validExtractions : undefined,
             aspectResults: validExtractions.length === 0 ? aspectResults : undefined, // Fallback to raw results
             stream: true,
-            provider
+            provider,
+            deep,
+            gapDescriptions
           }),
           signal: abortController.signal
         });

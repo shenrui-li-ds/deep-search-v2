@@ -157,6 +157,7 @@ export function generateCacheKey(
     content?: string;
     aspectResults?: { aspect: string; query: string; results: { url: string }[] }[];
     angleResults?: { angle: string; query: string; results: { url: string }[] }[];
+    deep?: boolean; // For deep research mode
   }
 ): string {
   const normalizedQuery = params.query.toLowerCase().trim();
@@ -185,14 +186,15 @@ export function generateCacheKey(
       return `plan:${md5(normalizedQuery)}:${params.provider || 'default'}`;
 
     case 'research-synthesis':
-      // Research synthesis: query + aspect results hash (includes all source URLs)
+      // Research synthesis: query + aspect results hash (includes all source URLs) + deep mode
       const aspectHash = params.aspectResults
         ? md5(JSON.stringify(params.aspectResults.map(a => ({
             aspect: a.aspect,
             urls: a.results.map(r => r.url).sort()
           }))))
         : 'noaspects';
-      return `research-synth:${md5(normalizedQuery)}:${aspectHash}:${params.provider || 'default'}`;
+      const depthMode = params.deep ? 'deep' : 'standard';
+      return `research-synth:${md5(normalizedQuery)}:${aspectHash}:${params.provider || 'default'}:${depthMode}`;
 
     case 'brainstorm-synthesis':
       // Brainstorm synthesis: query + angle results hash (includes all source URLs)
