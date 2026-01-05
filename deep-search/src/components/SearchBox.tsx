@@ -31,12 +31,12 @@ const searchModes = [
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
-  ), description: 'Quick web search with AI summary' },
+  ), description: 'Fast answers to everyday questions' },
   { id: 'pro' as SearchMode, label: 'Research', shortLabel: 'Research', icon: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
-  ), description: 'Multi-angle comprehensive research' },
+  ), description: 'Multi-angle in-depth research' },
   { id: 'brainstorm' as SearchMode, label: 'Brainstorm', shortLabel: 'Brainstorm', icon: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -125,6 +125,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [isFocused, setIsFocused] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>(defaultMode);
   const [selectedModel, setSelectedModel] = useState<ModelId>(defaultProvider);
+  const [deepMode, setDeepMode] = useState(false);
   const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const router = useRouter();
@@ -182,6 +183,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       provider: selectedModel,
       mode: searchMode
     });
+    // Add deep param only when enabled for Research mode
+    if (searchMode === 'pro' && deepMode) {
+      searchParams.set('deep', 'true');
+    }
     router.push(`/search?${searchParams.toString()}`);
 
     // Reset after a short delay to handle back navigation
@@ -197,6 +202,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       provider: selectedModel,
       mode: searchMode
     });
+    // Add deep param only when enabled for Research mode
+    if (searchMode === 'pro' && deepMode) {
+      params.set('deep', 'true');
+    }
     return `/search?${params.toString()}`;
   };
 
@@ -226,22 +235,61 @@ const SearchBox: React.FC<SearchBoxProps> = ({
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
             {/* Left side - Search Mode Toggle */}
-            {/* Desktop: Inline toggle buttons */}
-            <div className="hidden sm:flex items-center bg-[var(--card)] rounded-lg p-0.5">
-              {searchModes.map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => setSearchMode(mode.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    searchMode === mode.id
-                      ? 'bg-[var(--background)] text-[var(--text-primary)] shadow-sm'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                  }`}
-                >
-                  {mode.icon}
-                  <span>{mode.label}</span>
-                </button>
-              ))}
+            {/* Desktop: Icon-only toggle buttons with tooltips */}
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="flex items-center bg-[var(--card)] rounded-lg p-0.5 gap-0.5">
+                {searchModes.map((mode) => (
+                  <Tooltip key={mode.id}>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setSearchMode(mode.id)}
+                        className={`flex items-center justify-center w-8 h-8 rounded-md transition-all ${
+                          searchMode === mode.id
+                            ? 'bg-[var(--background)] text-[var(--text-primary)] shadow-sm'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                        }`}
+                      >
+                        {mode.icon}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="font-medium">{mode.label}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{mode.description}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+
+              {/* Deep Research toggle - only visible when Research mode is selected */}
+              {searchMode === 'pro' && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setDeepMode(!deepMode)}
+                      className="flex items-center gap-2 h-9 bg-[var(--card)] rounded-lg px-2.5 pr-1.5 transition-all"
+                    >
+                      {/* Deep Mode text */}
+                      <span className={`text-xs font-medium transition-colors ${
+                        deepMode ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'
+                      }`}>
+                        Deep
+                      </span>
+                      {/* Toggle switch */}
+                      <div className={`w-8 h-5 rounded-full p-0.5 transition-colors ${
+                        deepMode ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+                      }`}>
+                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                          deepMode ? 'translate-x-3' : 'translate-x-0'
+                        }`} />
+                      </div>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-[220px]">
+                    <p className="font-medium">Deep Research</p>
+                    <p className="text-xs text-[var(--text-muted)]">Multi-round research with gap analysis for comprehensive coverage (8 credits)</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
 
             {/* Mobile: Separate mode and model selector buttons */}
@@ -253,6 +301,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
               >
                 {currentMode?.icon}
                 <span className="text-xs font-medium">{currentMode?.shortLabel}</span>
+                {/* Show deep indicator when Research + Deep mode is enabled */}
+                {searchMode === 'pro' && deepMode && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span>
+                )}
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -419,7 +471,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
               key={mode.id}
               onClick={() => {
                 setSearchMode(mode.id);
-                setIsModeSheetOpen(false);
+                // Don't close sheet if selecting Research - allow user to toggle deep mode
+                if (mode.id !== 'pro') {
+                  setIsModeSheetOpen(false);
+                }
               }}
               className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg transition-colors ${
                 searchMode === mode.id
@@ -445,6 +500,53 @@ const SearchBox: React.FC<SearchBoxProps> = ({
               )}
             </button>
           ))}
+
+          {/* Deep Research toggle - shown when Research mode is selected */}
+          {searchMode === 'pro' && (
+            <div className="mt-4 pt-4 border-t border-[var(--border)]">
+              <button
+                onClick={() => {
+                  setDeepMode(!deepMode);
+                }}
+                className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                  deepMode
+                    ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
+                    : 'bg-[var(--card)] border-2 border-transparent'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    deepMode ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
+                  }`}>
+                    {/* Brain icon for deep thinking (filled) */}
+                    <svg className="w-4 h-4" viewBox="0 -960 960 960" fill="currentColor">
+                      <path d="M390-120q-51 0-88-35.5T260-241q-60-8-100-53t-40-106q0-21 5.5-41.5T142-480q-11-18-16.5-38t-5.5-42q0-61 40-105.5t99-52.5q3-51 41-86.5t90-35.5q26 0 48.5 10t41.5 27q18-17 41-27t49-10q52 0 89.5 35t40.5 86q59 8 99.5 53T840-560q0 22-5.5 42T818-480q11 18 16.5 38.5T840-400q0 62-40.5 106.5T699-241q-5 50-41.5 85.5T570-120q-25 0-48.5-9.5T480-156q-19 17-42 26.5t-48 9.5Zm130-590v460q0 21 14.5 35.5T570-200q20 0 34.5-16t15.5-36q-21-8-38.5-21.5T550-306q-10-14-7.5-30t16.5-26q14-10 30-7.5t26 16.5q11 16 28 24.5t37 8.5q33 0 56.5-23.5T760-400q0-5-.5-10t-2.5-10q-17 10-36.5 15t-40.5 5q-17 0-28.5-11.5T640-440q0-17 11.5-28.5T680-480q33 0 56.5-23.5T760-560q0-33-23.5-56T680-640q-11 18-28.5 31.5T613-587q-16 6-31-1t-20-23q-5-16 1.5-31t22.5-20q15-5 24.5-18t9.5-30q0-21-14.5-35.5T570-760q-21 0-35.5 14.5T520-710Zm-80 460v-460q0-21-14.5-35.5T390-760q-21 0-35.5 14.5T340-710q0 16 9 29.5t24 18.5q16 5 23 20t2 31q-6 16-21 23t-31 1q-21-8-38.5-21.5T279-640q-32 1-55.5 24.5T200-560q0 33 23.5 56.5T280-480q17 0 28.5 11.5T320-440q0 17-11.5 28.5T280-400q-21 0-40.5-5T203-420q-2 5-2.5 10t-.5 10q0 33 23.5 56.5T280-320q20 0 37-8.5t28-24.5q10-14 26-16.5t30 7.5q14 10 16.5 26t-7.5 30q-14 19-32 33t-39 22q1 20 16 35.5t35 15.5q21 0 35.5-14.5T440-250Zm40-230Z" />
+                    </svg>
+                  </div>
+                  <div className="text-left">
+                    <div className={`font-medium ${deepMode ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
+                      Deep Research
+                    </div>
+                    <div className="text-xs text-[var(--text-muted)]">Multi-round research with gap analysis (8 credits)</div>
+                  </div>
+                </div>
+                {/* Toggle switch */}
+                <div className={`w-10 h-6 rounded-full p-0.5 transition-colors ${
+                  deepMode ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
+                }`}>
+                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                    deepMode ? 'translate-x-4' : 'translate-x-0'
+                  }`}></div>
+                </div>
+              </button>
+              <button
+                onClick={() => setIsModeSheetOpen(false)}
+                className="w-full mt-3 py-2.5 rounded-lg bg-[var(--accent)] text-white font-medium"
+              >
+                Done
+              </button>
+            </div>
+          )}
         </div>
       </MobileBottomSheet>
 

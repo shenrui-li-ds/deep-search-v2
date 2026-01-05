@@ -34,6 +34,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   // Research thinking state
   const [queryType, setQueryType] = useState<QueryType | null>(null);
   const [researchPlan, setResearchPlan] = useState<ResearchPlanItem[] | null>(null);
+  const [suggestedDepth, setSuggestedDepth] = useState<'standard' | 'deep' | null>(null);
   // Brainstorm thinking state
   const [brainstormAngles, setBrainstormAngles] = useState<{ angle: string; query: string }[] | null>(null);
   // Web search thinking state
@@ -173,12 +174,15 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       // Reset research thinking state
       setQueryType(null);
       setResearchPlan(null);
+      setSuggestedDepth(null);
 
       let reservationId: string | undefined;
       let tavilyQueryCount = 0;
 
       try {
         // Step 1: Create research plan and check limits in parallel
+        // Use 'deep' mode for credit check if deep research is enabled
+        const creditMode = deep ? 'deep' : 'pro';
         const [planResponse, limitCheck] = await Promise.all([
           fetch('/api/research/plan', {
             method: 'POST',
@@ -189,7 +193,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           fetch('/api/check-limit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'pro' })
+            body: JSON.stringify({ mode: creditMode })
           }).then(res => res.json())
         ]);
 
@@ -215,6 +219,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Store research thinking state for UI display
         if (planData.queryType) {
           setQueryType(planData.queryType);
+        }
+        if (planData.suggestedDepth) {
+          setSuggestedDepth(planData.suggestedDepth);
         }
         setResearchPlan(plan);
 
@@ -1028,6 +1035,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       relatedSearches={relatedSearches}
       provider={provider}
       mode={mode}
+      deep={deep}
       loadingStage={loadingStage}
       isLoading={false}
       isSearching={isSearching}
@@ -1039,6 +1047,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       onToggleBookmark={handleToggleBookmark}
       queryType={queryType}
       researchPlan={researchPlan}
+      suggestedDepth={suggestedDepth}
       brainstormAngles={brainstormAngles}
       searchIntent={searchIntent}
       refinedQuery={refinedQuery}

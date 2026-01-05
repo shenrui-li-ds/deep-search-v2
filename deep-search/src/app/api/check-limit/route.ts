@@ -10,7 +10,7 @@ import { MAX_CREDITS } from '@/lib/supabase/database';
  * 2. Credit reservation (billing) - reserves max credits, actual charged on finalize
  *
  * Request body:
- * - mode: 'web' | 'pro' | 'brainstorm' - search mode (determines max credits)
+ * - mode: 'web' | 'pro' | 'deep' | 'brainstorm' - search mode (determines max credits)
  *
  * Returns:
  * - allowed: boolean - whether the search is allowed
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     try {
       const body = await request.json();
       const requestedMode = body.mode;
-      if (requestedMode === 'web' || requestedMode === 'pro' || requestedMode === 'brainstorm') {
+      if (requestedMode === 'web' || requestedMode === 'pro' || requestedMode === 'deep' || requestedMode === 'brainstorm') {
         mode = requestedMode;
       }
     } catch {

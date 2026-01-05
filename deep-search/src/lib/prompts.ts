@@ -221,7 +221,7 @@ export const proofreadParagraphPrompt = () => `
 export const researchRouterPrompt = (query: string) => `
 <researchRouter>
     <description>
-        Classify the user's research query into ONE category to route to the appropriate research strategy.
+        Classify the user's research query into a category and suggest research depth.
     </description>
     <query>${query}</query>
     <categories>
@@ -233,26 +233,29 @@ export const researchRouterPrompt = (query: string) => `
         <category id="finance">Stocks, investments, market analysis, financial metrics, company financials</category>
         <category id="general">Everything else - news, people, events, general knowledge</category>
     </categories>
+    <depthCriteria>
+        <depth id="standard">Simple questions, quick lookups, single-aspect topics, straightforward comparisons</depth>
+        <depth id="deep">Complex multi-part questions, academic/technical deep dives, comprehensive analyses, topics with many angles, explicit requests for "thorough/comprehensive/in-depth/detailed" coverage</depth>
+    </depthCriteria>
     <rules>
-        <rule>Output ONLY the category id (one word)</rule>
+        <rule>Output a JSON object with "category" and "suggestedDepth"</rule>
         <rule>Choose the MOST specific category that fits</rule>
-        <rule>When in doubt between categories, prefer "general"</rule>
+        <rule>Suggest "deep" only for genuinely complex queries requiring multi-round research</rule>
+        <rule>When in doubt, prefer "standard" depth</rule>
     </rules>
     <examples>
-        <example input="best hiking camera bag 30L">shopping</example>
-        <example input="things to do in Cozumel Mexico">travel</example>
-        <example input="hiking watches under 45mm with offline maps">technical</example>
-        <example input="quantum entanglement research papers">academic</example>
-        <example input="how does HTTPS encryption work">explanatory</example>
-        <example input="NVIDIA stock analysis 2024">finance</example>
-        <example input="what happened at CES 2025">general</example>
-        <example input="iPhone 16 vs Samsung S24">shopping</example>
-        <example input="Paris 3 day itinerary">travel</example>
-        <example input="机器学习入门教程">explanatory</example>
-        <example input="科苏梅尔有什么好玩的">travel</example>
-        <example input="推荐几款30L相机背包">shopping</example>
+        <example input="best hiking camera bag 30L">{"category": "shopping", "suggestedDepth": "standard"}</example>
+        <example input="comprehensive comparison of hiking watches with offline maps under 45mm">{"category": "technical", "suggestedDepth": "deep"}</example>
+        <example input="things to do in Cozumel Mexico">{"category": "travel", "suggestedDepth": "standard"}</example>
+        <example input="plan a detailed 2 week Japan itinerary covering Tokyo, Kyoto, Osaka with food and culture">{"category": "travel", "suggestedDepth": "deep"}</example>
+        <example input="how does HTTPS encryption work">{"category": "explanatory", "suggestedDepth": "standard"}</example>
+        <example input="in-depth analysis of quantum computing applications in cryptography">{"category": "academic", "suggestedDepth": "deep"}</example>
+        <example input="NVIDIA stock analysis 2024">{"category": "finance", "suggestedDepth": "standard"}</example>
+        <example input="comprehensive NVIDIA analysis including fundamentals, technicals, and competitive landscape">{"category": "finance", "suggestedDepth": "deep"}</example>
+        <example input="机器学习入门教程">{"category": "explanatory", "suggestedDepth": "standard"}</example>
+        <example input="深入分析机器学习在医疗领域的应用和挑战">{"category": "academic", "suggestedDepth": "deep"}</example>
     </examples>
-    <output>Return ONLY the category id, nothing else. No quotes, no explanation.</output>
+    <output>Return ONLY a valid JSON object, no other text. Example: {"category": "technical", "suggestedDepth": "standard"}</output>
 </researchRouter>
 `;
 

@@ -409,7 +409,7 @@ export async function getUserLimits(): Promise<UserLimits | null> {
  *
  * @param mode - Search mode (default: 'web')
  */
-export async function checkSearchLimit(mode: 'web' | 'pro' | 'brainstorm' = 'web'): Promise<{ allowed: boolean; remaining: number; limit: number; reason?: string }> {
+export async function checkSearchLimit(mode: SearchMode = 'web'): Promise<{ allowed: boolean; remaining: number; limit: number; reason?: string }> {
   // Use credit system for checking
   const credits = await getUserCredits();
 
@@ -513,7 +513,7 @@ export async function getApiUsageStats(days = 30): Promise<{
  *
  * @param mode - Search mode to check credits for (default: 'web')
  */
-export async function canPerformSearch(mode: 'web' | 'pro' | 'brainstorm' = 'web'): Promise<{ allowed: boolean; reason?: string }> {
+export async function canPerformSearch(mode: SearchMode = 'web'): Promise<{ allowed: boolean; reason?: string }> {
   // Use the credit system for checking
   const credits = await getUserCredits();
 
@@ -630,11 +630,15 @@ export interface CreditCheckResult {
 export const MAX_CREDITS = {
   web: 1,        // 1 query (always 1)
   pro: 4,        // 3-4 queries (research angles)
+  deep: 8,       // 6-8 queries (deep research with gap analysis)
   brainstorm: 6, // 4-6 queries (creative angles)
 } as const;
 
 // For backwards compatibility
 export const CREDIT_COSTS = MAX_CREDITS;
+
+// Type for search modes (includes deep research)
+export type SearchMode = 'web' | 'pro' | 'deep' | 'brainstorm';
 
 /**
  * Get current credit balances (read-only, no side effects)
@@ -667,7 +671,7 @@ export async function getUserCredits(): Promise<UserCredits | null> {
  * @param mode - The search mode to get credit cost
  * @returns Result with allowed status and remaining credits
  */
-export async function checkAndUseCredits(mode: 'web' | 'pro' | 'brainstorm'): Promise<CreditCheckResult> {
+export async function checkAndUseCredits(mode: SearchMode): Promise<CreditCheckResult> {
   const supabase = createClient();
   const creditsNeeded = CREDIT_COSTS[mode];
 
@@ -693,7 +697,7 @@ export async function checkAndUseCredits(mode: 'web' | 'pro' | 'brainstorm'): Pr
  * Check if user has enough credits without deducting them (preview only)
  * @param mode - The search mode to check
  */
-export async function hasEnoughCredits(mode: 'web' | 'pro' | 'brainstorm'): Promise<{
+export async function hasEnoughCredits(mode: SearchMode): Promise<{
   hasCredits: boolean;
   totalAvailable: number;
   creditsNeeded: number;
