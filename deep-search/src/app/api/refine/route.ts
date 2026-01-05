@@ -8,7 +8,36 @@ import { createClient } from '@/lib/supabase/server';
 // Response type for caching
 interface RefineResponse {
   refinedQuery: string;
+  searchIntent?: string;
   cached?: boolean;
+}
+
+// Parse LLM response - handles both JSON format and plain text fallback
+function parseRefineResponse(response: string, originalQuery: string): { refinedQuery: string; searchIntent?: string } {
+  const trimmed = response.trim();
+
+  // Try to parse as JSON first
+  try {
+    // Handle potential markdown code blocks
+    let jsonStr = trimmed;
+    const jsonMatch = jsonStr.match(/```(?:json)?\\s*([\\s\\S]*?)```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1].trim();
+    }
+
+    const parsed = JSON.parse(jsonStr);
+    if (parsed.query && typeof parsed.query === 'string') {
+      return {
+        refinedQuery: parsed.query,
+        searchIntent: parsed.intent || undefined
+      };
+    }
+  } catch {
+    // Not valid JSON, treat as plain text refined query (backward compatibility)
+  }
+
+  // Fallback: treat entire response as refined query
+  return { refinedQuery: trimmed || originalQuery };
 }
 
 export async function POST(req: NextRequest) {
@@ -60,9 +89,10 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: prompt }
       ];
 
-      const refinedQuery = await callLLM(messages, 0.7, false, llmProvider);
+      const llmResponse = await callLLM(messages, 0.7, false, llmProvider);
+      const { refinedQuery, searchIntent } = parseRefineResponse(llmResponse, query);
 
-      const response: RefineResponse = { refinedQuery };
+      const response: RefineResponse = { refinedQuery, searchIntent };
 
       // Cache the response
       await setToCache(cacheKey, 'refine', query, response, llmProvider, supabase);

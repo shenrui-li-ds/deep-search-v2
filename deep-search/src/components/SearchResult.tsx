@@ -95,9 +95,14 @@ interface SearchResultProps {
   // Research thinking state
   queryType?: QueryType | null;
   researchPlan?: ResearchPlanItem[] | null;
+  // Brainstorm thinking state
+  brainstormAngles?: { angle: string; query: string }[] | null;
+  // Web search thinking state
+  searchIntent?: string | null;
+  refinedQuery?: string | null;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null, brainstormAngles = null, searchIntent = null, refinedQuery = null }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
   const [followUpMode, setFollowUpMode] = useState<SearchMode>(mode as SearchMode);
@@ -257,12 +262,37 @@ ${sourcesText}
           </div>
         )}
 
+        {/* Web Search Thinking Panel - shows search intent and refined query */}
+        {mode === 'web' && (searchIntent || refinedQuery) && (
+          <details className="mb-4 border border-[var(--border)] rounded-lg bg-[var(--card)] overflow-hidden" open={loadingStage !== 'complete'}>
+            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-hover)] transition-colors flex items-center gap-2 select-none">
+              <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Search Strategy
+            </summary>
+            <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--background)]">
+              <div className="space-y-2">
+                {searchIntent && (
+                  <p className="text-sm text-[var(--text-secondary)]">{searchIntent}</p>
+                )}
+                {refinedQuery && refinedQuery !== query && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <span className="flex-shrink-0 text-[var(--text-muted)] text-xs">Query:</span>
+                    <span className="text-[var(--text-secondary)] font-mono text-xs bg-[var(--card)] px-2 py-1 rounded">{refinedQuery}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
+        )}
+
         {/* Research Thinking Panel - shows query type and research plan for Research mode */}
         {mode === 'pro' && (queryType || researchPlan) && (
           <details className="mb-4 border border-[var(--border)] rounded-lg bg-[var(--card)] overflow-hidden" open={loadingStage !== 'complete'}>
             <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-hover)] transition-colors flex items-center gap-2 select-none">
               <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
               Research Approach
               {queryType && (
@@ -290,6 +320,39 @@ ${sourcesText}
                   </ul>
                 </div>
               )}
+            </div>
+          </details>
+        )}
+
+        {/* Brainstorm Thinking Panel - shows creative angles for Brainstorm mode */}
+        {mode === 'brainstorm' && brainstormAngles && brainstormAngles.length > 0 && (
+          <details className="mb-4 border border-[var(--border)] rounded-lg bg-[var(--card)] overflow-hidden" open={loadingStage !== 'complete'}>
+            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--card-hover)] transition-colors flex items-center gap-2 select-none">
+              <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              Creative Approach
+              <Badge variant="secondary" className="ml-2 text-xs font-normal">
+                {brainstormAngles.length} angles
+              </Badge>
+            </summary>
+            <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--background)]">
+              <div className="space-y-2">
+                <p className="text-xs text-[var(--text-muted)] mb-2">Exploring inspiration from:</p>
+                <ul className="space-y-1.5">
+                  {brainstormAngles.map((item, index) => (
+                    <li key={index} className="flex items-start gap-2 text-sm">
+                      <span className="flex-shrink-0 w-5 h-5 rounded bg-[var(--accent)]/10 text-[var(--accent)] text-xs flex items-center justify-center font-medium">
+                        {index + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[var(--text-muted)] text-xs capitalize">{item.angle}:</span>
+                        <span className="ml-1 text-[var(--text-secondary)]">{item.query}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </details>
         )}

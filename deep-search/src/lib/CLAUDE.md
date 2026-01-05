@@ -65,7 +65,7 @@ XML-structured prompts for consistent LLM behavior.
 
 | Prompt | Purpose |
 |--------|---------|
-| `refineSearchQueryPrompt(query, date)` | Optimize search query |
+| `refineSearchQueryPrompt(query, date)` | Optimize search query and generate search intent (returns JSON with `intent` and `query` fields) |
 | `summarizeSearchResultsPrompt(query, date)` | Generate cited summary (concise, 2-3 sentences per paragraph) |
 | `proofreadContentPrompt()` | Full content proofreading |
 | `proofreadParagraphPrompt()` | Light paragraph cleanup |

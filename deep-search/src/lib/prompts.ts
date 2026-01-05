@@ -26,28 +26,36 @@ export const refineSearchQueryPrompt = (searchTerm: string, currentDate: string)
     <examples>
         <example>
             <input>Tesla stock</input>
-            <output>Tesla stock price TSLA 2024 2025</output>
+            <intent>Looking up the current Tesla stock price and recent performance</intent>
+            <query>Tesla stock price TSLA 2024 2025</query>
         </example>
         <example>
             <input>best programming language</input>
-            <output>best programming language to learn 2024 2025</output>
+            <intent>Finding recommendations for the best programming languages to learn</intent>
+            <query>best programming language to learn 2024 2025</query>
         </example>
         <example>
             <input>什么是量子计算</input>
-            <output>什么是量子计算 原理 应用</output>
+            <intent>了解量子计算的基本概念和原理</intent>
+            <query>什么是量子计算 原理 应用</query>
+        </example>
+        <example>
+            <input>apple m5 max mac studio release date</input>
+            <intent>Searching for the estimated release date of the Apple M5 Max Mac Studio</intent>
+            <query>apple m5 max mac studio release date rumors 2025 2026</query>
         </example>
         <example>
             <input>How To Make Pasta</input>
-            <output>how to make pasta recipe</output>
-        </example>
-        <example>
-            <input>WHAT IS React</input>
-            <output>what is React javascript library</output>
+            <intent>Finding a recipe for making pasta</intent>
+            <query>how to make pasta recipe</query>
         </example>
     </examples>
     <output>
-        <instruction>Return ONLY the refined query, nothing else</instruction>
-        <instruction>No quotes, no explanations, no prefixes like "Refined query:"</instruction>
+        <instruction>Return a JSON object with two fields: "intent" and "query"</instruction>
+        <instruction>The "intent" field should be a brief, natural description of what you're searching for (same language as input)</instruction>
+        <instruction>The "query" field should be the refined search query</instruction>
+        <instruction>No markdown code blocks, just raw JSON</instruction>
+        <format>{"intent": "...", "query": "..."}</format>
     </output>
 </refineSearchQuery>
 `;

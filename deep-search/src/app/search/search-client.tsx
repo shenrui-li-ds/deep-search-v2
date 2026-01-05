@@ -34,6 +34,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   // Research thinking state
   const [queryType, setQueryType] = useState<QueryType | null>(null);
   const [researchPlan, setResearchPlan] = useState<ResearchPlanItem[] | null>(null);
+  // Brainstorm thinking state
+  const [brainstormAngles, setBrainstormAngles] = useState<{ angle: string; query: string }[] | null>(null);
+  // Web search thinking state
+  const [searchIntent, setSearchIntent] = useState<string | null>(null);
+  const [refinedQuery, setRefinedQuery] = useState<string | null>(null);
   const router = useRouter();
 
   // Ref to track content for batched updates
@@ -459,6 +464,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
       setHistoryEntryId(null);
       setIsBookmarked(false);
+      // Reset brainstorm thinking state
+      setBrainstormAngles(null);
 
       let reservationId: string | undefined;
       let tavilyQueryCount = 0;
@@ -497,6 +504,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         const reframeData = await reframeResponse.json();
         const creativeAngles = reframeData.angles || [{ angle: 'direct', query }];
+
+        // Store brainstorm thinking state for UI display
+        setBrainstormAngles(creativeAngles);
 
         // Step 2: Execute parallel searches for each creative angle
         setLoadingStage('exploring');
@@ -706,6 +716,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setIsTransitioning(false);
       setHistoryEntryId(null);
       setIsBookmarked(false);
+      // Reset web search thinking state
+      setSearchIntent(null);
+      setRefinedQuery(null);
 
       let reservationId: string | undefined;
 
@@ -737,7 +750,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Store reservation ID for finalization
         reservationId = limitCheck.reservationId;
 
-        const refinedQuery = refineResult.refinedQuery || query;
+        const searchQuery = refineResult.refinedQuery || query;
+
+        // Store web search thinking state for UI display
+        if (refineResult.searchIntent) {
+          setSearchIntent(refineResult.searchIntent);
+        }
+        setRefinedQuery(searchQuery);
 
         // Step 2: Perform search via Tavily with refined query
         setLoadingStage('searching');
@@ -746,7 +765,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: refinedQuery,
+            query: searchQuery,
             searchDepth: deep ? 'advanced' : 'basic',
             maxResults: deep ? 15 : 10
           }),
@@ -785,7 +804,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: refinedQuery,
+            query: searchQuery,
             content: `Search results: ${searchContext}`,
             provider
           }),
@@ -1020,6 +1039,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       onToggleBookmark={handleToggleBookmark}
       queryType={queryType}
       researchPlan={researchPlan}
+      brainstormAngles={brainstormAngles}
+      searchIntent={searchIntent}
+      refinedQuery={refinedQuery}
     />
   );
 }

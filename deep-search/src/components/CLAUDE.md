@@ -113,6 +113,9 @@ Main result display component with floating follow-up input.
   onToggleBookmark?: () => void;    // Callback to toggle bookmark status
   queryType?: QueryType | null;     // Research query classification (pro mode only)
   researchPlan?: ResearchPlanItem[] | null;  // Research plan aspects (pro mode only)
+  brainstormAngles?: { angle: string; query: string }[] | null;  // Creative angles (brainstorm mode only)
+  searchIntent?: string | null;     // Search intent description (web mode only)
+  refinedQuery?: string | null;     // Refined search query (web mode only)
 }
 
 type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
@@ -122,7 +125,9 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 
 **Features:**
 - Status banner (shown during all loading stages)
+- **Web Search Thinking Panel** (web mode only, collapsible)
 - **Research Thinking Panel** (pro mode only, collapsible)
+- **Brainstorm Thinking Panel** (brainstorm mode only, collapsible)
 - Tabbed interface (Answer, Links) with Share dropdown
 - Markdown rendering with custom component styling
 - **Superscript citations**: `[1]` → `<sup>1</sup>`, `[1, 2]` → `<sup>1, 2</sup>`
@@ -131,6 +136,21 @@ type LoadingStage = 'searching' | 'summarizing' | 'proofreading' | 'complete'
 - Floating follow-up input with mode selector (both desktop and mobile)
 - Copy/Share functionality
 - Print-to-PDF support via browser print dialog
+
+**Web Search Thinking Panel (Web Mode):**
+
+Collapsible `<details>` section shown in Web Search mode that displays the search intent and refined query.
+
+**Content:**
+- **Search Intent**: Natural language description of what's being searched for
+- **Refined Query**: The optimized search query (shown only if different from original)
+
+**Behavior:**
+- Opens automatically during search (while `loadingStage !== 'complete'`)
+- Collapses automatically when search completes
+- Shows search intent as main text
+- Shows refined query in monospace font if it differs from original
+- Can be manually toggled open/closed by user
 
 **Research Thinking Panel (Pro Mode):**
 
@@ -151,6 +171,27 @@ Collapsible `<details>` section shown in Research mode that displays the query c
 - Collapses automatically when research completes
 - Shows query type badge (e.g., "Shopping Research")
 - Lists research plan aspects with their search queries
+- Can be manually toggled open/closed by user
+
+**Brainstorm Thinking Panel (Brainstorm Mode):**
+
+Collapsible `<details>` section shown in Brainstorm mode that displays the creative angles being explored.
+
+**Creative Angle Domains:**
+The reframe API generates 4-6 unexpected angles from diverse domains:
+- Nature (biomimicry, natural patterns)
+- Games (game mechanics, player engagement)
+- Art/Theater (creative techniques, performance)
+- Sports (team dynamics, training methods)
+- History (historical parallels, past solutions)
+- Contrarian (opposite approaches, why traditional fails)
+
+**Behavior:**
+- Opens automatically during brainstorming (while `loadingStage !== 'complete'`)
+- Collapses automatically when ideation completes
+- Shows angle count badge (e.g., "5 angles")
+- Lists creative angles with their search queries
+- Angle names are capitalized for readability
 - Can be manually toggled open/closed by user
 
 **Action Bar Buttons:**
@@ -324,7 +365,9 @@ MainLayout
     └── SearchClient (in /search)
         └── SearchResult
             ├── Status Banner
+            ├── Web Search Thinking Panel (web mode, collapsible)
             ├── Research Thinking Panel (pro mode, collapsible)
+            ├── Brainstorm Thinking Panel (brainstorm mode, collapsible)
             ├── Tabs (Answer, Links)
             ├── Action Bar
             ├── Related Searches
@@ -340,7 +383,9 @@ MainLayout
     └── SearchClient (in /search)
         └── SearchResult
             ├── Status Banner
+            ├── Web Search Thinking Panel (web mode, collapsible)
             ├── Research Thinking Panel (pro mode, collapsible)
+            ├── Brainstorm Thinking Panel (brainstorm mode, collapsible)
             ├── Tabs (Answer, Links)
             ├── Action Bar
             ├── Related Searches

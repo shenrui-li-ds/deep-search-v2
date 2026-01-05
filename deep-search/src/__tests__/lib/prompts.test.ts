@@ -30,6 +30,22 @@ describe('Prompts', () => {
       expect(prompt).toContain('<rules>');
       expect(prompt).toContain('<examples>');
     });
+
+    it('specifies JSON output format with intent and query', () => {
+      const prompt = refineSearchQueryPrompt('test', 'date');
+      expect(prompt).toContain('JSON object');
+      expect(prompt).toContain('"intent"');
+      expect(prompt).toContain('"query"');
+      expect(prompt).toContain('{"intent": "...", "query": "..."}');
+    });
+
+    it('includes examples with intent field', () => {
+      const prompt = refineSearchQueryPrompt('test', 'date');
+      expect(prompt).toContain('<intent>');
+      expect(prompt).toContain('</intent>');
+      expect(prompt).toContain('Looking up');
+      expect(prompt).toContain('Searching for');
+    });
   });
 
   describe('summarizeSearchResultsPrompt', () => {

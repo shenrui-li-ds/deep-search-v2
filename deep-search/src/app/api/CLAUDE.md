@@ -26,7 +26,7 @@ Wraps the Tavily search API.
 ```
 
 ### `/api/refine` - Query Refinement
-Optionally refines the user's query before search.
+Refines the user's query before search and generates a search intent description.
 
 **Request:**
 ```json
@@ -39,9 +39,17 @@ Optionally refines the user's query before search.
 **Response:**
 ```json
 {
-  "refinedQuery": "improved query"
+  "refinedQuery": "improved query",
+  "searchIntent": "Natural language description of what's being searched for"
 }
 ```
+
+**Features:**
+- Generates a human-readable search intent for the thinking UI
+- Optimizes query for better search results
+- Preserves original language (Chinese → Chinese, English → English)
+- Results are cached (48 hours)
+- Falls back to original query if parsing fails
 
 ### `/api/summarize` - LLM Summarization
 Streams an LLM-generated summary of search results.
