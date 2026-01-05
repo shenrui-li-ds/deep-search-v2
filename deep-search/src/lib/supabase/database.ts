@@ -278,37 +278,31 @@ export async function getUserLimits(): Promise<UserLimits | null> {
   return data;
 }
 
-export async function checkSearchLimit(): Promise<{ allowed: boolean; remaining: number; limit: number; reason?: string }> {
-  const supabase = createClient();
+/**
+ * Check if user has credits available for a search.
+ *
+ * @deprecated Use /api/check-limit endpoint instead for actual billing.
+ * This function provides a client-side preview only.
+ *
+ * @param mode - Search mode (default: 'web')
+ */
+export async function checkSearchLimit(mode: 'web' | 'pro' | 'brainstorm' = 'web'): Promise<{ allowed: boolean; remaining: number; limit: number; reason?: string }> {
+  // Use credit system for checking
+  const credits = await getUserCredits();
 
-  // Call the database function to check and increment
-  const { data, error } = await supabase.rpc('check_and_increment_search');
-
-  if (error) {
-    console.error('Error checking search limit:', error);
-    // On error, allow the search but log it
+  if (!credits) {
+    // Can't check credits - allow (server will enforce)
     return { allowed: true, remaining: -1, limit: -1 };
   }
 
-  // Get updated limits
-  const limits = await getUserLimits();
-  const allowed = data === true;
-
-  // Determine reason if not allowed
-  let reason: string | undefined;
-  if (!allowed && limits) {
-    if (limits.daily_searches_used >= limits.daily_search_limit) {
-      reason = `Daily search limit reached (${limits.daily_search_limit} searches). Resets at midnight.`;
-    } else if (limits.monthly_searches_used >= limits.monthly_search_limit) {
-      reason = `Monthly search limit reached (${limits.monthly_search_limit} searches). Resets on the 1st.`;
-    }
-  }
+  const creditsNeeded = CREDIT_COSTS[mode];
+  const allowed = credits.total_available >= creditsNeeded;
 
   return {
     allowed,
-    remaining: limits ? limits.daily_search_limit - limits.daily_searches_used : 0,
-    limit: limits?.daily_search_limit || 50,
-    reason,
+    remaining: credits.total_available,
+    limit: credits.monthly_free_credits,
+    reason: allowed ? undefined : `You need ${creditsNeeded} credits but only have ${credits.total_available}. Purchase more credits to continue.`,
   };
 }
 
@@ -388,34 +382,29 @@ export async function getApiUsageStats(days = 30): Promise<{
 // GUARD RAILS - Check if user can perform actions
 // ============================================
 
-export async function canPerformSearch(): Promise<{ allowed: boolean; reason?: string }> {
-  const limits = await getUserLimits();
+/**
+ * Check if user can perform a search (client-side preview).
+ *
+ * Note: This is a preview check only. The actual billing/limit enforcement
+ * is done server-side by /api/check-limit using the credit system.
+ *
+ * @param mode - Search mode to check credits for (default: 'web')
+ */
+export async function canPerformSearch(mode: 'web' | 'pro' | 'brainstorm' = 'web'): Promise<{ allowed: boolean; reason?: string }> {
+  // Use the credit system for checking
+  const credits = await getUserCredits();
 
-  if (!limits) {
-    // New user or limits not set up yet - allow
+  if (!credits) {
+    // Can't check credits - allow (server will enforce)
     return { allowed: true };
   }
 
-  // Reset daily counter if needed (client-side check)
-  const today = new Date().toISOString().split('T')[0];
-  if (limits.last_daily_reset < today) {
-    // The database function will handle the reset
-    return { allowed: true };
-  }
+  const creditsNeeded = CREDIT_COSTS[mode];
 
-  // Check daily limit
-  if (limits.daily_searches_used >= limits.daily_search_limit) {
+  if (credits.total_available < creditsNeeded) {
     return {
       allowed: false,
-      reason: `Daily search limit reached (${limits.daily_search_limit} searches). Resets at midnight.`,
-    };
-  }
-
-  // Check monthly token limit
-  if (limits.monthly_tokens_used >= limits.monthly_token_limit) {
-    return {
-      allowed: false,
-      reason: `Monthly token limit reached (${limits.monthly_token_limit.toLocaleString()} tokens). Resets on the 1st.`,
+      reason: `You need ${creditsNeeded} credits but only have ${credits.total_available}. Purchase more credits to continue.`,
     };
   }
 
@@ -626,6 +615,8 @@ export async function getPurchaseHistory(limit = 50): Promise<CreditPurchase[]> 
 
 export interface UsageStats {
   totalSearches: number;
+  todaySearches: number;
+  thisMonthSearches: number;
   byMode: { mode: string; count: number }[];
   byProvider: { provider: string; count: number }[];
   last30Days: { date: string; count: number }[];
@@ -653,10 +644,16 @@ export async function getUsageStats(days = 30): Promise<UsageStats> {
 
   const records = data || [];
 
-  // Count by mode
+  // Get today's date string and current month
+  const today = new Date().toISOString().split('T')[0];
+  const currentMonth = today.slice(0, 7); // YYYY-MM format
+
+  // Count by mode, provider, and time periods
   const modeCount: Record<string, number> = {};
   const providerCount: Record<string, number> = {};
   const dailyCount: Record<string, number> = {};
+  let todaySearches = 0;
+  let thisMonthSearches = 0;
 
   records.forEach((record) => {
     // Mode counts
@@ -668,6 +665,16 @@ export async function getUsageStats(days = 30): Promise<UsageStats> {
     // Daily counts
     const date = new Date(record.created_at).toISOString().split('T')[0];
     dailyCount[date] = (dailyCount[date] || 0) + 1;
+
+    // Today's count
+    if (date === today) {
+      todaySearches++;
+    }
+
+    // This month's count
+    if (date.startsWith(currentMonth)) {
+      thisMonthSearches++;
+    }
   });
 
   // Convert to arrays and sort
@@ -690,6 +697,8 @@ export async function getUsageStats(days = 30): Promise<UsageStats> {
 
   return {
     totalSearches: records.length,
+    todaySearches,
+    thisMonthSearches,
     byMode,
     byProvider,
     last30Days,

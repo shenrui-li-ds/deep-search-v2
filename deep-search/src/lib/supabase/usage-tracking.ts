@@ -68,6 +68,9 @@ export function estimateTokens(text: string): number {
 /**
  * Check if user can make an API request (server-side).
  * Returns true if within limits, false if limit exceeded.
+ *
+ * Note: Search count limits are now handled by the credit system (/api/check-limit).
+ * This function only checks token limits as a safety net for excessive token usage.
  */
 export async function checkServerUsageLimits(): Promise<{ allowed: boolean; reason?: string }> {
   try {
@@ -83,7 +86,7 @@ export async function checkServerUsageLimits(): Promise<{ allowed: boolean; reas
     // Get user limits
     const { data: limits, error } = await supabase
       .from('user_limits')
-      .select('*')
+      .select('monthly_tokens_used, monthly_token_limit')
       .eq('user_id', user.id)
       .single();
 
@@ -92,21 +95,8 @@ export async function checkServerUsageLimits(): Promise<{ allowed: boolean; reas
       return { allowed: true };
     }
 
-    // Check daily search limit
-    const today = new Date().toISOString().split('T')[0];
-    if (limits.last_daily_reset < today) {
-      // Reset happened, counters are stale on client - allow
-      return { allowed: true };
-    }
-
-    if (limits.daily_searches_used >= limits.daily_search_limit) {
-      return {
-        allowed: false,
-        reason: `Daily search limit reached (${limits.daily_search_limit} searches). Resets at midnight.`
-      };
-    }
-
-    // Check monthly token limit
+    // Check monthly token limit (safety net for excessive token usage)
+    // Note: Search limits are now enforced by the credit system, not here
     if (limits.monthly_tokens_used >= limits.monthly_token_limit) {
       return {
         allowed: false,

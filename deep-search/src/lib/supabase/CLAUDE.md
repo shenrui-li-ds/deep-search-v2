@@ -98,9 +98,9 @@ Client-side database operations for search history and usage limits.
 
 | Function | Description |
 |----------|-------------|
-| `getUserLimits()` | Get user's current limits and usage |
-| `checkSearchLimit()` | Check and increment search count |
-| `canPerformSearch()` | Check if user can search (client-side) |
+| `getUserLimits()` | Get user's current limits and usage (token tracking) |
+| `checkSearchLimit(mode?)` | Check if user has credits available (deprecated, use /api/check-limit) |
+| `canPerformSearch(mode?)` | Check if user can search based on credits (client-side preview) |
 
 **User Preferences:**
 
@@ -138,7 +138,7 @@ Client-side database operations for search history and usage limits.
 
 | Function | Description |
 |----------|-------------|
-| `getUsageStats(days)` | Get usage breakdown by mode, provider, and daily activity |
+| `getUsageStats(days)` | Get usage breakdown by mode, provider, daily activity, today's count, and this month's count |
 
 **Types:**
 ```typescript
@@ -212,6 +212,8 @@ interface CreditPurchase {
 
 interface UsageStats {
   totalSearches: number;
+  todaySearches: number;
+  thisMonthSearches: number;
   byMode: { mode: string; count: number }[];
   byProvider: { provider: string; count: number }[];
   last30Days: { date: string; count: number }[];
@@ -245,7 +247,7 @@ trackServerApiUsage({
 |----------|-------------|
 | `trackServerApiUsage(record)` | Record token usage |
 | `estimateTokens(text)` | Estimate tokens (4 chars ≈ 1 token) |
-| `checkServerUsageLimits()` | Server-side limit check |
+| `checkServerUsageLimits()` | Server-side token limit check (search limits handled by credit system) |
 
 ## Database Schema
 

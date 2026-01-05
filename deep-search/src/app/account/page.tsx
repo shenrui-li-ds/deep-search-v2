@@ -1544,17 +1544,15 @@ function UsageTab() {
           <p className="text-2xl font-bold text-[var(--text-primary)]">{stats?.totalSearches.toLocaleString() || 0}</p>
         </div>
         <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-          <p className="text-xs text-[var(--text-muted)] mb-1">Daily Searches</p>
+          <p className="text-xs text-[var(--text-muted)] mb-1">Today&apos;s Searches</p>
           <p className="text-2xl font-bold text-[var(--text-primary)]">
-            {limits?.daily_searches_used || 0}
-            <span className="text-sm font-normal text-[var(--text-muted)]"> / {limits?.daily_search_limit || 50}</span>
+            {stats?.todaySearches || 0}
           </p>
         </div>
         <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-          <p className="text-xs text-[var(--text-muted)] mb-1">Monthly Searches</p>
+          <p className="text-xs text-[var(--text-muted)] mb-1">This Month</p>
           <p className="text-2xl font-bold text-[var(--text-primary)]">
-            {limits?.monthly_searches_used || 0}
-            <span className="text-sm font-normal text-[var(--text-muted)]"> / {limits?.monthly_search_limit || 1000}</span>
+            {stats?.thisMonthSearches || 0}
           </p>
         </div>
         <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
@@ -1599,38 +1597,19 @@ function UsageTab() {
         </div>
       </div>
 
-      {/* Daily Usage Bars */}
+      {/* Token Usage Bars */}
       <div>
-        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Daily Limits</h2>
+        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Token Usage</h2>
         <div className="space-y-4">
           <UsageProgressBar
-            label="Searches"
-            used={limits?.daily_searches_used || 0}
-            limit={limits?.daily_search_limit || 50}
-            resetText="Resets daily at midnight"
-          />
-          <UsageProgressBar
-            label="Tokens"
+            label="Daily Tokens"
             used={limits?.daily_tokens_used || 0}
             limit={limits?.daily_token_limit || 100000}
             resetText="Resets daily at midnight"
             formatValue={formatNumber}
           />
-        </div>
-      </div>
-
-      {/* Monthly Usage Bars */}
-      <div>
-        <h2 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Monthly Limits</h2>
-        <div className="space-y-4">
           <UsageProgressBar
-            label="Searches"
-            used={limits?.monthly_searches_used || 0}
-            limit={limits?.monthly_search_limit || 1000}
-            resetText="Resets on the 1st of each month"
-          />
-          <UsageProgressBar
-            label="Tokens"
+            label="Monthly Tokens"
             used={limits?.monthly_tokens_used || 0}
             limit={limits?.monthly_token_limit || 500000}
             resetText="Resets on the 1st of each month"

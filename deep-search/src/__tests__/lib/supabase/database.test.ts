@@ -393,10 +393,11 @@ describe('Supabase Database Functions', () => {
   });
 
   describe('canPerformSearch', () => {
-    it('should return allowed true if user has no limits record', async () => {
-      mockSupabaseClient.single.mockResolvedValueOnce({
+    it('should return allowed true if credits cannot be fetched', async () => {
+      // Mock getUserCredits returning null (RPC returns error)
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: null,
-        error: { code: 'PGRST116' },
+        error: { code: '42883' },
       });
 
       const result = await canPerformSearch();
@@ -404,75 +405,60 @@ describe('Supabase Database Functions', () => {
       expect(result).toEqual({ allowed: true });
     });
 
-    it('should return allowed false if daily limit reached', async () => {
-      const mockLimits = {
-        user_id: mockUser.id,
-        daily_search_limit: 50,
-        daily_searches_used: 50,
-        daily_token_limit: 100000,
-        daily_tokens_used: 5000,
-        monthly_search_limit: 1000,
-        monthly_searches_used: 100,
-        monthly_token_limit: 500000,
-        monthly_tokens_used: 100000,
-        last_daily_reset: new Date().toISOString().split('T')[0], // Today
-        last_monthly_reset: '2024-01-01',
+    it('should return allowed false if not enough credits for web mode', async () => {
+      const mockCredits = {
+        monthly_free_credits: 1000,
+        free_credits_used: 1000,
+        free_credits_remaining: 0,
+        purchased_credits: 0,
+        total_available: 0,
+        days_until_reset: 15,
       };
 
-      mockSupabaseClient.single.mockResolvedValueOnce({
-        data: mockLimits,
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: mockCredits,
         error: null,
       });
 
-      const result = await canPerformSearch();
+      const result = await canPerformSearch('web');
 
       expect(result.allowed).toBe(false);
-      expect(result.reason).toContain('Daily search limit reached');
+      expect(result.reason).toContain('credits');
     });
 
-    it('should return allowed false if monthly token limit reached', async () => {
-      const mockLimits = {
-        user_id: mockUser.id,
-        daily_search_limit: 50,
-        daily_searches_used: 10,
-        daily_token_limit: 100000,
-        daily_tokens_used: 5000,
-        monthly_search_limit: 1000,
-        monthly_searches_used: 100,
-        monthly_token_limit: 500000,
-        monthly_tokens_used: 500000, // At limit
-        last_daily_reset: new Date().toISOString().split('T')[0],
-        last_monthly_reset: '2024-01-01',
+    it('should return allowed false if not enough credits for pro mode', async () => {
+      const mockCredits = {
+        monthly_free_credits: 1000,
+        free_credits_used: 998,
+        free_credits_remaining: 2,
+        purchased_credits: 0,
+        total_available: 2, // Pro mode needs 4
+        days_until_reset: 15,
       };
 
-      mockSupabaseClient.single.mockResolvedValueOnce({
-        data: mockLimits,
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: mockCredits,
         error: null,
       });
 
-      const result = await canPerformSearch();
+      const result = await canPerformSearch('pro');
 
       expect(result.allowed).toBe(false);
-      expect(result.reason).toContain('Monthly token limit reached');
+      expect(result.reason).toContain('4 credits');
     });
 
-    it('should return allowed true if under all limits', async () => {
-      const mockLimits = {
-        user_id: mockUser.id,
-        daily_search_limit: 50,
-        daily_searches_used: 10,
-        daily_token_limit: 100000,
-        daily_tokens_used: 5000,
-        monthly_search_limit: 1000,
-        monthly_searches_used: 100,
-        monthly_token_limit: 500000,
-        monthly_tokens_used: 100000,
-        last_daily_reset: new Date().toISOString().split('T')[0],
-        last_monthly_reset: '2024-01-01',
+    it('should return allowed true if enough credits available', async () => {
+      const mockCredits = {
+        monthly_free_credits: 1000,
+        free_credits_used: 100,
+        free_credits_remaining: 900,
+        purchased_credits: 0,
+        total_available: 900,
+        days_until_reset: 15,
       };
 
-      mockSupabaseClient.single.mockResolvedValueOnce({
-        data: mockLimits,
+      mockSupabaseClient.rpc.mockResolvedValueOnce({
+        data: mockCredits,
         error: null,
       });
 
@@ -521,7 +507,7 @@ describe('Supabase Database Functions', () => {
 
       expect(result).toEqual({
         user_id: mockUser.id,
-        default_provider: 'deepseek',
+        default_provider: 'gemini',
         default_mode: 'web',
       });
     });
@@ -640,8 +626,8 @@ describe('Supabase Database Functions', () => {
   describe('CREDIT_COSTS', () => {
     it('should have correct credit costs for each mode', () => {
       expect(CREDIT_COSTS.web).toBe(1);
-      expect(CREDIT_COSTS.pro).toBe(3);
-      expect(CREDIT_COSTS.brainstorm).toBe(3);
+      expect(CREDIT_COSTS.pro).toBe(4);
+      expect(CREDIT_COSTS.brainstorm).toBe(6);
     });
   });
 
@@ -678,13 +664,14 @@ describe('Supabase Database Functions', () => {
       expect(result).toBeNull();
     });
 
-    it('should throw error if RPC fails', async () => {
+    it('should return null if RPC fails', async () => {
       (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
         data: null,
         error: { message: 'Database error' },
       });
 
-      await expect(getUserCredits()).rejects.toEqual({ message: 'Database error' });
+      const result = await getUserCredits();
+      expect(result).toBeNull();
     });
   });
 
@@ -711,13 +698,13 @@ describe('Supabase Database Functions', () => {
       expect(result).toEqual(mockResult);
     });
 
-    it('should check and use credits for pro mode (3 credits)', async () => {
+    it('should check and use credits for pro mode (4 credits)', async () => {
       const mockResult = {
         allowed: true,
         source: 'purchased',
-        credits_used: 3,
+        credits_used: 4,
         remaining_free: 0,
-        remaining_purchased: 497,
+        remaining_purchased: 496,
       };
 
       (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
@@ -728,21 +715,21 @@ describe('Supabase Database Functions', () => {
       const result = await checkAndUseCredits('pro');
 
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
-        p_credits_needed: 3,
+        p_credits_needed: 4,
       });
       expect(result).toEqual(mockResult);
     });
 
-    it('should check and use credits for brainstorm mode (3 credits)', async () => {
+    it('should check and use credits for brainstorm mode (6 credits)', async () => {
       (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
-        data: { allowed: true, source: 'free', credits_used: 3, remaining_free: 997, remaining_purchased: 0 },
+        data: { allowed: true, source: 'free', credits_used: 6, remaining_free: 994, remaining_purchased: 0 },
         error: null,
       });
 
       const result = await checkAndUseCredits('brainstorm');
 
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('check_and_use_credits', {
-        p_credits_needed: 3,
+        p_credits_needed: 6,
       });
       expect(result.allowed).toBe(true);
     });
@@ -818,11 +805,11 @@ describe('Supabase Database Functions', () => {
         error: null,
       });
 
-      const result = await hasEnoughCredits('pro'); // Needs 3 credits
+      const result = await hasEnoughCredits('pro'); // Needs 4 credits
 
       expect(result.hasCredits).toBe(false);
       expect(result.totalAvailable).toBe(1);
-      expect(result.creditsNeeded).toBe(3);
+      expect(result.creditsNeeded).toBe(4);
     });
 
     it('should return false if getUserCredits returns null', async () => {
