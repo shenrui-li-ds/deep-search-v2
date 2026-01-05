@@ -530,12 +530,12 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     <div className="text-xs text-[var(--text-muted)]">Multi-round research with gap analysis (8 credits)</div>
                   </div>
                 </div>
-                {/* Toggle switch */}
-                <div className={`w-10 h-6 rounded-full p-0.5 transition-colors ${
+                {/* Toggle switch - absolute positioning for precise control */}
+                <div className={`relative w-[44px] h-[24px] rounded-full transition-colors ${
                   deepMode ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'
                 }`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                    deepMode ? 'translate-x-4' : 'translate-x-0'
+                  <div className={`absolute top-[2px] left-[3px] w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                    deepMode ? 'translate-x-[15px]' : 'translate-x-0'
                   }`}></div>
                 </div>
               </button>

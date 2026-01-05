@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SearchResult, Source, SearchImage } from '@/lib/types';
 import SearchResultComponent from '@/components/SearchResult';
 import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route';
+import type { ResearchGap, AnalyzeGapsResponse } from '@/app/api/research/analyze-gaps/route';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
@@ -17,7 +18,7 @@ interface SearchClientProps {
   deep?: boolean;
 }
 
-type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating';
+type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating' | 'analyzing_gaps' | 'deepening';
 
 export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
@@ -35,6 +36,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [queryType, setQueryType] = useState<QueryType | null>(null);
   const [researchPlan, setResearchPlan] = useState<ResearchPlanItem[] | null>(null);
   const [suggestedDepth, setSuggestedDepth] = useState<'standard' | 'deep' | null>(null);
+  // Deep research state
+  const [researchGaps, setResearchGaps] = useState<ResearchGap[] | null>(null);
   // Brainstorm thinking state
   const [brainstormAngles, setBrainstormAngles] = useState<{ angle: string; query: string }[] | null>(null);
   // Web search thinking state
@@ -175,6 +178,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       setQueryType(null);
       setResearchPlan(null);
       setSuggestedDepth(null);
+      setResearchGaps(null);
 
       let reservationId: string | undefined;
       let tavilyQueryCount = 0;
@@ -337,7 +341,129 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         // Filter out failed extractions
-        const validExtractions = extractions.filter(e => e && e.aspect);
+        let validExtractions = extractions.filter(e => e && e.aspect);
+
+        // Deep Research: Gap Analysis + Round 2
+        if (deep && validExtractions.length > 0) {
+          setLoadingStage('analyzing_gaps');
+
+          // Analyze gaps in round 1 research
+          const gapResponse = await fetch('/api/research/analyze-gaps', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query,
+              extractedData: validExtractions,
+              language: 'English', // TODO: detect language
+              provider
+            }),
+            signal: abortController.signal
+          });
+
+          if (!isActive) return;
+
+          const gapData: AnalyzeGapsResponse = await gapResponse.json();
+
+          if (gapData.hasGaps && gapData.gaps.length > 0) {
+            // Store gaps for UI display
+            setResearchGaps(gapData.gaps);
+
+            // Round 2: Execute searches for identified gaps
+            setLoadingStage('deepening');
+
+            const round2SearchPromises = gapData.gaps.map((gap: ResearchGap) =>
+              fetch('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query: gap.query,
+                  searchDepth: 'advanced',
+                  maxResults: 8 // Slightly fewer per gap search
+                }),
+                signal: abortController.signal
+              }).then(res => res.json()).then(data => ({
+                aspect: `gap_${gap.type}`,
+                query: gap.query,
+                gapDescription: gap.gap,
+                ...data
+              }))
+            );
+
+            const round2Results = await Promise.all(round2SearchPromises);
+
+            if (!isActive) return;
+
+            // Count round 2 Tavily queries (non-cached)
+            const round2QueryCount = round2Results.filter(r => !r.cached).length;
+            tavilyQueryCount += round2QueryCount;
+
+            // Add round 2 sources (deduplicated)
+            const round2AspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
+
+            for (const result of round2Results) {
+              const r2Sources = result.sources || [];
+              const r2RawResults = result.rawResults?.results || [];
+
+              // Add unique sources
+              for (const source of r2Sources) {
+                if (!seenUrls.has(source.url)) {
+                  seenUrls.add(source.url);
+                  allSources.push({
+                    ...source,
+                    id: `s${sourceIndex++}`
+                  });
+                }
+              }
+
+              // Update global source index for new sources
+              for (const r of r2RawResults) {
+                if (!globalSourceIndex[r.url]) {
+                  globalSourceIndex[r.url] = sourceIdx++;
+                }
+              }
+
+              round2AspectResults.push({
+                aspect: result.aspect,
+                query: result.query,
+                results: r2RawResults.map((r: { title: string; url: string; content: string }) => ({
+                  title: r.title,
+                  url: r.url,
+                  content: r.content
+                }))
+              });
+            }
+
+            // Update sources state with round 2 additions
+            setSources([...allSources]);
+
+            // Extract from round 2 results
+            const round2ExtractionPromises = round2AspectResults.map(aspectResult =>
+              fetch('/api/research/extract', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query,
+                  aspectResult,
+                  globalSourceIndex,
+                  provider
+                }),
+                signal: abortController.signal
+              }).then(res => res.json()).then(data => data.extraction)
+            );
+
+            const round2Extractions = await Promise.all(round2ExtractionPromises);
+
+            if (!isActive) return;
+
+            // Merge round 1 and round 2 extractions
+            const validRound2Extractions = round2Extractions.filter(e => e && e.aspect);
+            validExtractions = [...validExtractions, ...validRound2Extractions];
+
+            console.log(`[Deep Research] Round 2 added ${round2Results.length} searches, ${validRound2Extractions.length} extractions`);
+          } else {
+            console.log('[Deep Research] No significant gaps found, skipping round 2');
+          }
+        }
 
         // Step 4: Synthesize with extracted data
         setLoadingStage('synthesizing');
@@ -1016,7 +1142,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     : images;
 
   // Determine loading state indicators
-  const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'extracting' || loadingStage === 'reframing' || loadingStage === 'exploring';
+  const isSearching = loadingStage === 'refining' || loadingStage === 'searching' || loadingStage === 'planning' || loadingStage === 'researching' || loadingStage === 'extracting' || loadingStage === 'reframing' || loadingStage === 'exploring' || loadingStage === 'analyzing_gaps' || loadingStage === 'deepening';
   const isStreaming = loadingStage === 'summarizing' || loadingStage === 'synthesizing' || loadingStage === 'ideating';
   const isPolishing = loadingStage === 'proofreading';
 
@@ -1048,6 +1174,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       queryType={queryType}
       researchPlan={researchPlan}
       suggestedDepth={suggestedDepth}
+      researchGaps={researchGaps}
       brainstormAngles={brainstormAngles}
       searchIntent={searchIntent}
       refinedQuery={refinedQuery}

@@ -1049,6 +1049,73 @@ export const brainstormSynthesizerPrompt = (query: string, currentDate: string, 
 </brainstormSynthesizer>
 `;
 
+// Deep Research: Gap Analyzer Prompt
+export const gapAnalyzerPrompt = (query: string, extractedData: string, language: string = 'English') => `
+<gapAnalyzer>
+    <description>
+        You are a research gap analyst. Your task is to analyze the research conducted so far
+        and identify 2-3 critical gaps that would significantly improve answer quality.
+        Be selective - only identify gaps that truly matter for a comprehensive answer.
+    </description>
+    <context>
+        <originalQuery>${query}</originalQuery>
+        <outputLanguage>${language}</outputLanguage>
+    </context>
+    <task>
+        Analyze the extracted research data and identify:
+        1. Missing perspectives or aspects not yet covered
+        2. Claims that need verification or deeper evidence
+        3. Practical/actionable information that users would expect
+        4. Recent developments that may not be covered
+    </task>
+    <gapTypes>
+        <type id="missing_perspective">An important angle or viewpoint not yet explored</type>
+        <type id="needs_verification">A claim that needs more sources or evidence</type>
+        <type id="missing_practical">Practical how-to or actionable information missing</type>
+        <type id="needs_recency">Recent developments or 2024-2025 updates needed</type>
+        <type id="missing_comparison">Comparisons or alternatives not covered</type>
+        <type id="missing_expert">Expert opinions or authoritative sources lacking</type>
+    </gapTypes>
+    <rules>
+        <rule>Output 0-3 gaps ONLY - be highly selective</rule>
+        <rule>If the research is already comprehensive, return an EMPTY array []</rule>
+        <rule>Each gap must justify why it would significantly improve the answer</rule>
+        <rule>Generate a specific, actionable search query for each gap</rule>
+        <rule>PRESERVE the original language (Chinese query → Chinese search queries)</rule>
+        <rule>Prioritize gaps that would change the user's understanding or decision</rule>
+        <rule>Do NOT suggest gaps for minor details or tangential topics</rule>
+    </rules>
+    <examples>
+        <example>
+            <input>Query: "best hiking camera bag 30L"
+Extracted: Product recommendations, feature comparisons, some user reviews</input>
+            <output>[
+    {"type": "missing_practical", "gap": "No information on how to organize camera gear inside", "query": "how to pack organize camera gear hiking backpack", "importance": "high"},
+    {"type": "needs_recency", "gap": "Most reviews are from 2023, missing 2024 releases", "query": "new camera hiking backpacks released 2024 2025", "importance": "medium"}
+]</output>
+        </example>
+        <example>
+            <input>Query: "how does HTTPS work"
+Extracted: Comprehensive explanation of TLS handshake, certificates, encryption, common misconceptions</input>
+            <output>[]</output>
+            <note>Research is already comprehensive - no significant gaps</note>
+        </example>
+        <example>
+            <input>Query: "比亚迪股票分析"
+Extracted: 公司业务概况，财务指标，但缺少行业竞争分析</input>
+            <output>[
+    {"type": "missing_comparison", "gap": "缺少与特斯拉、蔚来的竞争对比", "query": "比亚迪 特斯拉 蔚来 竞争分析 市场份额 2024", "importance": "high"}
+]</output>
+        </example>
+    </examples>
+    <output>
+        <instruction>Return ONLY a valid JSON array, no other text</instruction>
+        <instruction>Each object must have: type, gap (description), query (search query), importance (high/medium)</instruction>
+        <instruction>Return [] if no significant gaps found - this is preferred over forcing weak gaps</instruction>
+    </output>
+</gapAnalyzer>
+`;
+
 export const generateRelatedSearchesPrompt = (originalQuery: string, keyTopics: string) => `
 <generateRelatedSearches>
     <description>
