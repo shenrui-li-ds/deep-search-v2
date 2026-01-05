@@ -296,7 +296,7 @@ interface UndoToastProps {
   duration?: number;
 }
 
-function UndoToast({ message, onUndo, onDismiss, duration = 5000 }: UndoToastProps) {
+function UndoToast({ message, onUndo, onDismiss, duration = 3000 }: UndoToastProps) {
   const [progress, setProgress] = useState(100);
 
   useEffect(() => {
@@ -547,9 +547,13 @@ export default function LibraryPage() {
         setFavoritesCount(prev => Math.max(0, prev - 1));
       }
       setTotalCount(prev => Math.max(0, prev - 1));
+      // Add to deleted list
+      const deletedEntry = { ...previousEntry, deleted_at: new Date().toISOString() };
+      setDeleted(prev => [deletedEntry, ...(prev || [])]);
+      setDeletedCount(prev => prev + 1);
     }
 
-    // Set up new pending deletion with 5 second delay
+    // Set up new pending deletion with 3 second delay
     const timeoutId = setTimeout(async () => {
       try {
         await deleteSearchFromHistory(id);
@@ -562,13 +566,17 @@ export default function LibraryPage() {
         }
         // Update count and clear pending state
         setTotalCount(prev => Math.max(0, prev - 1));
+        // Add to deleted list
+        const deletedEntry = { ...entryToDelete, deleted_at: new Date().toISOString() };
+        setDeleted(prev => [deletedEntry, ...(prev || [])]);
+        setDeletedCount(prev => prev + 1);
         setPendingDeletion(null);
       } catch (err) {
         console.error('Error deleting entry:', err);
         // Restore on error
         setPendingDeletion(null);
       }
-    }, 5000);
+    }, 3000);
 
     setPendingDeletion({ id, entry: entryToDelete, timeoutId });
   }, [history, pendingDeletion]);
@@ -588,9 +596,18 @@ export default function LibraryPage() {
   }, []);
 
   const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to clear all search history? This cannot be undone.')) {
+    if (window.confirm('Are you sure you want to clear all search history? Deleted items can be recovered from the Deleted tab.')) {
       try {
+        // Move all history items to deleted list before clearing
+        const deletedAt = new Date().toISOString();
+        const itemsToDelete = (history || []).map(entry => ({ ...entry, deleted_at: deletedAt }));
+
         await clearSearchHistory();
+
+        // Update deleted list with all cleared items
+        setDeleted(prev => [...itemsToDelete, ...(prev || [])]);
+        setDeletedCount(prev => prev + itemsToDelete.length);
+
         setHistory([]);
         setFavorites([]);
         setTotalCount(0);
@@ -885,7 +902,7 @@ export default function LibraryPage() {
           message="Search deleted"
           onUndo={handleUndo}
           onDismiss={handleDismissUndo}
-          duration={5000}
+          duration={3000}
         />
       )}
     </MainLayout>
