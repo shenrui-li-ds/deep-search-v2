@@ -898,6 +898,64 @@ function ProfileTab({
   );
 }
 
+// Grouped model providers structure for preferences
+type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway';
+
+interface ModelOption {
+  id: ModelId;
+  label: string;
+  description?: string;
+  tag?: string;
+}
+
+interface ProviderGroup {
+  provider: string;
+  models: ModelOption[];
+  experimental?: boolean;
+}
+
+const modelProviderGroups: ProviderGroup[] = [
+  {
+    provider: 'Google',
+    models: [
+      { id: 'gemini', label: 'Gemini 3 Flash', description: 'Fast', tag: 'Recommended' },
+      { id: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Higher quality' },
+    ],
+  },
+  {
+    provider: 'Anthropic',
+    models: [
+      { id: 'claude', label: 'Claude Haiku 4.5', description: 'Fast & efficient' },
+    ],
+  },
+  {
+    provider: 'DeepSeek',
+    models: [
+      { id: 'deepseek', label: 'DeepSeek Chat', description: 'Cost-effective' },
+    ],
+  },
+  {
+    provider: 'OpenAI',
+    models: [
+      { id: 'openai-mini', label: 'GPT-5 mini', description: 'Fast & affordable' },
+      { id: 'openai', label: 'GPT-5.2', description: 'Latest', tag: 'Reference' },
+    ],
+  },
+  {
+    provider: 'xAI',
+    models: [
+      { id: 'grok', label: 'Grok 4.1 Fast', description: 'Latest' },
+    ],
+  },
+  {
+    provider: 'Vercel Gateway',
+    models: [
+      { id: 'vercel-gateway', label: 'Qwen 3 Max', description: 'Fallback' },
+    ],
+    experimental: true,
+  },
+];
+
 // Preferences Tab Content
 function PreferencesTab() {
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
@@ -919,16 +977,16 @@ function PreferencesTab() {
     loadPreferences();
   }, []);
 
-  const handleProviderChange = async (provider: UserPreferences['default_provider']) => {
+  const handleModelChange = async (modelId: ModelId) => {
     if (!preferences) return;
     setIsSaving(true);
     try {
-      await updateUserPreferences({ default_provider: provider });
-      setPreferences({ ...preferences, default_provider: provider });
+      await updateUserPreferences({ default_provider: modelId });
+      setPreferences({ ...preferences, default_provider: modelId });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
-      console.error('Failed to update provider:', error);
+      console.error('Failed to update model:', error);
     } finally {
       setIsSaving(false);
     }
@@ -948,15 +1006,6 @@ function PreferencesTab() {
       setIsSaving(false);
     }
   };
-
-  const providers = [
-    { id: 'grok', name: 'Grok', description: 'Grok 4.1 Fast · Recommended', experimental: false },
-    { id: 'claude', name: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
-    { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
-    { id: 'gemini', name: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
-    { id: 'openai', name: 'OpenAI', description: 'GPT-5.1', experimental: false },
-    { id: 'vercel-gateway', name: 'Vercel Gateway', description: 'Experimental', experimental: true },
-  ] as const;
 
   const modes = [
     { id: 'web', name: 'Web Search', description: 'Quick web search with AI summary' },
@@ -990,45 +1039,69 @@ function PreferencesTab() {
         </div>
       )}
 
-      {/* Default Provider */}
+      {/* Default Model */}
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">Default Provider</h3>
+        <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">Default Model</h3>
         <p className="text-xs text-[var(--text-muted)] mb-4">
-          Choose which AI provider to use by default when starting a new search
+          Choose which AI model to use by default when starting a new search
         </p>
-        <div className="grid gap-2">
-          {providers.map((provider) => {
-            const isSelected = preferences?.default_provider === provider.id;
-            const borderColor = provider.experimental
-              ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-[var(--border)] hover:border-[var(--text-muted)]/30')
-              : (isSelected ? 'border-[var(--accent)]' : 'border-[var(--border)] hover:border-[var(--text-muted)]');
-            const bgColor = provider.experimental
-              ? (isSelected ? 'bg-[var(--text-muted)]/5' : '')
-              : (isSelected ? 'bg-[var(--accent)]/5' : '');
+        <div className="space-y-4">
+          {modelProviderGroups.map((group) => (
+            <div key={group.provider}>
+              {/* Provider header */}
+              <div className={`text-xs font-medium uppercase tracking-wider mb-2 ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                {group.provider}
+              </div>
+              {/* Models in this provider group */}
+              <div className="grid gap-2">
+                {group.models.map((model) => {
+                  const isSelected = preferences?.default_provider === model.id;
+                  const borderColor = group.experimental
+                    ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-[var(--border)] hover:border-[var(--text-muted)]/30')
+                    : (isSelected ? 'border-[var(--accent)]' : 'border-[var(--border)] hover:border-[var(--text-muted)]');
+                  const bgColor = group.experimental
+                    ? (isSelected ? 'bg-[var(--text-muted)]/5' : '')
+                    : (isSelected ? 'bg-[var(--accent)]/5' : '');
 
-            return (
-              <button
-                key={provider.id}
-                onClick={() => handleProviderChange(provider.id)}
-                disabled={isSaving}
-                className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${borderColor} ${bgColor} disabled:opacity-50`}
-              >
-                <div>
-                  <p className={`font-medium ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
-                    {provider.name}
-                  </p>
-                  <p className={`text-xs ${provider.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                    {provider.description}
-                  </p>
-                </div>
-                {isSelected && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
+                  return (
+                    <button
+                      key={model.id}
+                      onClick={() => handleModelChange(model.id)}
+                      disabled={isSaving}
+                      className={`flex items-center justify-between p-3 rounded-lg border transition-all text-left ${borderColor} ${bgColor} disabled:opacity-50`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <p className={`font-medium ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
+                            {model.label}
+                          </p>
+                          {model.description && (
+                            <p className={`text-xs ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                              {model.description}
+                            </p>
+                          )}
+                        </div>
+                        {model.tag && (
+                          <span className={`ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                            model.tag === 'Recommended'
+                              ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
+                              : 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]'
+                          }`}>
+                            {model.tag}
+                          </span>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 flex-shrink-0 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

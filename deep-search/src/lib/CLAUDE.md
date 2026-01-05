@@ -11,12 +11,42 @@ Core utilities, types, and helpers.
 type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
 ```
 
+**ModelId Type (for grouped model selection):**
+```typescript
+// Uses provider-based naming for future compatibility
+type ModelId =
+  | 'gemini'          // Google Gemini Flash (latest fast model)
+  | 'gemini-pro'      // Google Gemini Pro (latest pro model)
+  | 'openai'          // OpenAI flagship (latest)
+  | 'openai-mini'     // OpenAI mini series (latest)
+  | 'deepseek'        // DeepSeek Chat
+  | 'grok'            // xAI Grok
+  | 'claude'          // Anthropic Claude
+  | 'vercel-gateway'; // Vercel AI Gateway
+```
+
+**MODEL_CONFIG:**
+Maps ModelId to provider and actual model string. Update model strings here when new versions release:
+| ModelId | Provider | Model String | Label |
+|---------|----------|--------------|-------|
+| `gemini` | gemini | `gemini-3-flash-preview` | Gemini Flash |
+| `gemini-pro` | gemini | `gemini-3-pro-preview` | Gemini Pro |
+| `openai` | openai | `gpt-5.2-2025-12-11` | GPT-5.2 |
+| `openai-mini` | openai | `gpt-5-mini-2025-08-07` | GPT-5 mini |
+| `deepseek` | deepseek | `deepseek-chat` | DeepSeek Chat |
+| `grok` | grok | `grok-4-1-fast` | Grok 4.1 Fast |
+| `claude` | claude | `claude-haiku-4-5` | Claude Haiku 4.5 |
+| `vercel-gateway` | vercel-gateway | `alibaba/qwen3-max` | Qwen 3 Max |
+
 **Key Functions:**
 
 | Function | Description |
 |----------|-------------|
 | `callLLM(messages, temp, stream, provider?)` | Unified LLM call - routes to appropriate provider |
 | `callLLMWithFallback(messages, temp, stream, provider?)` | LLM call with automatic fallback chain (uses Vercel Gateway as last resort) |
+| `callLLMWithModelId(messages, temp, stream, modelId)` | Call LLM with a specific ModelId |
+| `getProviderFromModelId(modelId)` | Get LLMProvider from ModelId |
+| `getModelFromModelId(modelId)` | Get actual model string from ModelId |
 | `callDeepSeek(messages, model, temp, stream)` | DeepSeek API (OpenAI-compatible) |
 | `callOpenAI(messages, model, temp, stream)` | OpenAI API |
 | `callGrok(messages, model, temp, stream)` | Grok API (OpenAI-compatible, x.ai) |

@@ -171,9 +171,21 @@ interface UserLimits {
   last_monthly_reset: string;
 }
 
+// ModelId for grouped model selection
+// Uses provider-based naming for future compatibility
+type UserModelId =
+  | 'gemini'          // Google Gemini Flash (default)
+  | 'gemini-pro'      // Google Gemini Pro
+  | 'openai'          // OpenAI flagship (latest)
+  | 'openai-mini'     // OpenAI mini series
+  | 'deepseek'        // DeepSeek Chat
+  | 'grok'            // xAI Grok
+  | 'claude'          // Anthropic Claude
+  | 'vercel-gateway'; // Vercel AI Gateway
+
 interface UserPreferences {
   user_id: string;
-  default_provider: 'deepseek' | 'openai' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
+  default_provider: UserModelId;  // Uses ModelId for grouped model selection
   default_mode: 'web' | 'pro' | 'brainstorm';
   created_at?: string;
   updated_at?: string;

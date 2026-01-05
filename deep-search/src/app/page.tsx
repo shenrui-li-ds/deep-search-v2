@@ -5,14 +5,13 @@ import Image from 'next/image';
 import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 import MobileSidebar from '../components/MobileSidebar';
-import { getUserPreferences } from '@/lib/supabase/database';
+import { getUserPreferences, type UserModelId } from '@/lib/supabase/database';
 
-type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
 type SearchMode = 'web' | 'pro' | 'brainstorm';
 
 export default function Home() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [defaultProvider, setDefaultProvider] = useState<ModelProvider>('deepseek');
+  const [defaultProvider, setDefaultProvider] = useState<UserModelId>('gemini');
   const [defaultMode, setDefaultMode] = useState<SearchMode>('web');
 
   // Load user preferences on mount
@@ -72,7 +71,7 @@ export default function Home() {
             <SearchBox
               large={true}
               autoFocus={true}
-              defaultProvider={defaultProvider}
+              defaultProvider={defaultProvider as 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway'}
               defaultMode={defaultMode}
             />
           </div>

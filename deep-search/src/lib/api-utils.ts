@@ -15,8 +15,43 @@ interface SearchResultItem {
   content: string;
 }
 
-// LLM Provider type - matches the frontend ModelProvider type
+// LLM Provider type - the underlying API provider
 export type LLMProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
+
+// Model ID type - user-selectable model identifiers
+// Uses provider-based naming for future compatibility (update MODEL_CONFIG when new versions release)
+export type ModelId =
+  | 'gemini'          // Google Gemini Flash (latest fast model)
+  | 'gemini-pro'      // Google Gemini Pro (latest pro model)
+  | 'openai'          // OpenAI flagship (latest)
+  | 'openai-mini'     // OpenAI mini series (latest)
+  | 'deepseek'        // DeepSeek Chat
+  | 'grok'            // xAI Grok
+  | 'claude'          // Anthropic Claude
+  | 'vercel-gateway'; // Vercel AI Gateway
+
+// Model configuration - maps ModelId to provider and actual model name
+// When new model versions release, update the model strings here
+export const MODEL_CONFIG: Record<ModelId, { provider: LLMProvider; model: string; label: string }> = {
+  'gemini': { provider: 'gemini', model: 'gemini-3-flash-preview', label: 'Gemini Flash' },
+  'gemini-pro': { provider: 'gemini', model: 'gemini-3-pro-preview', label: 'Gemini Pro' },
+  'openai': { provider: 'openai', model: 'gpt-5.2-2025-12-11', label: 'GPT-5.2' },
+  'openai-mini': { provider: 'openai', model: 'gpt-5-mini-2025-08-07', label: 'GPT-5 mini' },
+  'deepseek': { provider: 'deepseek', model: 'deepseek-chat', label: 'DeepSeek Chat' },
+  'grok': { provider: 'grok', model: 'grok-4-1-fast', label: 'Grok 4.1 Fast' },
+  'claude': { provider: 'claude', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+  'vercel-gateway': { provider: 'vercel-gateway', model: 'alibaba/qwen3-max', label: 'Qwen 3 Max' },
+};
+
+// Get provider from model ID
+export function getProviderFromModelId(modelId: ModelId): LLMProvider {
+  return MODEL_CONFIG[modelId]?.provider || 'gemini';
+}
+
+// Get actual model string from model ID
+export function getModelFromModelId(modelId: ModelId): string {
+  return MODEL_CONFIG[modelId]?.model || 'gemini-3-flash-preview';
+}
 
 // API endpoints
 export const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
@@ -112,13 +147,14 @@ export async function callDeepSeek(
 // OpenAI API request
 export async function callOpenAI(
   messages: ChatMessage[],
-  model: string = 'gpt-5.1-2025-11-13',
+  model: string = 'gpt-5.2-2025-12-11',
   temperature: number = 0.7,
   stream: boolean = false
 ) {
   try {
-    // Some models (reasoning models like o1, o3, gpt-5.1) don't support custom temperature
-    const noTemperatureModels = ['o1', 'o3', 'gpt-5.1'];
+    // Some models (reasoning models like o1, o3, gpt-5) don't support custom temperature
+    // GPT-5, GPT-5.1, GPT-5.2 are reasoning models; GPT-5 mini supports temperature
+    const noTemperatureModels = ['o1', 'o3', 'gpt-5.1', 'gpt-5.2'];
     const supportsTemperature = !noTemperatureModels.some(m => model.startsWith(m));
 
     const requestBody: Record<string, unknown> = {
@@ -555,35 +591,81 @@ export async function callLLMWithFallback(
   throw new Error(`All LLM providers failed. Errors: ${errorSummary}`);
 }
 
-// Internal helper to call the appropriate provider
+// Internal helper to call the appropriate provider with specific model
+function callLLMForProviderWithModel(
+  messages: ChatMessage[],
+  temperature: number,
+  stream: boolean,
+  provider: LLMProvider,
+  model: string
+) {
+  switch (provider) {
+    case 'deepseek':
+      console.log(`Using DeepSeek API with model: ${model}`);
+      return callDeepSeek(messages, model, temperature, stream);
+    case 'openai':
+      console.log(`Using OpenAI API with model: ${model}`);
+      return callOpenAI(messages, model, temperature, stream);
+    case 'grok':
+      console.log(`Using Grok API with model: ${model}`);
+      return callGrok(messages, model, temperature, stream);
+    case 'claude':
+      console.log(`Using Claude API with model: ${model}`);
+      return callClaude(messages, model, temperature, stream);
+    case 'gemini':
+      console.log(`Using Gemini API with model: ${model}`);
+      return callGemini(messages, model, temperature, stream);
+    case 'vercel-gateway':
+      console.log(`Using Vercel AI Gateway with model: ${model}`);
+      return callVercelGateway(messages, model, temperature, stream);
+    default:
+      throw new Error(`Unknown provider: ${provider}`);
+  }
+}
+
+// Internal helper to call the appropriate provider (uses default model for provider)
 function callLLMForProvider(
   messages: ChatMessage[],
   temperature: number,
   stream: boolean,
   provider: LLMProvider
 ) {
-  switch (provider) {
-    case 'deepseek':
-      console.log('Using DeepSeek API');
-      return callDeepSeek(messages, 'deepseek-chat', temperature, stream);
-    case 'openai':
-      console.log('Using OpenAI API');
-      return callOpenAI(messages, 'gpt-5.1-2025-11-13', temperature, stream);
-    case 'grok':
-      console.log('Using Grok API');
-      return callGrok(messages, 'grok-4-1-fast', temperature, stream);
-    case 'claude':
-      console.log('Using Claude API');
-      return callClaude(messages, 'claude-haiku-4-5', temperature, stream);
-    case 'gemini':
-      console.log('Using Gemini API');
-      return callGemini(messages, 'gemini-3-flash-preview', temperature, stream);
-    case 'vercel-gateway':
-      console.log('Using Vercel AI Gateway');
-      return callVercelGateway(messages, 'alibaba/qwen3-max', temperature, stream);
-    default:
-      throw new Error(`Unknown provider: ${provider}`);
+  // Map provider to default model ID
+  const providerToDefaultModelId: Record<LLMProvider, ModelId> = {
+    'gemini': 'gemini',
+    'openai': 'openai',
+    'deepseek': 'deepseek',
+    'grok': 'grok',
+    'claude': 'claude',
+    'vercel-gateway': 'vercel-gateway',
+  };
+
+  const modelId = providerToDefaultModelId[provider];
+  const config = MODEL_CONFIG[modelId];
+  return callLLMForProviderWithModel(messages, temperature, stream, provider, config.model);
+}
+
+// Call LLM with a specific model ID
+export function callLLMWithModelId(
+  messages: ChatMessage[],
+  temperature: number = 0.7,
+  stream: boolean = false,
+  modelId: ModelId
+) {
+  const config = MODEL_CONFIG[modelId];
+  if (!config) {
+    throw new Error(`Unknown model ID: ${modelId}`);
   }
+
+  // Check if the provider is available
+  if (!isProviderAvailable(config.provider)) {
+    console.warn(`Provider ${config.provider} for model ${modelId} not available, falling back to auto-detection`);
+    const fallbackProvider = getLLMProvider();
+    console.log(`Using fallback provider: ${fallbackProvider}`);
+    return callLLMForProvider(messages, temperature, stream, fallbackProvider);
+  }
+
+  return callLLMForProviderWithModel(messages, temperature, stream, config.provider, config.model);
 }
 
 // Get the appropriate stream parser for a provider

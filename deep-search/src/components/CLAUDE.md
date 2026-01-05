@@ -63,24 +63,49 @@ Main search input component with responsive design.
 
 **Desktop:**
 - Inline mode toggle buttons (Web Search, Research, Brainstorm)
-- Model selector dropdown
+- Grouped model selector dropdown (models grouped by provider)
 - Attachment button (disabled, coming soon)
 
 **Mobile:**
 - Separate mode and model selector buttons (each opens own `MobileBottomSheet`)
 - Mode selector: Shows current mode icon + short label
-- Model selector: Shows AI icon + provider name
+- Model selector: Shows AI icon + model name, opens grouped selection sheet
 - Attachment button (disabled, coming soon)
 
 **Props:**
 ```typescript
 {
-  large?: boolean;      // Large variant for home page
+  large?: boolean;        // Large variant for home page
   initialValue?: string;
   placeholder?: string;
   autoFocus?: boolean;
+  defaultProvider?: ModelId;  // Default model to use
+  defaultMode?: SearchMode;   // Default search mode
 }
 ```
+
+**ModelId Type:**
+```typescript
+// Provider-based naming for future compatibility
+type ModelId =
+  | 'gemini'          // Google Gemini Flash (Recommended)
+  | 'gemini-pro'      // Google Gemini Pro
+  | 'openai'          // OpenAI GPT-5.2 (Reference)
+  | 'openai-mini'     // OpenAI GPT-5 mini
+  | 'deepseek'        // DeepSeek Chat
+  | 'grok'            // xAI Grok 4.1 Fast
+  | 'claude'          // Anthropic Claude Haiku 4.5
+  | 'vercel-gateway'; // Vercel Gateway (Experimental)
+```
+
+**Grouped Model Selector:**
+Models are grouped by provider in the dropdown/bottom sheet:
+- **Google**: Gemini Flash (Recommended), Gemini Pro
+- **Anthropic**: Claude Haiku 4.5
+- **DeepSeek**: DeepSeek Chat
+- **OpenAI**: GPT-5 mini, GPT-5.2 (Reference)
+- **xAI**: Grok 4.1 Fast
+- **Vercel Gateway**: Qwen 3 Max (Experimental)
 
 ### `SearchResult.tsx`
 Main result display component with floating follow-up input.

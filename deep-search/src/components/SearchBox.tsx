@@ -19,12 +19,12 @@ interface SearchBoxProps {
   initialValue?: string;
   placeholder?: string;
   autoFocus?: boolean;
-  defaultProvider?: ModelProvider;
+  defaultProvider?: ModelId;
   defaultMode?: SearchMode;
 }
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
-type ModelProvider = 'openai' | 'deepseek' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
+type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway';
 
 const searchModes = [
   { id: 'web' as SearchMode, label: 'Web Search', shortLabel: 'Search', icon: (
@@ -44,14 +44,66 @@ const searchModes = [
   ), description: 'Creative exploration of ideas' },
 ];
 
-const modelProviders = [
-  { id: 'grok' as ModelProvider, label: 'Grok', description: 'Grok 4.1 Fast · Recommended', experimental: false },
-  { id: 'claude' as ModelProvider, label: 'Claude', description: 'Claude Haiku 4.5', experimental: false },
-  { id: 'deepseek' as ModelProvider, label: 'DeepSeek', description: 'DeepSeek Chat 3.2', experimental: false },
-  { id: 'gemini' as ModelProvider, label: 'Gemini', description: 'Gemini 3 Flash', experimental: false },
-  { id: 'openai' as ModelProvider, label: 'OpenAI', description: 'GPT-5.1 · Reference', experimental: false },
-  { id: 'vercel-gateway' as ModelProvider, label: 'Vercel Gateway', description: 'Experimental', experimental: true },
+// Grouped model providers structure
+interface ModelOption {
+  id: ModelId;
+  label: string;
+  description?: string;
+  tag?: string;
+}
+
+interface ProviderGroup {
+  provider: string;
+  models: ModelOption[];
+  experimental?: boolean;
+}
+
+const modelProviderGroups: ProviderGroup[] = [
+  {
+    provider: 'Google',
+    models: [
+      { id: 'gemini', label: 'Gemini 3 Flash', description: 'Fast', tag: 'Recommended' },
+      { id: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Higher quality' },
+    ],
+  },
+  {
+    provider: 'Anthropic',
+    models: [
+      { id: 'claude', label: 'Claude Haiku 4.5', description: 'Fast & efficient' },
+    ],
+  },
+  {
+    provider: 'DeepSeek',
+    models: [
+      { id: 'deepseek', label: 'DeepSeek Chat', description: 'Cost-effective' },
+    ],
+  },
+  {
+    provider: 'OpenAI',
+    models: [
+      { id: 'openai-mini', label: 'GPT-5 mini', description: 'Fast & affordable' },
+      { id: 'openai', label: 'GPT-5.2', description: 'Latest', tag: 'Reference' },
+    ],
+  },
+  {
+    provider: 'xAI',
+    models: [
+      { id: 'grok', label: 'Grok 4.1 Fast', description: 'Latest' },
+    ],
+  },
+  {
+    provider: 'Vercel Gateway',
+    models: [
+      { id: 'vercel-gateway', label: 'Qwen 3 Max', description: 'Fallback' },
+    ],
+    experimental: true,
+  },
 ];
+
+// Flat list of all models for easy lookup
+const allModels = modelProviderGroups.flatMap(group =>
+  group.models.map(model => ({ ...model, provider: group.provider, experimental: group.experimental }))
+);
 
 const quickActions = [
   { icon: '⚖️', label: 'iPhone vs Android', query: 'Compare iPhone and Android phones for everyday use in 2025' },
@@ -65,14 +117,14 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   initialValue = '',
   placeholder = 'Ask anything',
   autoFocus = false,
-  defaultProvider = 'deepseek',
+  defaultProvider = 'gemini',
   defaultMode = 'web'
 }) => {
   const [query, setQuery] = useState(initialValue);
   const [isSearching, setIsSearching] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [searchMode, setSearchMode] = useState<SearchMode>(defaultMode);
-  const [selectedModel, setSelectedModel] = useState<ModelProvider>(defaultProvider);
+  const [selectedModel, setSelectedModel] = useState<ModelId>(defaultProvider);
   const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const router = useRouter();
@@ -137,7 +189,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   };
 
   const currentMode = searchModes.find(m => m.id === searchMode);
-  const currentModel = modelProviders.find(m => m.id === selectedModel);
+  const currentModel = allModels.find(m => m.id === selectedModel);
 
   const buildSearchUrl = (queryText: string) => {
     const params = new URLSearchParams({
@@ -241,31 +293,49 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                       </svg>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto">
                     <DropdownMenuLabel>Select Model</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {modelProviders.map((provider) => (
-                      <DropdownMenuItem
-                        key={provider.id}
-                        onClick={() => setSelectedModel(provider.id)}
-                        className={`flex items-center justify-between ${
-                          selectedModel === provider.id ? 'bg-[var(--card)]' : ''
-                        }`}
-                      >
-                        <div>
-                          <div className={`font-medium ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
-                            {provider.label}
-                          </div>
-                          <div className={`text-xs ${provider.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                            {provider.description}
-                          </div>
+                    {modelProviderGroups.map((group, groupIndex) => (
+                      <div key={group.provider}>
+                        {groupIndex > 0 && <DropdownMenuSeparator />}
+                        <div className={`px-2 py-1.5 text-xs font-semibold tracking-wider uppercase ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                          {group.provider}
                         </div>
-                        {selectedModel === provider.id && (
-                          <svg className={`w-4 h-4 ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </DropdownMenuItem>
+                        {group.models.map((model) => (
+                          <DropdownMenuItem
+                            key={model.id}
+                            onClick={() => setSelectedModel(model.id)}
+                            className={`flex items-center justify-between ml-2 ${
+                              selectedModel === model.id ? 'bg-[var(--card)]' : ''
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium flex items-center gap-1.5 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
+                                {model.label}
+                                {model.tag && (
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                    model.tag === 'Recommended'
+                                      ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
+                                      : 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]'
+                                  }`}>
+                                    {model.tag}
+                                  </span>
+                                )}
+                              </div>
+                              {model.description && (
+                                <div className={`text-xs ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                                  {model.description}
+                                </div>
+                              )}
+                            </div>
+                            {selectedModel === model.id && (
+                              <svg className={`w-4 h-4 flex-shrink-0 ml-2 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </div>
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -384,45 +454,65 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         onClose={() => setIsModelSheetOpen(false)}
         title="AI Model"
       >
-        <div className="space-y-1.5">
-          {modelProviders.map((provider) => {
-            const isSelected = selectedModel === provider.id;
-            const borderColor = provider.experimental
-              ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-transparent')
-              : (isSelected ? 'border-[var(--accent)]' : 'border-transparent');
-            const bgColor = provider.experimental
-              ? (isSelected ? 'bg-[var(--text-muted)]/5' : 'bg-[var(--card)]')
-              : (isSelected ? 'bg-[var(--accent)]/10' : 'bg-[var(--card)]');
-            const textColor = provider.experimental
-              ? 'text-[var(--text-muted)]'
-              : (isSelected ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]');
-            const descColor = provider.experimental
-              ? 'text-[var(--text-muted)]/60'
-              : 'text-[var(--text-muted)]';
+        <div className="space-y-4">
+          {modelProviderGroups.map((group) => (
+            <div key={group.provider}>
+              <div className={`text-xs font-semibold tracking-wider uppercase mb-2 ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
+                {group.provider}
+              </div>
+              <div className="space-y-1.5">
+                {group.models.map((model) => {
+                  const isSelected = selectedModel === model.id;
+                  const borderColor = group.experimental
+                    ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-transparent')
+                    : (isSelected ? 'border-[var(--accent)]' : 'border-transparent');
+                  const bgColor = group.experimental
+                    ? (isSelected ? 'bg-[var(--text-muted)]/5' : 'bg-[var(--card)]')
+                    : (isSelected ? 'bg-[var(--accent)]/10' : 'bg-[var(--card)]');
+                  const textColor = group.experimental
+                    ? 'text-[var(--text-muted)]'
+                    : (isSelected ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]');
+                  const descColor = group.experimental
+                    ? 'text-[var(--text-muted)]/60'
+                    : 'text-[var(--text-muted)]';
 
-            return (
-              <button
-                key={provider.id}
-                onClick={() => {
-                  setSelectedModel(provider.id);
-                  setIsModelSheetOpen(false);
-                }}
-                className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${bgColor} border-2 ${borderColor}`}
-              >
-                <div className="text-left">
-                  <div className={`font-medium ${textColor}`}>
-                    {provider.label}
-                  </div>
-                  <div className={`text-xs ${descColor}`}>{provider.description}</div>
-                </div>
-                {isSelected && (
-                  <svg className={`w-5 h-5 ${provider.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
+                  return (
+                    <button
+                      key={model.id}
+                      onClick={() => {
+                        setSelectedModel(model.id);
+                        setIsModelSheetOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${bgColor} border-2 ${borderColor}`}
+                    >
+                      <div className="text-left">
+                        <div className={`font-medium flex items-center gap-1.5 ${textColor}`}>
+                          {model.label}
+                          {model.tag && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                              model.tag === 'Recommended'
+                                ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
+                                : 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]'
+                            }`}>
+                              {model.tag}
+                            </span>
+                          )}
+                        </div>
+                        {model.description && (
+                          <div className={`text-xs ${descColor}`}>{model.description}</div>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <svg className={`w-5 h-5 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </MobileBottomSheet>
     </TooltipProvider>

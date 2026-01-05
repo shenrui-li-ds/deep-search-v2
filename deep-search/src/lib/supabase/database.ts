@@ -39,9 +39,21 @@ export interface ApiUsageEntry {
   created_at?: string;
 }
 
+// ModelId type for grouped model selection
+// Uses provider-based naming for future compatibility
+export type UserModelId =
+  | 'gemini'          // Google Gemini Flash (latest fast model)
+  | 'gemini-pro'      // Google Gemini Pro (latest pro model)
+  | 'openai'          // OpenAI flagship (latest)
+  | 'openai-mini'     // OpenAI mini series (latest)
+  | 'deepseek'        // DeepSeek Chat
+  | 'grok'            // xAI Grok
+  | 'claude'          // Anthropic Claude
+  | 'vercel-gateway'; // Vercel AI Gateway
+
 export interface UserPreferences {
   user_id: string;
-  default_provider: 'deepseek' | 'openai' | 'grok' | 'claude' | 'gemini' | 'vercel-gateway';
+  default_provider: UserModelId;
   default_mode: 'web' | 'pro' | 'brainstorm';
   created_at?: string;
   updated_at?: string;
@@ -431,7 +443,7 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
     if (error.code === 'PGRST116') {
       return {
         user_id: user.id,
-        default_provider: 'deepseek',
+        default_provider: 'gemini',
         default_mode: 'web',
       };
     }
