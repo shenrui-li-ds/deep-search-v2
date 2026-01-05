@@ -10,7 +10,7 @@ const mockSupabaseClient: Record<string, jest.Mock | unknown> = {};
 
 // Helper to reset mock chain (called in beforeEach)
 const resetMockChain = () => {
-  const chainableMethods = ['from', 'select', 'insert', 'delete', 'update', 'eq', 'or', 'order', 'range', 'limit', 'single', 'gte'];
+  const chainableMethods = ['from', 'select', 'insert', 'delete', 'update', 'eq', 'or', 'order', 'range', 'limit', 'single', 'gte', 'is', 'not'];
   chainableMethods.forEach(method => {
     if (!mockSupabaseClient[method]) {
       mockSupabaseClient[method] = jest.fn();
@@ -46,6 +46,10 @@ import {
   searchHistory,
   deleteSearchFromHistory,
   clearSearchHistory,
+  recoverSearchFromHistory,
+  getDeletedSearchHistory,
+  getDeletedSearchCount,
+  permanentlyDeleteSearch,
   getSearchHistoryCount,
   toggleBookmark,
   getBookmarkedSearches,
@@ -187,6 +191,15 @@ describe('Supabase Database Functions', () => {
 
       expect(mockSupabaseClient.range).toHaveBeenCalledWith(10, 29);
     });
+
+    it('should filter out soft-deleted records', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({ data: [], error: null });
+
+      await getSearchHistory();
+
+      // Verify that .is('deleted_at', null) is called to filter out deleted records
+      expect(mockSupabaseClient.is).toHaveBeenCalledWith('deleted_at', null);
+    });
   });
 
   describe('searchHistory', () => {
@@ -209,43 +222,222 @@ describe('Supabase Database Functions', () => {
       );
       expect(result).toEqual(mockResults);
     });
+
+    it('should filter out soft-deleted records when searching', async () => {
+      mockSupabaseClient.limit.mockResolvedValueOnce({ data: [], error: null });
+
+      await searchHistory('test');
+
+      expect(mockSupabaseClient.is).toHaveBeenCalledWith('deleted_at', null);
+    });
   });
 
-  describe('deleteSearchFromHistory', () => {
-    it('should delete a search entry by id', async () => {
+  describe('deleteSearchFromHistory (soft delete)', () => {
+    it('should soft delete via RPC when available', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({ error: null });
+
+      await deleteSearchFromHistory('test-id');
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('soft_delete_search', {
+        p_search_id: 'test-id',
+      });
+    });
+
+    it('should fallback to direct update if RPC does not exist', async () => {
+      // RPC returns function not found error
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        error: { code: '42883', message: 'Function not found' },
+      });
       mockSupabaseClient.eq.mockResolvedValueOnce({ error: null });
 
       await deleteSearchFromHistory('test-id');
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
-      expect(mockSupabaseClient.delete).toHaveBeenCalled();
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({ deleted_at: expect.any(String) })
+      );
       expect(mockSupabaseClient.eq).toHaveBeenCalledWith('id', 'test-id');
+    });
+
+    it('should throw error if RPC fails with non-42883 error', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        error: { code: 'OTHER', message: 'RPC error' },
+      });
+
+      await expect(deleteSearchFromHistory('test-id')).rejects.toEqual({
+        code: 'OTHER',
+        message: 'RPC error',
+      });
     });
   });
 
-  describe('clearSearchHistory', () => {
-    it('should clear all search history for the current user', async () => {
-      mockSupabaseClient.eq.mockResolvedValueOnce({ error: null });
+  describe('clearSearchHistory (soft delete all)', () => {
+    it('should soft delete all via RPC when available', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({ error: null });
+
+      await clearSearchHistory();
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('soft_delete_all_searches');
+    });
+
+    it('should fallback to direct update if RPC does not exist', async () => {
+      // RPC returns function not found error
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        error: { code: '42883', message: 'Function not found' },
+      });
+      mockSupabaseClient.is.mockResolvedValueOnce({ error: null });
 
       await clearSearchHistory();
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
-      expect(mockSupabaseClient.delete).toHaveBeenCalled();
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith(
+        expect.objectContaining({ deleted_at: expect.any(String) })
+      );
       expect(mockSupabaseClient.eq).toHaveBeenCalledWith('user_id', mockUser.id);
     });
 
-    it('should not delete anything if no user is logged in', async () => {
+    it('should not update anything if no user is logged in (fallback path)', async () => {
+      // RPC fails with function not found
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        error: { code: '42883', message: 'Function not found' },
+      });
       mockSupabaseClient.auth.getUser.mockResolvedValueOnce({ data: { user: null } });
 
       await clearSearchHistory();
 
-      expect(mockSupabaseClient.delete).not.toHaveBeenCalled();
+      expect(mockSupabaseClient.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('recoverSearchFromHistory', () => {
+    it('should recover via RPC when available', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({ error: null });
+
+      await recoverSearchFromHistory('test-id');
+
+      expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('recover_search', {
+        p_search_id: 'test-id',
+      });
+    });
+
+    it('should fallback to direct update if RPC does not exist', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        error: { code: '42883', message: 'Function not found' },
+      });
+      mockSupabaseClient.eq.mockResolvedValueOnce({ error: null });
+
+      await recoverSearchFromHistory('test-id');
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.update).toHaveBeenCalledWith({ deleted_at: null });
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('id', 'test-id');
+    });
+
+    it('should throw error if RPC fails with non-42883 error', async () => {
+      (mockSupabaseClient.rpc as jest.Mock).mockResolvedValueOnce({
+        error: { code: 'OTHER', message: 'RPC error' },
+      });
+
+      await expect(recoverSearchFromHistory('test-id')).rejects.toEqual({
+        code: 'OTHER',
+        message: 'RPC error',
+      });
+    });
+  });
+
+  describe('getDeletedSearchHistory', () => {
+    it('should fetch deleted search history with default limit', async () => {
+      const mockDeleted = [
+        { id: '1', query: 'deleted query 1', deleted_at: '2024-01-15T00:00:00Z' },
+        { id: '2', query: 'deleted query 2', deleted_at: '2024-01-14T00:00:00Z' },
+      ];
+
+      mockSupabaseClient.range.mockResolvedValueOnce({
+        data: mockDeleted,
+        error: null,
+      });
+
+      const result = await getDeletedSearchHistory();
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.not).toHaveBeenCalledWith('deleted_at', 'is', null);
+      expect(mockSupabaseClient.order).toHaveBeenCalledWith('deleted_at', { ascending: false });
+      expect(mockSupabaseClient.range).toHaveBeenCalledWith(0, 49);
+      expect(result).toEqual(mockDeleted);
+    });
+
+    it('should respect custom limit and offset', async () => {
+      mockSupabaseClient.range.mockResolvedValueOnce({ data: [], error: null });
+
+      await getDeletedSearchHistory(20, 10);
+
+      expect(mockSupabaseClient.range).toHaveBeenCalledWith(10, 29);
+    });
+  });
+
+  describe('getDeletedSearchCount', () => {
+    it('should return the count of deleted entries', async () => {
+      mockSupabaseClient.not.mockResolvedValueOnce({
+        count: 5,
+        error: null,
+      });
+
+      const result = await getDeletedSearchCount();
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.select).toHaveBeenCalledWith('*', { count: 'exact', head: true });
+      expect(mockSupabaseClient.not).toHaveBeenCalledWith('deleted_at', 'is', null);
+      expect(result).toBe(5);
+    });
+
+    it('should return 0 if count is null', async () => {
+      mockSupabaseClient.not.mockResolvedValueOnce({
+        count: null,
+        error: null,
+      });
+
+      const result = await getDeletedSearchCount();
+
+      expect(result).toBe(0);
+    });
+
+    it('should return 0 on error', async () => {
+      mockSupabaseClient.not.mockResolvedValueOnce({
+        count: null,
+        error: { message: 'Query error' },
+      });
+
+      const result = await getDeletedSearchCount();
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('permanentlyDeleteSearch', () => {
+    it('should hard delete a search entry by id', async () => {
+      mockSupabaseClient.eq.mockResolvedValueOnce({ error: null });
+
+      await permanentlyDeleteSearch('test-id');
+
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
+      expect(mockSupabaseClient.delete).toHaveBeenCalled();
+      expect(mockSupabaseClient.eq).toHaveBeenCalledWith('id', 'test-id');
+    });
+
+    it('should throw error if delete fails', async () => {
+      mockSupabaseClient.eq.mockResolvedValueOnce({
+        error: { message: 'Delete error' },
+      });
+
+      await expect(permanentlyDeleteSearch('test-id')).rejects.toEqual({
+        message: 'Delete error',
+      });
     });
   });
 
   describe('getSearchHistoryCount', () => {
     it('should return the count of search history entries', async () => {
-      mockSupabaseClient.select.mockResolvedValueOnce({
+      mockSupabaseClient.is.mockResolvedValueOnce({
         count: 42,
         error: null,
       });
@@ -258,7 +450,7 @@ describe('Supabase Database Functions', () => {
     });
 
     it('should return 0 if count is null', async () => {
-      mockSupabaseClient.select.mockResolvedValueOnce({
+      mockSupabaseClient.is.mockResolvedValueOnce({
         count: null,
         error: null,
       });
@@ -266,6 +458,15 @@ describe('Supabase Database Functions', () => {
       const result = await getSearchHistoryCount();
 
       expect(result).toBe(0);
+    });
+
+    it('should filter out soft-deleted records when counting', async () => {
+      mockSupabaseClient.is.mockResolvedValueOnce({ count: 10, error: null });
+
+      await getSearchHistoryCount();
+
+      // Verify that .is('deleted_at', null) is called to exclude deleted records
+      expect(mockSupabaseClient.is).toHaveBeenCalledWith('deleted_at', null);
     });
   });
 
@@ -330,8 +531,8 @@ describe('Supabase Database Functions', () => {
 
   describe('getBookmarkedCount', () => {
     it('should return the count of bookmarked entries', async () => {
-      // Chain ends with .eq(), so mock eq to return the count result
-      mockSupabaseClient.eq.mockResolvedValueOnce({
+      // Chain ends with .is('deleted_at', null), so mock is to return the count result
+      mockSupabaseClient.is.mockResolvedValueOnce({
         count: 15,
         error: null,
       });
@@ -340,12 +541,13 @@ describe('Supabase Database Functions', () => {
 
       expect(mockSupabaseClient.from).toHaveBeenCalledWith('search_history');
       expect(mockSupabaseClient.eq).toHaveBeenCalledWith('bookmarked', true);
+      expect(mockSupabaseClient.is).toHaveBeenCalledWith('deleted_at', null);
       expect(result).toBe(15);
     });
 
     it('should return 0 if count is null', async () => {
-      // Chain ends with .eq(), so mock eq to return the count result
-      mockSupabaseClient.eq.mockResolvedValueOnce({
+      // Chain ends with .is('deleted_at', null)
+      mockSupabaseClient.is.mockResolvedValueOnce({
         count: null,
         error: null,
       });
@@ -916,6 +1118,55 @@ describe('Supabase Database Functions', () => {
       });
 
       await expect(getUsageStats()).rejects.toEqual({ message: 'Query error' });
+    });
+
+    it('should include soft-deleted records in usage statistics (preserves billing accuracy)', async () => {
+      // This test verifies that usage stats include ALL records, even soft-deleted ones
+      // This is important because deleted history should still count toward usage/billing
+      const today = new Date().toISOString();
+      const mockSearchHistory = [
+        { mode: 'web', provider: 'deepseek', created_at: today },
+        { mode: 'web', provider: 'deepseek', created_at: today, deleted_at: today }, // soft-deleted
+        { mode: 'pro', provider: 'openai', created_at: today, deleted_at: today },   // soft-deleted
+      ];
+
+      mockSupabaseClient.gte.mockResolvedValueOnce({
+        data: mockSearchHistory,
+        error: null,
+      });
+
+      const result = await getUsageStats(30);
+
+      // All 3 records should be counted (including the 2 soft-deleted ones)
+      expect(result.totalSearches).toBe(3);
+      expect(result.byMode).toEqual([
+        { mode: 'web', count: 2 },
+        { mode: 'pro', count: 1 },
+      ]);
+
+      // Verify the query does NOT filter by deleted_at
+      // (it should not have called .is('deleted_at', null))
+      expect(mockSupabaseClient.is).not.toHaveBeenCalled();
+    });
+
+    it('should correctly count today and this month searches including soft-deleted', async () => {
+      const today = new Date().toISOString();
+      const mockSearchHistory = [
+        { mode: 'web', provider: 'deepseek', created_at: today },
+        { mode: 'pro', provider: 'openai', created_at: today, deleted_at: today }, // soft-deleted today
+      ];
+
+      mockSupabaseClient.gte.mockResolvedValueOnce({
+        data: mockSearchHistory,
+        error: null,
+      });
+
+      const result = await getUsageStats(30);
+
+      // Both should count toward today's searches
+      expect(result.todaySearches).toBe(2);
+      // Both should count toward this month's searches
+      expect(result.thisMonthSearches).toBe(2);
     });
   });
 });

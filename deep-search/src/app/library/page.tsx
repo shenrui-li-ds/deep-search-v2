@@ -19,6 +19,9 @@ import {
   toggleBookmark,
   getBookmarkedSearches,
   getBookmarkedCount,
+  getDeletedSearchHistory,
+  getDeletedSearchCount,
+  recoverSearchFromHistory,
   type SearchHistoryEntry
 } from '@/lib/supabase/database';
 
@@ -340,15 +343,128 @@ interface PendingDeletion {
   timeoutId: NodeJS.Timeout;
 }
 
-type LibraryTab = 'history' | 'favorites';
+type LibraryTab = 'history' | 'favorites' | 'deleted';
+
+// Deleted History Item Component (with recover option)
+interface DeletedHistoryItemProps {
+  entry: SearchHistoryEntry;
+  onRecover: (id: string) => void;
+  isPendingRecover?: boolean;
+}
+
+function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHistoryItemProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const handleRecover = () => {
+    if (entry.id) {
+      onRecover(entry.id);
+    }
+    setIsMenuOpen(false);
+  };
+
+  // Format deleted time
+  const deletedTimeAgo = entry.deleted_at ? formatTimeAgo(entry.deleted_at) : '';
+
+  if (isPendingRecover) {
+    return null;
+  }
+
+  // Menu content for deleted items
+  const menuItems = (
+    <>
+      <button
+        onClick={handleRecover}
+        className="w-full flex items-center gap-3 py-2 px-3 bg-[var(--card)] text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span>Recover</span>
+      </button>
+    </>
+  );
+
+  return (
+    <>
+      <div className="flex items-start gap-3 p-4 bg-[var(--background)] hover:bg-[var(--card)] transition-colors rounded-lg opacity-70">
+        {/* Icon */}
+        <div className="relative w-8 h-8 rounded-full bg-[var(--card)] flex items-center justify-center flex-shrink-0 mt-0.5">
+          {getModeIcon(entry.mode)}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[var(--text-primary)] font-medium truncate">
+            {entry.query}
+          </h3>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`text-xs px-2 py-0.5 rounded-full ${getModeColor(entry.mode)}`}>
+              {getModeLabel(entry.mode)}
+            </span>
+            <span className="text-xs text-[var(--text-muted)]">
+              Deleted {deletedTimeAgo}
+            </span>
+          </div>
+        </div>
+
+        {/* Recover button - Desktop */}
+        <div className="hidden md:block flex-shrink-0">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--card)] rounded-lg transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                </svg>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={handleRecover}
+                className="text-emerald-500 focus:text-emerald-500 focus:bg-emerald-500/10 cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Recover
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* More options button - Mobile */}
+        <button
+          onClick={() => setIsMenuOpen(true)}
+          className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex-shrink-0"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile bottom sheet menu */}
+      <MobileBottomSheet
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        title="Options"
+      >
+        <div className="space-y-1.5">
+          {menuItems}
+        </div>
+      </MobileBottomSheet>
+    </>
+  );
+}
 
 export default function LibraryPage() {
   const [activeTab, setActiveTab] = useState<LibraryTab>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [history, setHistory] = useState<SearchHistoryEntry[] | undefined>(undefined);
   const [favorites, setFavorites] = useState<SearchHistoryEntry[] | undefined>(undefined);
+  const [deleted, setDeleted] = useState<SearchHistoryEntry[] | undefined>(undefined);
   const [totalCount, setTotalCount] = useState(0);
   const [favoritesCount, setFavoritesCount] = useState(0);
+  const [deletedCount, setDeletedCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
@@ -363,23 +479,29 @@ export default function LibraryPage() {
         setHistory(results);
         // Filter favorites from search results
         setFavorites(results.filter(e => e.bookmarked));
+        // Note: Search doesn't apply to deleted items
       } else {
-        const [historyResults, historyCount, bookmarkedResults, bookmarkedCount] = await Promise.all([
+        const [historyResults, historyCount, bookmarkedResults, bookmarkedCount, deletedResults, deletedCountResult] = await Promise.all([
           getSearchHistory(100),
           getSearchHistoryCount(),
           getBookmarkedSearches(100),
-          getBookmarkedCount()
+          getBookmarkedCount(),
+          getDeletedSearchHistory(100),
+          getDeletedSearchCount()
         ]);
         setHistory(historyResults);
         setTotalCount(historyCount);
         setFavorites(bookmarkedResults);
         setFavoritesCount(bookmarkedCount);
+        setDeleted(deletedResults);
+        setDeletedCount(deletedCountResult);
       }
     } catch (err) {
       console.error('Error loading history:', err);
       setError('Failed to load search history. Please try again.');
       setHistory([]);
       setFavorites([]);
+      setDeleted([]);
     } finally {
       setIsLoading(false);
     }
@@ -506,6 +628,33 @@ export default function LibraryPage() {
     }
   }, [history]);
 
+  // Recover a deleted search entry
+  const handleRecover = useCallback(async (id: string) => {
+    try {
+      const entryToRecover = deleted?.find(e => e.id === id);
+      if (!entryToRecover) return;
+
+      await recoverSearchFromHistory(id);
+
+      // Remove from deleted list
+      setDeleted(prev => prev?.filter(e => e.id !== id));
+      setDeletedCount(prev => Math.max(0, prev - 1));
+
+      // Add back to history
+      const recoveredEntry = { ...entryToRecover, deleted_at: null };
+      setHistory(prev => [recoveredEntry, ...(prev || [])]);
+      setTotalCount(prev => prev + 1);
+
+      // If it was bookmarked, add back to favorites too
+      if (recoveredEntry.bookmarked) {
+        setFavorites(prev => [recoveredEntry, ...(prev || [])]);
+        setFavoritesCount(prev => prev + 1);
+      }
+    } catch (err) {
+      console.error('Error recovering search:', err);
+    }
+  }, [deleted]);
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -562,6 +711,24 @@ export default function LibraryPage() {
               Favorites
               {favoritesCount > 0 && (
                 <span className="text-xs text-[var(--text-muted)]">({favoritesCount})</span>
+              )}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('deleted')}
+            className={`pb-3 text-sm font-medium transition-colors relative border-b-2 ${
+              activeTab === 'deleted'
+                ? 'border-[var(--accent)] text-[var(--accent)]'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Deleted
+              {deletedCount > 0 && (
+                <span className="text-xs text-[var(--text-muted)]">({deletedCount})</span>
               )}
             </span>
           </button>
@@ -643,7 +810,7 @@ export default function LibraryPage() {
               ))}
             </div>
           )
-        ) : (
+        ) : activeTab === 'favorites' ? (
           // Favorites Tab Content
           favorites && favorites.length === 0 ? (
             <div className="text-center py-16">
@@ -675,6 +842,39 @@ export default function LibraryPage() {
               ))}
             </div>
           )
+        ) : (
+          // Deleted Tab Content
+          <>
+            {/* Retention notice */}
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Deleted searches are kept for 1 year, then permanently removed.
+            </p>
+            {deleted && deleted.length === 0 ? (
+              <div className="text-center py-16">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--card)] flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+                  No deleted searches
+                </h3>
+                <p className="text-[var(--text-muted)]">
+                  Searches you delete will appear here for recovery
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {deleted?.map((entry) => (
+                  <DeletedHistoryItem
+                    key={entry.id}
+                    entry={entry}
+                    onRecover={handleRecover}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 

@@ -11,6 +11,7 @@ export interface SearchHistoryEntry {
   sources_count: number;
   bookmarked?: boolean;
   created_at?: string;
+  deleted_at?: string | null;
 }
 
 export interface UserLimits {
@@ -109,6 +110,7 @@ export async function getSearchHistory(limit = 50, offset = 0): Promise<SearchHi
   const { data, error } = await supabase
     .from('search_history')
     .select('*')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -126,6 +128,7 @@ export async function searchHistory(searchTerm: string, limit = 50): Promise<Sea
   const { data, error } = await supabase
     .from('search_history')
     .select('*')
+    .is('deleted_at', null)
     .or(`query.ilike.%${searchTerm}%,refined_query.ilike.%${searchTerm}%`)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -138,7 +141,142 @@ export async function searchHistory(searchTerm: string, limit = 50): Promise<Sea
   return data || [];
 }
 
+/**
+ * Soft delete a search entry (moves to deleted state, recoverable)
+ */
 export async function deleteSearchFromHistory(id: string): Promise<void> {
+  const supabase = createClient();
+
+  // Try using the RPC function first (preferred)
+  const { error: rpcError } = await supabase.rpc('soft_delete_search', {
+    p_search_id: id,
+  });
+
+  if (rpcError) {
+    // Fallback to direct update if RPC doesn't exist
+    if (rpcError.code === '42883') {
+      const { error } = await supabase
+        .from('search_history')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error soft deleting search from history:', error);
+        throw error;
+      }
+      return;
+    }
+    console.error('Error soft deleting search from history:', rpcError);
+    throw rpcError;
+  }
+}
+
+/**
+ * Soft delete all search history for the current user (recoverable)
+ */
+export async function clearSearchHistory(): Promise<void> {
+  const supabase = createClient();
+
+  // Try using the RPC function first (preferred)
+  const { error: rpcError } = await supabase.rpc('soft_delete_all_searches');
+
+  if (rpcError) {
+    // Fallback to direct update if RPC doesn't exist
+    if (rpcError.code === '42883') {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('search_history')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('user_id', user.id)
+        .is('deleted_at', null);
+
+      if (error) {
+        console.error('Error clearing search history:', error);
+        throw error;
+      }
+      return;
+    }
+    console.error('Error clearing search history:', rpcError);
+    throw rpcError;
+  }
+}
+
+/**
+ * Recover a soft-deleted search entry
+ */
+export async function recoverSearchFromHistory(id: string): Promise<void> {
+  const supabase = createClient();
+
+  // Try using the RPC function first (preferred)
+  const { error: rpcError } = await supabase.rpc('recover_search', {
+    p_search_id: id,
+  });
+
+  if (rpcError) {
+    // Fallback to direct update if RPC doesn't exist
+    if (rpcError.code === '42883') {
+      const { error } = await supabase
+        .from('search_history')
+        .update({ deleted_at: null })
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error recovering search from history:', error);
+        throw error;
+      }
+      return;
+    }
+    console.error('Error recovering search from history:', rpcError);
+    throw rpcError;
+  }
+}
+
+/**
+ * Get deleted search history (for recovery UI)
+ */
+export async function getDeletedSearchHistory(limit = 50, offset = 0): Promise<SearchHistoryEntry[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from('search_history')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('Error fetching deleted search history:', error);
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * Get count of deleted search history entries
+ */
+export async function getDeletedSearchCount(): Promise<number> {
+  const supabase = createClient();
+
+  const { count, error } = await supabase
+    .from('search_history')
+    .select('*', { count: 'exact', head: true })
+    .not('deleted_at', 'is', null);
+
+  if (error) {
+    console.error('Error getting deleted search count:', error);
+    return 0;
+  }
+
+  return count || 0;
+}
+
+/**
+ * Permanently delete a search entry (no recovery)
+ */
+export async function permanentlyDeleteSearch(id: string): Promise<void> {
   const supabase = createClient();
 
   const { error } = await supabase
@@ -147,25 +285,7 @@ export async function deleteSearchFromHistory(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting search from history:', error);
-    throw error;
-  }
-}
-
-export async function clearSearchHistory(): Promise<void> {
-  const supabase = createClient();
-
-  // Get current user
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-
-  const { error } = await supabase
-    .from('search_history')
-    .delete()
-    .eq('user_id', user.id);
-
-  if (error) {
-    console.error('Error clearing search history:', error);
+    console.error('Error permanently deleting search:', error);
     throw error;
   }
 }
@@ -175,7 +295,8 @@ export async function getSearchHistoryCount(): Promise<number> {
 
   const { count, error } = await supabase
     .from('search_history')
-    .select('*', { count: 'exact', head: true });
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null);
 
   if (error) {
     console.error('Error getting history count:', error);
@@ -223,6 +344,7 @@ export async function getBookmarkedSearches(limit = 50, offset = 0): Promise<Sea
     .from('search_history')
     .select('*')
     .eq('bookmarked', true)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -240,7 +362,8 @@ export async function getBookmarkedCount(): Promise<number> {
   const { count, error } = await supabase
     .from('search_history')
     .select('*', { count: 'exact', head: true })
-    .eq('bookmarked', true);
+    .eq('bookmarked', true)
+    .is('deleted_at', null);
 
   if (error) {
     console.error('Error getting bookmarked count:', error);

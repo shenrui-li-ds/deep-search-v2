@@ -85,14 +85,23 @@ Client-side database operations for search history and usage limits.
 | Function | Description |
 |----------|-------------|
 | `addSearchToHistory(entry)` | Save/upsert search to history (uses RPC for performance) |
-| `getSearchHistory(limit, offset)` | Get paginated history |
-| `searchHistory(term, limit)` | Search within history |
-| `deleteSearchFromHistory(id)` | Delete single entry |
-| `clearSearchHistory()` | Clear all user's history |
-| `getSearchHistoryCount()` | Get total count |
+| `getSearchHistory(limit, offset)` | Get paginated history (excludes soft-deleted) |
+| `searchHistory(term, limit)` | Search within history (excludes soft-deleted) |
+| `deleteSearchFromHistory(id)` | Soft delete entry (sets deleted_at, preserves for usage tracking) |
+| `clearSearchHistory()` | Soft delete all user's history |
+| `getSearchHistoryCount()` | Get total count (excludes soft-deleted) |
 | `toggleBookmark(id)` | Toggle bookmark status, returns new status |
-| `getBookmarkedSearches(limit, offset)` | Get bookmarked entries |
-| `getBookmarkedCount()` | Get total bookmarked count |
+| `getBookmarkedSearches(limit, offset)` | Get bookmarked entries (excludes soft-deleted) |
+| `getBookmarkedCount()` | Get total bookmarked count (excludes soft-deleted) |
+
+**Soft Delete & Recovery:**
+
+| Function | Description |
+|----------|-------------|
+| `getDeletedSearchHistory(limit, offset)` | Get soft-deleted entries |
+| `getDeletedSearchCount()` | Get count of soft-deleted entries |
+| `recoverSearchFromHistory(id)` | Recover soft-deleted entry (sets deleted_at to null) |
+| `permanentlyDeleteSearch(id)` | Hard delete (for cleanup jobs only) |
 
 **Usage Limits:**
 
@@ -152,6 +161,7 @@ interface SearchHistoryEntry {
   sources_count: number;
   bookmarked?: boolean;
   created_at?: string;
+  deleted_at?: string | null;  // Soft delete timestamp
 }
 
 interface UserLimits {
@@ -283,6 +293,10 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 | `cleanup_old_history()` | Keep only last 100 entries per user |
 | `reset_daily_limits()` | Reset daily counters (call via cron) |
 | `reset_monthly_limits()` | Reset monthly counters (call via cron) |
+| `soft_delete_search(p_search_id)` | Soft delete a search entry (sets deleted_at) |
+| `recover_search(p_search_id)` | Recover a soft-deleted entry (clears deleted_at) |
+| `soft_delete_all_searches()` | Soft delete all user's search history |
+| `cleanup_deleted_searches(p_days_old)` | Permanently delete soft-deleted records older than N days (default: 365) |
 
 ### `upsert_search_history` Function
 
@@ -546,15 +560,16 @@ Change Email modal requires password verification before sending email change re
 1. Create Supabase project at supabase.com
 2. Run `supabase/schema.sql` in SQL Editor
 3. Run `supabase/add-login-lockout.sql` for brute force protection
-4. Add to `.env.local`:
+4. Run `supabase/add-soft-delete.sql` for soft delete support
+5. Add to `.env.local`:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
-5. Configure URL settings in Authentication → URL Configuration:
+6. Configure URL settings in Authentication → URL Configuration:
    - Site URL: `https://your-domain.com`
    - Redirect URLs: `http://localhost:3000/auth/callback`, `https://your-domain.com/auth/callback`
-6. (Optional) Apply email templates from `supabase/email-templates/`
-7. (Optional) Configure OAuth providers in Authentication → Providers
-8. (Optional) Enable leaked password protection in Authentication → Settings
-9. Fix function search paths (see Security Settings above)
+7. (Optional) Apply email templates from `supabase/email-templates/`
+8. (Optional) Configure OAuth providers in Authentication → Providers
+9. (Optional) Enable leaked password protection in Authentication → Settings
+10. Fix function search paths (see Security Settings above)

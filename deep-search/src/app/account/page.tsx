@@ -1254,7 +1254,10 @@ function BillingTab() {
       {/* Credit Costs Info */}
       <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">Credits Per Search</h4>
-        <p className="text-xs text-[var(--text-muted)] mb-3">1 credit = 1 search query. You&apos;re only charged for actual queries made.</p>
+        <p className="text-xs text-[var(--text-muted)] mb-3">
+          1 credit = 1 search query. Cached results are free - 
+          if your query was recently searched, you won&apos;t be charged.
+        </p>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <div className="flex items-center gap-2">
             <span className="text-[var(--text-muted)]">Web Search:</span>
