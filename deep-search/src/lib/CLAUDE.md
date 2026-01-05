@@ -115,6 +115,8 @@ XML-structured prompts for consistent LLM behavior.
 | `researchPlannerFinancePrompt(query, date)` | Finance: fundamentals → metrics → analyst views → risks |
 | `aspectExtractorPrompt(aspect, query)` | Extract structured knowledge (claims, stats, opinions, contradictions) |
 | `researchSynthesizerPrompt(query, date)` | Synthesize extracted data into 800-1000 word document with collapsible sections |
+| `deepResearchSynthesizerPrompt(query, date, lang, gapDescriptions)` | Deep mode: Synthesize multi-round data into 1000-1200 word document |
+| `gapAnalyzerPrompt(query, extractedSummary, lang)` | Analyze research for knowledge gaps (returns JSON array of gaps) |
 | `researchProofreadPrompt()` | Research-specific proofreading (preserves depth, improves flow) |
 
 **Query Type Classification:**
@@ -257,6 +259,7 @@ Request → Memory Cache (15 min) → Supabase Cache (48 hrs) → API Call
 | `summary` | 48 hours | Web search LLM summaries |
 | `research-synthesis` | 48 hours | Research mode synthesis |
 | `brainstorm-synthesis` | 48 hours | Brainstorm mode synthesis |
+| `round1-extractions` | 24 hours | Deep research Round 1 data (for retry optimization) |
 
 **Key Functions:**
 

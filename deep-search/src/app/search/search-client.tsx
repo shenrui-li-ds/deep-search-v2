@@ -6,6 +6,7 @@ import { SearchResult, Source, SearchImage } from '@/lib/types';
 import SearchResultComponent from '@/components/SearchResult';
 import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route';
 import type { ResearchGap, AnalyzeGapsResponse } from '@/app/api/research/analyze-gaps/route';
+import type { Round1CacheData } from '@/app/api/research/cache-round1/route';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
@@ -139,6 +140,19 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const abortController = new AbortController();
     let isActive = true; // Flag to prevent state updates from stale requests
 
+    // Timeout configuration (in milliseconds)
+    const TIMEOUTS = {
+      standard: 60000,   // 60 seconds for standard research
+      deep: 120000,      // 120 seconds for deep research (2 rounds)
+      round2: 45000,     // 45 seconds for round 2 specifically
+    };
+
+    // Helper to create a timeout promise
+    const createTimeout = (ms: number, message: string) =>
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(message)), ms)
+      );
+
     // Helper to finalize credits (fire-and-forget)
     const finalizeCredits = (reservationId: string | undefined, actualCredits: number) => {
       if (!reservationId) return;
@@ -229,6 +243,67 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         }
         setResearchPlan(plan);
 
+        // For deep research: Check if we have cached round 1 data (retry optimization)
+        let useRound1Cache = false;
+        let cachedRound1: Round1CacheData | null = null;
+
+        if (deep) {
+          try {
+            const cacheCheckResponse = await fetch(
+              `/api/research/cache-round1?query=${encodeURIComponent(query)}&provider=${encodeURIComponent(provider)}`,
+              { signal: abortController.signal }
+            );
+            const cacheCheck = await cacheCheckResponse.json();
+
+            if (cacheCheck.cached && cacheCheck.data) {
+              console.log('[Deep Research] Round 1 cache HIT - skipping to gap analysis');
+              cachedRound1 = cacheCheck.data;
+              useRound1Cache = true;
+            }
+          } catch {
+            // Cache check failed, proceed with full round 1
+            console.log('[Deep Research] Round 1 cache check failed, proceeding with full round 1');
+          }
+        }
+
+        if (!isActive) return;
+
+        // Variables to hold round 1 data (either from cache or fresh)
+        let allSources: Source[] = [];
+        let allImages: SearchImage[] = [];
+        // eslint-disable-next-line prefer-const
+        let aspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
+        let globalSourceIndex: Record<string, number> = {};
+        let validExtractions: { aspect: string; claims?: unknown[]; statistics?: unknown[]; definitions?: unknown[]; expertOpinions?: unknown[]; contradictions?: unknown[]; keyInsight?: string }[] = [];
+        const seenUrls = new Set<string>();
+        let sourceIndex = 1;
+        let sourceIdx = 1;
+
+        if (useRound1Cache && cachedRound1) {
+          // Use cached round 1 data
+          allSources = cachedRound1.sources.map(s => ({
+            ...s,
+            id: s.id
+          }));
+          allImages = cachedRound1.images;
+          validExtractions = cachedRound1.extractions;
+          globalSourceIndex = cachedRound1.globalSourceIndex;
+          tavilyQueryCount = 0; // No new Tavily queries for round 1
+
+          // Rebuild seenUrls and counters from cached data
+          for (const source of allSources) {
+            seenUrls.add(source.url);
+          }
+          sourceIndex = allSources.length + 1;
+          sourceIdx = Object.keys(globalSourceIndex).length + 1;
+
+          setSources(allSources);
+          setImages(allImages);
+
+          console.log(`[Deep Research] Using cached round 1: ${validExtractions.length} extractions, ${allSources.length} sources`);
+        } else {
+          // Full round 1: Execute searches and extractions
+
         // Step 2: Execute multiple searches in parallel
         setLoadingStage('researching');
 
@@ -257,12 +332,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         tavilyQueryCount = searchResults.filter(r => !r.cached).length;
 
         // Aggregate sources and images, deduplicating by URL
-        const seenUrls = new Set<string>();
-        const allSources: Source[] = [];
-        const allImages: SearchImage[] = [];
-        const aspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
-        let sourceIndex = 1; // Global counter for unique source IDs
-
         for (const result of searchResults) {
           const sources = result.sources || [];
           const images = result.images || [];
@@ -312,8 +381,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         setLoadingStage('extracting');
 
         // Build global source index for consistent citation numbers
-        const globalSourceIndex: Record<string, number> = {};
-        let sourceIdx = 1;
         for (const result of aspectResults) {
           for (const r of result.results) {
             if (!globalSourceIndex[r.url]) {
@@ -341,7 +408,35 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         // Filter out failed extractions
-        let validExtractions = extractions.filter(e => e && e.aspect);
+        validExtractions = extractions.filter(e => e && e.aspect);
+
+        // Save round 1 data to cache for retry optimization (deep research only)
+        if (deep && validExtractions.length > 0) {
+          const round1CacheData: Round1CacheData = {
+            plan,
+            queryType: planData.queryType || null,
+            suggestedDepth: planData.suggestedDepth || null,
+            extractions: validExtractions as Round1CacheData['extractions'],
+            sources: allSources.map(s => ({
+              id: s.id,
+              url: s.url,
+              title: s.title,
+              iconUrl: s.iconUrl,
+              snippet: s.snippet
+            })),
+            images: allImages,
+            globalSourceIndex,
+            tavilyQueryCount
+          };
+
+          // Fire-and-forget cache save
+          fetch('/api/research/cache-round1', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, provider, data: round1CacheData })
+          }).catch(err => console.error('[Deep Research] Failed to cache round 1:', err));
+        }
+        } // End of else block (fresh round 1)
 
         // Track gap descriptions for synthesizer
         let gapDescriptions: string[] = [];
@@ -374,98 +469,121 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             // Extract gap descriptions for synthesizer prompt
             gapDescriptions = gapData.gaps.map((gap: ResearchGap) => gap.gap);
 
-            // Round 2: Execute searches for identified gaps
+            // Round 2: Execute searches for identified gaps (with timeout)
             setLoadingStage('deepening');
 
-            const round2SearchPromises = gapData.gaps.map((gap: ResearchGap) =>
-              fetch('/api/search', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  query: gap.query,
-                  searchDepth: 'advanced',
-                  maxResults: 8 // Slightly fewer per gap search
-                }),
-                signal: abortController.signal
-              }).then(res => res.json()).then(data => ({
-                aspect: `gap_${gap.type}`,
-                query: gap.query,
-                gapDescription: gap.gap,
-                ...data
-              }))
-            );
+            try {
+              // Wrap round 2 operations with timeout
+              const round2Promise = (async () => {
+                const round2SearchPromises = gapData.gaps.map((gap: ResearchGap) =>
+                  fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      query: gap.query,
+                      searchDepth: 'advanced',
+                      maxResults: 8 // Slightly fewer per gap search
+                    }),
+                    signal: abortController.signal
+                  }).then(res => res.json()).then(data => ({
+                    aspect: `gap_${gap.type}`,
+                    query: gap.query,
+                    gapDescription: gap.gap,
+                    ...data
+                  }))
+                );
 
-            const round2Results = await Promise.all(round2SearchPromises);
+                const round2Results = await Promise.all(round2SearchPromises);
 
-            if (!isActive) return;
+                if (!isActive) return null;
 
-            // Count round 2 Tavily queries (non-cached)
-            const round2QueryCount = round2Results.filter(r => !r.cached).length;
-            tavilyQueryCount += round2QueryCount;
+                // Count round 2 Tavily queries (non-cached)
+                const round2QueryCount = round2Results.filter(r => !r.cached).length;
+                tavilyQueryCount += round2QueryCount;
 
-            // Add round 2 sources (deduplicated)
-            const round2AspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
+                // Add round 2 sources (deduplicated)
+                const round2AspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
 
-            for (const result of round2Results) {
-              const r2Sources = result.sources || [];
-              const r2RawResults = result.rawResults?.results || [];
+                for (const result of round2Results) {
+                  const r2Sources = result.sources || [];
+                  const r2RawResults = result.rawResults?.results || [];
 
-              // Add unique sources
-              for (const source of r2Sources) {
-                if (!seenUrls.has(source.url)) {
-                  seenUrls.add(source.url);
-                  allSources.push({
-                    ...source,
-                    id: `s${sourceIndex++}`
+                  // Add unique sources
+                  for (const source of r2Sources) {
+                    if (!seenUrls.has(source.url)) {
+                      seenUrls.add(source.url);
+                      allSources.push({
+                        ...source,
+                        id: `s${sourceIndex++}`
+                      });
+                    }
+                  }
+
+                  // Update global source index for new sources
+                  for (const r of r2RawResults) {
+                    if (!globalSourceIndex[r.url]) {
+                      globalSourceIndex[r.url] = sourceIdx++;
+                    }
+                  }
+
+                  round2AspectResults.push({
+                    aspect: result.aspect,
+                    query: result.query,
+                    results: r2RawResults.map((r: { title: string; url: string; content: string }) => ({
+                      title: r.title,
+                      url: r.url,
+                      content: r.content
+                    }))
                   });
                 }
-              }
 
-              // Update global source index for new sources
-              for (const r of r2RawResults) {
-                if (!globalSourceIndex[r.url]) {
-                  globalSourceIndex[r.url] = sourceIdx++;
-                }
-              }
+                // Update sources state with round 2 additions
+                setSources([...allSources]);
 
-              round2AspectResults.push({
-                aspect: result.aspect,
-                query: result.query,
-                results: r2RawResults.map((r: { title: string; url: string; content: string }) => ({
-                  title: r.title,
-                  url: r.url,
-                  content: r.content
-                }))
-              });
+                // Extract from round 2 results
+                const round2ExtractionPromises = round2AspectResults.map(aspectResult =>
+                  fetch('/api/research/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      query,
+                      aspectResult,
+                      globalSourceIndex,
+                      provider
+                    }),
+                    signal: abortController.signal
+                  }).then(res => res.json()).then(data => data.extraction)
+                );
+
+                const round2Extractions = await Promise.all(round2ExtractionPromises);
+
+                if (!isActive) return null;
+
+                // Merge round 1 and round 2 extractions
+                const validRound2Extractions = round2Extractions.filter(e => e && e.aspect);
+                return validRound2Extractions;
+              })();
+
+              // Race between round 2 and timeout
+              const round2Result = await Promise.race([
+                round2Promise,
+                createTimeout(TIMEOUTS.round2, 'Round 2 timeout')
+              ]);
+
+              if (round2Result && Array.isArray(round2Result)) {
+                validExtractions = [...validExtractions, ...round2Result];
+                console.log(`[Deep Research] Round 2 completed: ${round2Result.length} additional extractions`);
+              }
+            } catch (round2Error) {
+              if (round2Error instanceof Error && round2Error.message === 'Round 2 timeout') {
+                console.warn('[Deep Research] Round 2 timed out after 45s, proceeding with round 1 results only');
+                // Clear gap descriptions since we couldn't fill them
+                gapDescriptions = [];
+              } else {
+                // Re-throw other errors
+                throw round2Error;
+              }
             }
-
-            // Update sources state with round 2 additions
-            setSources([...allSources]);
-
-            // Extract from round 2 results
-            const round2ExtractionPromises = round2AspectResults.map(aspectResult =>
-              fetch('/api/research/extract', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  query,
-                  aspectResult,
-                  globalSourceIndex,
-                  provider
-                }),
-                signal: abortController.signal
-              }).then(res => res.json()).then(data => data.extraction)
-            );
-
-            const round2Extractions = await Promise.all(round2ExtractionPromises);
-
-            if (!isActive) return;
-
-            // Merge round 1 and round 2 extractions
-            const validRound2Extractions = round2Extractions.filter(e => e && e.aspect);
-            validExtractions = [...validExtractions, ...validRound2Extractions];
-
-            console.log(`[Deep Research] Round 2 added ${round2Results.length} searches, ${validRound2Extractions.length} extractions`);
           } else {
             console.log('[Deep Research] No significant gaps found, skipping round 2');
           }

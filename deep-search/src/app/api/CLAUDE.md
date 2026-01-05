@@ -250,11 +250,133 @@ data: {"done": true}
 **Features:**
 - Integrates results from multiple research angles
 - Assigns consistent global source indices across all aspects
-- Targets 800-1000 words for comprehensive coverage
+- Targets 800-1000 words for comprehensive coverage (1000-1200 for deep mode)
 - Includes Key Takeaways section
 - Supports both streaming and non-streaming modes
 - **Synthesis Caching**: Results cached after stream completes (48 hours TTL)
-- Cache key: `research-synth:{query_hash}:{aspect_urls_hash}:{provider}`
+- Cache key: `research-synth:{query_hash}:{aspect_urls_hash}:{provider}:{depth_mode}`
+
+**Deep Mode Parameters:**
+```json
+{
+  "deep": true,
+  "gapDescriptions": ["Missing practical examples", "Need expert opinions"]
+}
+```
+
+When `deep=true`:
+- Uses `deepResearchSynthesizerPrompt` with gap context
+- Targets 1000-1200 words
+- System prompt includes multi-round integration strategy
+
+### `/api/research/analyze-gaps` - Gap Analysis
+Analyzes extracted research data to identify knowledge gaps for Round 2 searches.
+
+**Request:**
+```json
+{
+  "query": "original research topic",
+  "extractedData": [
+    {
+      "aspect": "fundamentals",
+      "keyInsight": "Summary of findings",
+      "claims": [{ "statement": "..." }]
+    }
+  ],
+  "language": "English",
+  "provider": "deepseek"
+}
+```
+
+**Response:**
+```json
+{
+  "gaps": [
+    {
+      "type": "missing_practical",
+      "gap": "No real-world implementation examples found",
+      "query": "quantum computing practical implementations 2024",
+      "importance": "high"
+    }
+  ],
+  "hasGaps": true
+}
+```
+
+**Gap Types:**
+| Type | Description |
+|------|-------------|
+| `missing_perspective` | Only one viewpoint represented |
+| `needs_verification` | Conflicting claims need resolution |
+| `missing_practical` | Lacks real-world examples |
+| `needs_recency` | Information may be outdated |
+| `missing_comparison` | Lacks alternatives comparison |
+| `missing_expert` | No expert opinions cited |
+
+**Features:**
+- Returns 0-3 gaps maximum (prioritizes high-importance)
+- Uses low temperature (0.4) for analytical task
+- Fail-safe: Returns empty gaps on error (doesn't block pipeline)
+- Generates optimized search queries for each gap
+
+### `/api/research/cache-round1` - Round 1 Cache
+Caches Round 1 research data for retry optimization. When retrying deep research, Round 1 results are reused and only Round 2 (gap filling) is executed.
+
+**GET Request (Check cache):**
+```
+GET /api/research/cache-round1?query=quantum%20computing&provider=deepseek
+```
+
+**GET Response (Cache hit):**
+```json
+{
+  "cached": true,
+  "data": {
+    "plan": [...],
+    "queryType": "technical",
+    "suggestedDepth": "deep",
+    "extractions": [...],
+    "sources": [...],
+    "images": [],
+    "globalSourceIndex": { "https://example.com": 1 },
+    "tavilyQueryCount": 3
+  },
+  "source": "supabase"
+}
+```
+
+**GET Response (Cache miss):**
+```json
+{
+  "cached": false
+}
+```
+
+**POST Request (Save to cache):**
+```json
+{
+  "query": "quantum computing",
+  "provider": "deepseek",
+  "data": {
+    "plan": [...],
+    "extractions": [...],
+    ...
+  }
+}
+```
+
+**POST Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Features:**
+- TTL: 24 hours (shorter than other caches since source data may change)
+- Cache key: `round1:{query_hash}:{provider}`
+- Stores complete Round 1 state: plan, extractions, sources, images, globalSourceIndex
+- Used by search-client.tsx to skip Round 1 on retry
 
 ### `/api/brainstorm/reframe` - Creative Angle Generation
 Generates creative search angles using lateral thinking and cross-domain inspiration.

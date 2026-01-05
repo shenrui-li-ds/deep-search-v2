@@ -11,7 +11,7 @@ import crypto from 'crypto';
 // Types
 // =============================================================================
 
-export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis';
+export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis' | 'round1-extractions';
 
 interface CacheEntry<T> {
   data: T;
@@ -38,6 +38,7 @@ const CONFIG = {
     plan: 48,                 // Research plans: 48 hours
     'research-synthesis': 48, // Research synthesis: 48 hours
     'brainstorm-synthesis': 48, // Brainstorm synthesis: 48 hours
+    'round1-extractions': 24, // Round 1 extractions: 24 hours (shorter TTL, source data may change)
   },
 };
 
@@ -205,6 +206,10 @@ export function generateCacheKey(
           }))))
         : 'noangles';
       return `brainstorm-synth:${md5(normalizedQuery)}:${angleHash}:${params.provider || 'default'}`;
+
+    case 'round1-extractions':
+      // Round 1 extractions: query + provider (for deep research retry optimization)
+      return `round1:${md5(normalizedQuery)}:${params.provider || 'default'}`;
 
     default:
       return `unknown:${md5(normalizedQuery)}`;

@@ -109,6 +109,70 @@ User Query → Navigate Immediately
 - Synthesizes from 30-40 sources vs 10-15
 - Skips refine step (plan already optimizes queries)
 
+### Deep Research Mode (Adaptive Depth)
+
+Deep Research extends the standard Research pipeline with automatic gap analysis and a second round of targeted searches. Enabled via the `deep=true` URL parameter.
+
+```
+Standard Research (Round 1)
+    ↓
+1. Planning: /api/research/plan
+   → Generates 3-4 research aspects
+    ↓
+2. Parallel Search: /api/search × 3-4
+   → 10 results per aspect
+    ↓
+3. Knowledge Extraction: /api/research/extract × 3-4
+   → Extracts structured claims, statistics, definitions, expert opinions
+    ↓
+Gap Analysis + Round 2
+    ↓
+4. Gap Analysis: /api/research/analyze-gaps
+   → Identifies missing perspectives, needs verification, missing practical info
+   → Returns 0-3 high-priority gaps to fill
+    ↓
+5. Gap Search (if gaps found): /api/search × 1-3
+   → Targeted searches for each identified gap
+    ↓
+6. Gap Extraction: /api/research/extract × 1-3
+   → Extracts from gap-filling sources
+    ↓
+Synthesis
+    ↓
+7. Deep Synthesis: /api/research/synthesize (deep=true)
+   → Integrates Round 1 + Round 2 data into 1000-1200 word document
+   → Uses deepResearchSynthesizerPrompt with gap context
+    ↓
+8. Display
+```
+
+**Gap Types Identified:**
+| Type | Description |
+|------|-------------|
+| `missing_perspective` | Only one viewpoint represented |
+| `needs_verification` | Conflicting claims need resolution |
+| `missing_practical` | Lacks real-world examples/implementations |
+| `needs_recency` | Information may be outdated |
+| `missing_comparison` | Lacks alternatives comparison |
+| `missing_expert` | No expert opinions cited |
+
+**Key Features:**
+- **Round 1 Caching**: After first search, Round 1 data is cached. Retries only execute Round 2 (saves time and credits)
+- **Timeout Handling**: Round 2 has a 45-second timeout. If exceeded, synthesis proceeds with Round 1 data only
+- **Fail-Safe**: Gap analysis errors don't block the pipeline; proceeds with Round 1 data
+- **Credit Tracking**: Both rounds count toward actual Tavily queries; unused reserved credits are refunded
+
+**Credit Usage (Deep Mode):**
+| Component | Max Credits | Typical Usage |
+|-----------|-------------|---------------|
+| Round 1 (3-4 aspects) | 4 | 3-4 queries |
+| Round 2 (0-3 gaps) | 3 | 0-3 queries |
+| **Total** | **7** | **3-7 queries** |
+
+**API Routes:**
+- `/api/research/analyze-gaps` - Identifies knowledge gaps from extractions
+- `/api/research/cache-round1` - GET/POST for Round 1 data caching
+
 ### Brainstorm Pipeline
 
 The Brainstorm mode uses lateral thinking and cross-domain inspiration to generate creative ideas:

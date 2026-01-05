@@ -16,8 +16,12 @@ jest.mock('@/lib/api-utils', () => ({
 }));
 
 // Mock the prompts module
+const mockResearchSynthesizerPrompt = jest.fn(() => 'mocked synthesizer prompt');
+const mockDeepResearchSynthesizerPrompt = jest.fn(() => 'mocked deep synthesizer prompt');
+
 jest.mock('@/lib/prompts', () => ({
-  researchSynthesizerPrompt: jest.fn(() => 'mocked synthesizer prompt'),
+  researchSynthesizerPrompt: mockResearchSynthesizerPrompt,
+  deepResearchSynthesizerPrompt: mockDeepResearchSynthesizerPrompt,
 }));
 
 // Mock the cache module
@@ -329,6 +333,150 @@ describe('/api/research/synthesize', () => {
       expect(response.status).toBe(200);
       expect(data.synthesis).toBe('Fresh synthesis result');
       expect(mockCallLLM).toHaveBeenCalled();
+    });
+  });
+
+  describe('deep mode', () => {
+    const mockExtractedData = [
+      {
+        aspect: 'fundamentals',
+        keyInsight: 'Quantum computing uses qubits',
+        claims: [
+          { statement: 'Qubits can exist in superposition', sources: [1, 2], confidence: 'established' },
+        ],
+        statistics: [
+          { metric: 'Qubit count', value: '100+', source: 1, year: '2024' },
+        ],
+      },
+      {
+        aspect: 'gap_missing_practical',
+        keyInsight: 'Practical implementations are advancing',
+        claims: [
+          { statement: 'IBM has deployed quantum computers commercially', sources: [3], confidence: 'established' },
+        ],
+      },
+    ];
+
+    it('uses deep synthesizer prompt when deep=true', async () => {
+      mockCallLLM.mockResolvedValueOnce('Deep synthesis result');
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: mockExtractedData,
+          stream: false,
+          deep: true,
+          gapDescriptions: ['Missing practical implementation examples'],
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.synthesis).toBe('Deep synthesis result');
+
+      // Verify deep synthesizer prompt was used
+      expect(mockDeepResearchSynthesizerPrompt).toHaveBeenCalled();
+    });
+
+    it('includes gap descriptions in deep mode', async () => {
+      mockCallLLM.mockResolvedValueOnce('Deep synthesis result');
+
+      const gapDescriptions = [
+        'Missing practical implementation examples',
+        'Need recent developments in 2024',
+      ];
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: mockExtractedData,
+          stream: false,
+          deep: true,
+          gapDescriptions,
+        }),
+      });
+
+      await POST(request);
+
+      expect(mockDeepResearchSynthesizerPrompt).toHaveBeenCalledWith(
+        'quantum computing',
+        expect.any(String), // date
+        'English',
+        gapDescriptions
+      );
+    });
+
+    it('uses standard synthesizer when deep=false', async () => {
+      mockCallLLM.mockResolvedValueOnce('Standard synthesis result');
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: mockExtractedData,
+          stream: false,
+          deep: false,
+        }),
+      });
+
+      await POST(request);
+
+      expect(mockResearchSynthesizerPrompt).toHaveBeenCalled();
+    });
+
+    it('handles extractedData with gap aspects', async () => {
+      mockCallLLM.mockResolvedValueOnce('Synthesis with gaps');
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: mockExtractedData,
+          stream: false,
+          deep: true,
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.synthesis).toBe('Synthesis with gaps');
+
+      // Verify the user message contains gap aspect info
+      const callArgs = mockCallLLM.mock.calls[0];
+      const messages = callArgs[0] as { role: string; content: string }[];
+      const userMessage = messages.find(m => m.role === 'user');
+
+      expect(userMessage?.content).toContain('aspectExtraction name="fundamentals"');
+      expect(userMessage?.content).toContain('aspectExtraction name="gap_missing_practical"');
+    });
+
+    it('uses different target length for deep mode', async () => {
+      mockCallLLM.mockResolvedValueOnce('Deep synthesis result');
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          extractedData: mockExtractedData,
+          stream: false,
+          deep: true,
+        }),
+      });
+
+      await POST(request);
+
+      const callArgs = mockCallLLM.mock.calls[0];
+      const messages = callArgs[0] as { role: string; content: string }[];
+      const userMessage = messages.find(m => m.role === 'user');
+
+      // Deep mode targets 1000-1200 words
+      expect(userMessage?.content).toContain('1000-1200 words');
     });
   });
 });
