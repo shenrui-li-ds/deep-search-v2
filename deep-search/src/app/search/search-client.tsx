@@ -238,12 +238,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }))
         );
 
-        // Track Tavily query count (1 credit per query)
-        tavilyQueryCount = searchPromises.length;
-
         const searchResults = await Promise.all(searchPromises);
 
         if (!isActive) return;
+
+        // Count only non-cached Tavily queries (cache hits are free)
+        tavilyQueryCount = searchResults.filter(r => !r.cached).length;
 
         // Aggregate sources and images, deduplicating by URL
         const seenUrls = new Set<string>();
@@ -528,12 +528,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }))
         );
 
-        // Track Tavily query count (1 credit per query)
-        tavilyQueryCount = searchPromises.length;
-
         const searchResults = await Promise.all(searchPromises);
 
         if (!isActive) return;
+
+        // Count only non-cached Tavily queries (cache hits are free)
+        tavilyQueryCount = searchResults.filter(r => !r.cached).length;
 
         // Aggregate sources and images, deduplicating by URL
         const seenUrls = new Set<string>();
@@ -868,8 +868,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // NON-PRO MODE: Just set final result (no proofreading)
         if (!isActive) return;
 
-        // Finalize credits - web search is always 1 Tavily query
-        finalizeCredits(reservationId, 1);
+        // Finalize credits - 0 if cached, 1 if fresh Tavily query
+        finalizeCredits(reservationId, searchData.cached ? 0 : 1);
 
         setSearchResult({
           query,

@@ -11,7 +11,7 @@ import crypto from 'crypto';
 // Types
 // =============================================================================
 
-export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan';
+export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis';
 
 interface CacheEntry<T> {
   data: T;
@@ -31,11 +31,13 @@ const CONFIG = {
   },
   // Supabase cache TTLs by type (in hours)
   supabase: {
-    search: 48,      // Tavily results: 48 hours
-    refine: 48,      // Query refinement: 48 hours
-    summary: 48,     // Summaries: 48 hours
-    related: 48,     // Related searches: 48 hours
-    plan: 48,        // Research plans: 48 hours
+    search: 48,               // Tavily results: 48 hours
+    refine: 48,               // Query refinement: 48 hours
+    summary: 48,              // Web search summaries: 48 hours
+    related: 48,              // Related searches: 48 hours
+    plan: 48,                 // Research plans: 48 hours
+    'research-synthesis': 48, // Research synthesis: 48 hours
+    'brainstorm-synthesis': 48, // Brainstorm synthesis: 48 hours
   },
 };
 
@@ -153,6 +155,8 @@ export function generateCacheKey(
     maxResults?: number;
     sources?: string[];
     content?: string;
+    aspectResults?: { aspect: string; query: string; results: { url: string }[] }[];
+    angleResults?: { angle: string; query: string; results: { url: string }[] }[];
   }
 ): string {
   const normalizedQuery = params.query.toLowerCase().trim();
@@ -179,6 +183,26 @@ export function generateCacheKey(
     case 'plan':
       // Research plan: query + provider
       return `plan:${md5(normalizedQuery)}:${params.provider || 'default'}`;
+
+    case 'research-synthesis':
+      // Research synthesis: query + aspect results hash (includes all source URLs)
+      const aspectHash = params.aspectResults
+        ? md5(JSON.stringify(params.aspectResults.map(a => ({
+            aspect: a.aspect,
+            urls: a.results.map(r => r.url).sort()
+          }))))
+        : 'noaspects';
+      return `research-synth:${md5(normalizedQuery)}:${aspectHash}:${params.provider || 'default'}`;
+
+    case 'brainstorm-synthesis':
+      // Brainstorm synthesis: query + angle results hash (includes all source URLs)
+      const angleHash = params.angleResults
+        ? md5(JSON.stringify(params.angleResults.map(a => ({
+            angle: a.angle,
+            urls: a.results.map(r => r.url).sort()
+          }))))
+        : 'noangles';
+      return `brainstorm-synth:${md5(normalizedQuery)}:${angleHash}:${params.provider || 'default'}`;
 
     default:
       return `unknown:${md5(normalizedQuery)}`;

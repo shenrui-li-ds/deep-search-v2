@@ -62,14 +62,14 @@ const modelProviderGroups: ProviderGroup[] = [
   {
     provider: 'Google',
     models: [
-      { id: 'gemini', label: 'Gemini 3 Flash', description: 'Fast', tag: 'Recommended' },
+      { id: 'gemini', label: 'Gemini 3 Flash', description: 'Latest & fast', tag: 'Recommended' },
       { id: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Higher quality' },
     ],
   },
   {
     provider: 'Anthropic',
     models: [
-      { id: 'claude', label: 'Claude Haiku 4.5', description: 'Fast & efficient' },
+      { id: 'claude', label: 'Claude Haiku 4.5', description: 'Latest & fast' },
     ],
   },
   {
@@ -81,14 +81,14 @@ const modelProviderGroups: ProviderGroup[] = [
   {
     provider: 'OpenAI',
     models: [
-      { id: 'openai-mini', label: 'GPT-5 mini', description: 'Fast & affordable' },
-      { id: 'openai', label: 'GPT-5.2', description: 'Latest', tag: 'Reference' },
+      { id: 'openai-mini', label: 'GPT-5 mini', description: 'Cost-effective' },
+      { id: 'openai', label: 'GPT-5.2', description: 'Higher quality', tag: 'Reference' },
     ],
   },
   {
     provider: 'xAI',
     models: [
-      { id: 'grok', label: 'Grok 4.1 Fast', description: 'Latest' },
+      { id: 'grok', label: 'Grok 4.1 Fast', description: 'Latest & fast' },
     ],
   },
   {

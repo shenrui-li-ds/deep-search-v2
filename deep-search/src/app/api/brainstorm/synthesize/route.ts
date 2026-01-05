@@ -8,6 +8,12 @@ import {
 } from '@/lib/api-utils';
 import { brainstormSynthesizerPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
+import { createClient } from '@/lib/supabase/server';
+
+interface SynthesisCache {
+  content: string;
+}
 
 interface SearchResultItem {
   title: string;
@@ -63,6 +69,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check synthesis cache
+    const supabase = await createClient();
+    const cacheKey = generateCacheKey('brainstorm-synthesis', {
+      query,
+      provider: llmProvider,
+      angleResults
+    });
+
+    const { data: cachedData } = await getFromCache<SynthesisCache>(cacheKey, supabase);
+
+    if (cachedData) {
+      console.log(`[Brainstorm Synthesize] Cache HIT for query: ${query.slice(0, 50)}...`);
+
+      if (stream) {
+        // Return cached content as SSE for consistent client handling
+        const readableStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: cachedData.content, done: false })}\n\n`));
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true, cached: true })}\n\n`));
+            controller.close();
+          }
+        });
+
+        return new NextResponse(readableStream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      } else {
+        return NextResponse.json({ synthesis: cachedData.content, cached: true });
+      }
+    }
+
     const currentDate = getCurrentDate();
 
     // Detect language from the query to ensure response matches
@@ -100,15 +141,23 @@ Focus on actionable ideas and experiments, not just observations.
       const response = await callLLM(messages, 0.8, true, llmProvider);
       const streamParser = getStreamParser(llmProvider || 'openai');
 
+      // Track total output for caching
+      let totalOutput = '';
+
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
             for await (const chunk of streamParser(response)) {
+              totalOutput += chunk;
               controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
+
+            // Cache the completed synthesis result
+            setToCache(cacheKey, 'brainstorm-synthesis', query, { content: totalOutput }, llmProvider, supabase)
+              .catch(err => console.error('Failed to cache brainstorm synthesis:', err));
           } catch (error) {
             controller.error(error);
           }

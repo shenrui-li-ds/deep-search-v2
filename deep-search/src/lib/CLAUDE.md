@@ -254,7 +254,9 @@ Request → Memory Cache (15 min) → Supabase Cache (48 hrs) → API Call
 | `refine` | 48 hours | Query refinements |
 | `related` | 48 hours | Related search suggestions |
 | `plan` | 48 hours | Research plans |
-| `summary` | 48 hours | LLM summaries (future) |
+| `summary` | 48 hours | Web search LLM summaries |
+| `research-synthesis` | 48 hours | Research mode synthesis |
+| `brainstorm-synthesis` | 48 hours | Brainstorm mode synthesis |
 
 **Key Functions:**
 
@@ -290,6 +292,12 @@ await setToCache(cacheKey, 'search', query, response, provider, supabase);
 - `/api/refine` - Query refinement
 - `/api/related-searches` - Related queries
 - `/api/research/plan` - Research plans
+- `/api/summarize` - Web search summaries (synthesis caching)
+- `/api/research/synthesize` - Research synthesis (synthesis caching)
+- `/api/brainstorm/synthesize` - Brainstorm synthesis (synthesis caching)
+
+**Synthesis Caching:**
+Synthesis results are cached after the LLM stream completes. If a user disconnects mid-stream and retries the same query (with same sources), they get the cached result instantly. Cache key includes query + source URLs + provider to ensure exact match.
 
 ### `supabase/` - Supabase Integration
 

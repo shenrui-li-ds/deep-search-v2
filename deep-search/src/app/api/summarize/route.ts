@@ -10,6 +10,12 @@ import {
 import { summarizeSearchResultsPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { trackServerApiUsage, estimateTokens, checkServerUsageLimits } from '@/lib/supabase/usage-tracking';
+import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
+import { createClient } from '@/lib/supabase/server';
+
+interface SynthesisCache {
+  content: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,6 +36,42 @@ export async function POST(req: NextRequest) {
         { error: 'Query and results parameters are required' },
         { status: 400 }
       );
+    }
+
+    // Check synthesis cache
+    const supabase = await createClient();
+    const sourceUrls = results.map((r: { url: string }) => r.url);
+    const cacheKey = generateCacheKey('summary', {
+      query,
+      provider: llmProvider,
+      sources: sourceUrls
+    });
+
+    const { data: cachedData } = await getFromCache<SynthesisCache>(cacheKey, supabase);
+
+    if (cachedData) {
+      console.log(`[Summarize] Cache HIT for query: ${query.slice(0, 50)}...`);
+
+      if (stream) {
+        // Return cached content as SSE for consistent client handling
+        const readableStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: cachedData.content, done: false })}\n\n`));
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true, cached: true })}\n\n`));
+            controller.close();
+          }
+        });
+
+        return new NextResponse(readableStream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        });
+      } else {
+        return NextResponse.json({ summary: cachedData.content, cached: true });
+      }
     }
 
     const currentDate = getCurrentDate();
@@ -77,6 +119,10 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
+
+            // Cache the completed synthesis result
+            setToCache(cacheKey, 'summary', query, { content: totalOutput }, llmProvider, supabase)
+              .catch(err => console.error('Failed to cache synthesis:', err));
 
             // Track API usage after stream completes
             const outputTokens = estimateTokens(totalOutput);

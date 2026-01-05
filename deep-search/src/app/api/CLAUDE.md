@@ -71,6 +71,12 @@ data: {"data": "more text"}
 data: {"done": true}
 ```
 
+**Features:**
+- **Synthesis Caching**: Results are cached after stream completes (48 hours TTL)
+- Cache key: `summary:{query_hash}:{sources_hash}:{provider}`
+- Cache hit returns full content in single SSE chunk with `cached: true`
+- Enables retry without re-calling LLM if user disconnects mid-stream
+
 ### `/api/proofread` - Content Proofreading
 Cleans up and polishes content. Used in Pro Search mode.
 
@@ -247,6 +253,8 @@ data: {"done": true}
 - Targets 800-1000 words for comprehensive coverage
 - Includes Key Takeaways section
 - Supports both streaming and non-streaming modes
+- **Synthesis Caching**: Results cached after stream completes (48 hours TTL)
+- Cache key: `research-synth:{query_hash}:{aspect_urls_hash}:{provider}`
 
 ### `/api/brainstorm/reframe` - Creative Angle Generation
 Generates creative search angles using lateral thinking and cross-domain inspiration.
@@ -315,6 +323,8 @@ data: {"done": true}
 - Focus on actionable experiments
 - Cross-domain synthesis
 - Targets 800-1000 words
+- **Synthesis Caching**: Results cached after stream completes (48 hours TTL)
+- Cache key: `brainstorm-synth:{query_hash}:{angle_urls_hash}:{provider}`
 
 ### `/api/related-searches` - Related Search Suggestions
 Generates related search queries based on the original query and content.

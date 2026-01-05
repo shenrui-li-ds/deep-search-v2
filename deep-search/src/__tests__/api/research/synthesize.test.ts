@@ -20,13 +20,29 @@ jest.mock('@/lib/prompts', () => ({
   researchSynthesizerPrompt: jest.fn(() => 'mocked synthesizer prompt'),
 }));
 
+// Mock the cache module
+jest.mock('@/lib/cache', () => ({
+  generateCacheKey: jest.fn(() => 'test-cache-key'),
+  getFromCache: jest.fn(() => Promise.resolve({ data: null, source: 'miss' })),
+  setToCache: jest.fn(() => Promise.resolve()),
+}));
+
+// Mock the supabase server module
+jest.mock('@/lib/supabase/server', () => ({
+  createClient: jest.fn(() => Promise.resolve({})),
+}));
+
 import { callLLM } from '@/lib/api-utils';
+import { getFromCache } from '@/lib/cache';
 
 const mockCallLLM = callLLM as jest.MockedFunction<typeof callLLM>;
+const mockGetFromCache = getFromCache as jest.MockedFunction<typeof getFromCache>;
 
 describe('/api/research/synthesize', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: cache miss
+    mockGetFromCache.mockResolvedValue({ data: null, source: 'miss' });
   });
 
   const mockAspectResults = [
@@ -59,7 +75,7 @@ describe('/api/research/synthesize', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('Query and aspectResults parameters are required');
+    expect(data.error).toBe('Query and either extractedData or aspectResults parameters are required');
   });
 
   it('returns 400 if aspectResults is missing', async () => {
@@ -74,7 +90,7 @@ describe('/api/research/synthesize', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('Query and aspectResults parameters are required');
+    expect(data.error).toBe('Query and either extractedData or aspectResults parameters are required');
   });
 
   it('returns 400 if aspectResults is not an array', async () => {
@@ -90,7 +106,7 @@ describe('/api/research/synthesize', () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe('Query and aspectResults parameters are required');
+    expect(data.error).toBe('Query and either extractedData or aspectResults parameters are required');
   });
 
   it('returns synthesis on success (non-streaming)', async () => {
@@ -226,5 +242,93 @@ describe('/api/research/synthesize', () => {
     expect(userMessage?.content).toContain('source index="1"');
     expect(userMessage?.content).toContain('source index="2"');
     expect(userMessage?.content).toContain('source index="3"');
+  });
+
+  describe('caching', () => {
+    it('returns cached content without calling LLM (non-streaming)', async () => {
+      const cachedContent = '## Cached Research Summary\n\nThis is cached content.';
+      mockGetFromCache.mockResolvedValueOnce({
+        data: { content: cachedContent },
+        source: 'supabase',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          aspectResults: mockAspectResults,
+          stream: false,
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.synthesis).toBe(cachedContent);
+      expect(data.cached).toBe(true);
+      expect(mockCallLLM).not.toHaveBeenCalled();
+    });
+
+    it('returns cached content as SSE stream (streaming)', async () => {
+      const cachedContent = '## Cached Research Summary\n\nThis is cached content.';
+      mockGetFromCache.mockResolvedValueOnce({
+        data: { content: cachedContent },
+        source: 'memory',
+      });
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          aspectResults: mockAspectResults,
+          stream: true,
+        }),
+      });
+
+      const response = await POST(request);
+
+      expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+      expect(mockCallLLM).not.toHaveBeenCalled();
+
+      // Read the stream to verify content
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullContent += decoder.decode(value);
+        }
+      }
+
+      // Should contain cached content (JSON-escaped in SSE) and cached: true flag
+      expect(fullContent).toContain('Cached Research Summary');
+      expect(fullContent).toContain('This is cached content');
+      expect(fullContent).toContain('"cached":true');
+    });
+
+    it('calls LLM on cache miss', async () => {
+      mockGetFromCache.mockResolvedValueOnce({ data: null, source: 'miss' });
+      mockCallLLM.mockResolvedValueOnce('Fresh synthesis result');
+
+      const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: 'quantum computing',
+          aspectResults: mockAspectResults,
+          stream: false,
+        }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.synthesis).toBe('Fresh synthesis result');
+      expect(mockCallLLM).toHaveBeenCalled();
+    });
   });
 });

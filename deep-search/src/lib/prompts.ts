@@ -117,7 +117,7 @@ export const summarizeSearchResultsPrompt = (query: string, currentDate: string,
         <step>Start with a 1-2 sentence direct answer (no heading needed)</step>
         <step>Use ## headers to organize 2-4 main sections</step>
         <step>Under each section: short paragraphs OR bullet points</step>
-        <step>End with a brief "Key Takeaways" section using bullet points</step>
+        <step>End with a brief summary section using a conversational header (NOT "Key Takeaways"). Express the header naturally in the response language - e.g., in English: "The Bottom Line", "In Short", "What This Means"; in Chinese: "简而言之", "划重点", "总结一下"</step>
         <step>DO NOT include a sources/references section at the end</step>
     </responseStructure>
     <qualityChecks>
@@ -155,7 +155,7 @@ $$</example>
     </mathAndScience>
     <CRITICAL_LANGUAGE_REQUIREMENT>
         You MUST write your ENTIRE response in ${language}.
-        This includes ALL headers (##), body text, bullet points, and Key Takeaways.
+        This includes ALL headers (##), body text, bullet points, and summary section.
         The search results may be in different languages - IGNORE their language.
         Your response language is determined ONLY by the responseLanguage field above: ${language}.
         DO NOT mix languages. Every word must be in ${language}.
@@ -662,7 +662,7 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
         <section type="overview">Start with 2-3 sentence executive summary answering the core question (always visible)</section>
         <section type="main">3-5 substantial sections covering different aspects (use ## headings)</section>
         <section type="details">For technical deep-dives, use HTML details/summary for collapsible content</section>
-        <section type="conclusion">End with "Key Takeaways" section: 5-7 bullet points (always visible)</section>
+        <section type="conclusion">End with a summary section: 5-7 bullet points (always visible). Use a conversational header (NOT "Key Takeaways") expressed naturally in the response language - e.g., English: "The Bottom Line", "In Short"; Chinese: "简而言之", "划重点"</section>
     </structure>
     <collapsibleSections>
         <description>
@@ -674,7 +674,7 @@ export const researchSynthesizerPrompt = (query: string, currentDate: string, la
                 - Executive summary (opening paragraph)
                 - Claims from extractions (main narrative)
                 - Definitions (explain inline on first use)
-                - Key Takeaways section
+                - Summary section (The Bottom Line / In Short / What This Means)
             </rule>
             <rule type="ALWAYS_COLLAPSIBLE">
                 - Tables (especially comparison tables with 3+ rows)
@@ -746,7 +746,7 @@ Tesla remains the market leader, though Chinese manufacturers are rapidly gainin
         <check>No incomplete sentences or cut-off content</check>
         <check>All markdown properly closed (** must have matching **)</check>
         <check>Headers have proper spacing</check>
-        <check>Key Takeaways actually summarize the main content</check>
+        <check>Summary section actually summarizes the main content</check>
         <check>HTML details tags are properly closed</check>
         <check>Contradictions from extractions are addressed in the narrative</check>
     </qualityChecks>
@@ -782,7 +782,7 @@ $$</example>
     </mathAndScience>
     <CRITICAL_LANGUAGE_REQUIREMENT>
         You MUST write your ENTIRE response in ${language}.
-        This includes ALL headers (##), body text, bullet points, and Key Takeaways.
+        This includes ALL headers (##), body text, bullet points, and summary section.
         The extracted data may be in different languages - IGNORE their language.
         Your response language is determined ONLY by the responseLanguage field above: ${language}.
         DO NOT mix languages. Every word must be in ${language}.
@@ -997,7 +997,7 @@ export const brainstormSynthesizerPrompt = (query: string, currentDate: string, 
             - These should be novel combinations: "What if X + Y?"
         </section>
         <section type="experiments">
-            "Experiments to Try" section (## heading)
+            End with an experiments section (## heading). Use a conversational header expressed naturally in the response language - e.g., English: "Try This Week", "Give These a Shot"; Chinese: "动手试试", "本周实验"
             - 4-6 specific, actionable experiments as a checklist
             - Each should be small, testable, and derived from the ideas above
         </section>
