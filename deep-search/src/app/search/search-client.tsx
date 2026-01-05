@@ -144,7 +144,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const TIMEOUTS = {
       standard: 60000,   // 60 seconds for standard research
       deep: 120000,      // 120 seconds for deep research (2 rounds)
-      round2: 45000,     // 45 seconds for round 2 specifically
+      round2: 60000,     // 60 seconds for round 2 specifically
     };
 
     // Helper to create a timeout promise
@@ -576,7 +576,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               }
             } catch (round2Error) {
               if (round2Error instanceof Error && round2Error.message === 'Round 2 timeout') {
-                console.warn('[Deep Research] Round 2 timed out after 45s, proceeding with round 1 results only');
+                console.warn('[Deep Research] Round 2 timed out after 60s, proceeding with round 1 results only');
                 // Clear gap descriptions since we couldn't fill them
                 gapDescriptions = [];
               } else {
