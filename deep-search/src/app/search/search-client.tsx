@@ -7,7 +7,18 @@ import SearchResultComponent from '@/components/SearchResult';
 import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route';
 import type { ResearchGap, AnalyzeGapsResponse } from '@/app/api/research/analyze-gaps/route';
 import type { Round1CacheData } from '@/app/api/research/cache-round1/route';
+import type { Round2CacheData } from '@/app/api/research/cache-round2/route';
 import { Button } from '@/components/ui/button';
+
+// Simple hash function for browser (djb2 algorithm)
+function simpleHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+  }
+  // Convert to hex string, take first 16 chars for reasonable length
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
 import { Card } from '@/components/ui/card';
 import { cleanupFinalContent } from '@/lib/text-cleanup';
 import { addSearchToHistory, toggleBookmark } from '@/lib/supabase/database';
@@ -441,9 +452,69 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Track gap descriptions for synthesizer
         let gapDescriptions: string[] = [];
 
+        // Compute R1 extractions hash for R2 cache key
+        const r1ExtractionsHash = simpleHash(JSON.stringify(validExtractions));
+
         // Deep Research: Gap Analysis + Round 2
         if (deep && validExtractions.length > 0) {
           setLoadingStage('analyzing_gaps');
+
+          // First, check if we have cached R2 data for this R1 state
+          let useRound2Cache = false;
+          let cachedRound2: Round2CacheData | null = null;
+
+          try {
+            const r2CacheCheckResponse = await fetch(
+              `/api/research/cache-round2?query=${encodeURIComponent(query)}&provider=${encodeURIComponent(provider)}&round1ExtractionsHash=${encodeURIComponent(r1ExtractionsHash)}`,
+              { signal: abortController.signal }
+            );
+            const r2CacheCheck = await r2CacheCheckResponse.json();
+
+            if (r2CacheCheck.cached && r2CacheCheck.data) {
+              console.log('[Deep Research] Round 2 cache HIT - skipping gap analysis and searches');
+              cachedRound2 = r2CacheCheck.data;
+              useRound2Cache = true;
+            }
+          } catch {
+            // Cache check failed, proceed with full round 2
+            console.log('[Deep Research] Round 2 cache check failed, proceeding with full round 2');
+          }
+
+          if (!isActive) return;
+
+          if (useRound2Cache && cachedRound2) {
+            // Use cached R2 data
+            setResearchGaps(cachedRound2.gaps);
+            gapDescriptions = cachedRound2.gaps.map((gap: ResearchGap) => gap.gap);
+
+            // Merge cached R2 sources with R1 sources
+            for (const source of cachedRound2.sources) {
+              if (!seenUrls.has(source.url)) {
+                seenUrls.add(source.url);
+                allSources.push({
+                  ...source,
+                  id: source.id
+                });
+              }
+            }
+
+            // Merge cached R2 images
+            for (const image of cachedRound2.images) {
+              if (!allImages.some(i => i.url === image.url)) {
+                allImages.push(image);
+              }
+            }
+
+            // Merge R2 extractions with R1 extractions
+            validExtractions = [...validExtractions, ...cachedRound2.extractions];
+
+            // Update sources state
+            setSources([...allSources]);
+
+            // No new Tavily queries since we used cache
+            console.log(`[Deep Research] Using cached round 2: ${cachedRound2.extractions.length} extractions, ${cachedRound2.sources.length} sources`);
+          } else {
+            // Full R2: gap analysis + searches + extractions
 
           // Analyze gaps in round 1 research
           const gapResponse = await fetch('/api/research/analyze-gaps', {
@@ -471,6 +542,10 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
             // Round 2: Execute searches for identified gaps (with timeout)
             setLoadingStage('deepening');
+
+            // Track R2-specific data for caching
+            const r2Sources: { id: string; url: string; title: string; iconUrl: string; snippet?: string }[] = [];
+            const r2Images: { url: string; alt: string; sourceId?: string }[] = [];
 
             try {
               // Wrap round 2 operations with timeout
@@ -505,17 +580,35 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
                 const round2AspectResults: { aspect: string; query: string; results: { title: string; url: string; content: string }[] }[] = [];
 
                 for (const result of round2Results) {
-                  const r2Sources = result.sources || [];
+                  const r2SourcesResult = result.sources || [];
+                  const r2ImagesResult = result.images || [];
                   const r2RawResults = result.rawResults?.results || [];
 
-                  // Add unique sources
-                  for (const source of r2Sources) {
+                  // Add unique sources and track for R2 cache
+                  for (const source of r2SourcesResult) {
                     if (!seenUrls.has(source.url)) {
                       seenUrls.add(source.url);
-                      allSources.push({
+                      const newSource = {
                         ...source,
                         id: `s${sourceIndex++}`
+                      };
+                      allSources.push(newSource);
+                      // Track R2-specific source for caching
+                      r2Sources.push({
+                        id: newSource.id,
+                        url: source.url,
+                        title: source.title,
+                        iconUrl: source.iconUrl,
+                        snippet: source.snippet
                       });
+                    }
+                  }
+
+                  // Add unique images and track for R2 cache
+                  for (const image of r2ImagesResult) {
+                    if (!allImages.some(i => i.url === image.url)) {
+                      allImages.push(image);
+                      r2Images.push(image);
                     }
                   }
 
@@ -573,6 +666,26 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               if (round2Result && Array.isArray(round2Result)) {
                 validExtractions = [...validExtractions, ...round2Result];
                 console.log(`[Deep Research] Round 2 completed: ${round2Result.length} additional extractions`);
+
+                // Save R2 data to cache (fire-and-forget)
+                const round2CacheData: Round2CacheData = {
+                  gaps: gapData.gaps,
+                  extractions: round2Result as Round2CacheData['extractions'],
+                  sources: r2Sources,
+                  images: r2Images,
+                  tavilyQueryCount: tavilyQueryCount
+                };
+
+                fetch('/api/research/cache-round2', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    query,
+                    provider,
+                    round1ExtractionsHash: r1ExtractionsHash,
+                    data: round2CacheData
+                  })
+                }).catch(err => console.error('[Deep Research] Failed to cache round 2:', err));
               }
             } catch (round2Error) {
               if (round2Error instanceof Error && round2Error.message === 'Round 2 timeout') {
@@ -587,6 +700,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           } else {
             console.log('[Deep Research] No significant gaps found, skipping round 2');
           }
+          } // End of else block (fresh round 2)
         }
 
         // Step 4: Synthesize with extracted data

@@ -158,6 +158,7 @@ Synthesis
 
 **Key Features:**
 - **Round 1 Caching**: After first search, Round 1 data is cached. Retries only execute Round 2 (saves time and credits)
+- **Round 2 Caching**: Gap analysis and R2 extractions are cached. If both R1 and R2 hit, only synthesis runs
 - **Timeout Handling**: Round 2 has a 60-second timeout. If exceeded, synthesis proceeds with Round 1 data only
 - **Fail-Safe**: Gap analysis errors don't block the pipeline; proceeds with Round 1 data
 - **Credit Tracking**: Both rounds count toward actual Tavily queries; unused reserved credits are refunded
@@ -172,6 +173,7 @@ Synthesis
 **API Routes:**
 - `/api/research/analyze-gaps` - Identifies knowledge gaps from extractions
 - `/api/research/cache-round1` - GET/POST for Round 1 data caching
+- `/api/research/cache-round2` - GET/POST for Round 2 data caching (gaps + R2 extractions)
 
 ### Brainstorm Pipeline
 

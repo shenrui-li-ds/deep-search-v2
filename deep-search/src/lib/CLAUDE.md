@@ -260,11 +260,13 @@ Request → Memory Cache (15 min) → Supabase Cache (48 hrs) → API Call
 | `research-synthesis` | 48 hours | Research mode synthesis |
 | `brainstorm-synthesis` | 48 hours | Brainstorm mode synthesis |
 | `round1-extractions` | 24 hours | Deep research Round 1 data (for retry optimization) |
+| `round2-data` | 24 hours | Deep research Round 2 data (gaps + R2 extractions) |
 
 **Key Functions:**
 
 | Function | Description |
 |----------|-------------|
+| `md5(input)` | Generate MD5 hash (exported for cache key generation) |
 | `generateCacheKey(type, params)` | Generate cache key from type and parameters |
 | `getFromCache<T>(key, supabase?)` | Get from memory, then Supabase |
 | `setToCache(key, type, query, data, provider?, supabase?)` | Set to both tiers |
@@ -298,6 +300,8 @@ await setToCache(cacheKey, 'search', query, response, provider, supabase);
 - `/api/summarize` - Web search summaries (synthesis caching)
 - `/api/research/synthesize` - Research synthesis (synthesis caching)
 - `/api/brainstorm/synthesize` - Brainstorm synthesis (synthesis caching)
+- `/api/research/cache-round1` - Deep research Round 1 state
+- `/api/research/cache-round2` - Deep research Round 2 state (gap analysis + R2 extractions)
 
 **Synthesis Caching:**
 Synthesis results are cached after the LLM stream completes. If a user disconnects mid-stream and retries the same query (with same sources), they get the cached result instantly. Cache key includes query + source URLs + provider to ensure exact match.

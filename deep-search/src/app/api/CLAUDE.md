@@ -378,6 +378,68 @@ GET /api/research/cache-round1?query=quantum%20computing&provider=deepseek
 - Stores complete Round 1 state: plan, extractions, sources, images, globalSourceIndex
 - Used by search-client.tsx to skip Round 1 on retry
 
+### `/api/research/cache-round2` - Round 2 Cache
+Caches Round 2 research data (gap analysis + R2 extractions) for retry optimization. When both R1 and R2 caches hit, the entire deep research pipeline can be skipped and only synthesis runs.
+
+**GET Request (Check cache):**
+```
+GET /api/research/cache-round2?query=quantum%20computing&provider=deepseek&round1ExtractionsHash=abc12345
+```
+
+**GET Response (Cache hit):**
+```json
+{
+  "cached": true,
+  "data": {
+    "gaps": [
+      { "type": "missing_practical", "gap": "No real-world examples", "query": "...", "importance": "high" }
+    ],
+    "extractions": [...],
+    "sources": [...],
+    "images": [],
+    "tavilyQueryCount": 2
+  },
+  "source": "supabase"
+}
+```
+
+**GET Response (Cache miss):**
+```json
+{
+  "cached": false
+}
+```
+
+**POST Request (Save to cache):**
+```json
+{
+  "query": "quantum computing",
+  "provider": "deepseek",
+  "round1ExtractionsHash": "abc12345",
+  "data": {
+    "gaps": [...],
+    "extractions": [...],
+    "sources": [...],
+    "images": [],
+    "tavilyQueryCount": 2
+  }
+}
+```
+
+**POST Response:**
+```json
+{
+  "success": true
+}
+```
+
+**Features:**
+- TTL: 24 hours
+- Cache key: `round2:{query_hash}:{round1ExtractionsHash}:{provider}`
+- Uses R1 extractions hash to ensure R2 cache is invalidated when R1 changes
+- Stores R2-only data: gaps, R2 extractions, R2 sources, R2 images
+- Used by search-client.tsx to skip gap analysis and R2 searches on retry
+
 ### `/api/brainstorm/reframe` - Creative Angle Generation
 Generates creative search angles using lateral thinking and cross-domain inspiration.
 

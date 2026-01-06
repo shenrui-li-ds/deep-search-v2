@@ -11,7 +11,7 @@ import crypto from 'crypto';
 // Types
 // =============================================================================
 
-export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis' | 'round1-extractions';
+export type CacheType = 'search' | 'refine' | 'summary' | 'related' | 'plan' | 'research-synthesis' | 'brainstorm-synthesis' | 'round1-extractions' | 'round2-data';
 
 interface CacheEntry<T> {
   data: T;
@@ -39,6 +39,7 @@ const CONFIG = {
     'research-synthesis': 48, // Research synthesis: 48 hours
     'brainstorm-synthesis': 48, // Brainstorm synthesis: 48 hours
     'round1-extractions': 24, // Round 1 extractions: 24 hours (shorter TTL, source data may change)
+    'round2-data': 24,        // Round 2 data: 24 hours (gap analysis + R2 extractions)
   },
 };
 
@@ -140,7 +141,7 @@ if (typeof setInterval !== 'undefined') {
 /**
  * Generate MD5 hash for cache key components
  */
-function md5(input: string): string {
+export function md5(input: string): string {
   return crypto.createHash('md5').update(input).digest('hex');
 }
 
@@ -159,6 +160,7 @@ export function generateCacheKey(
     aspectResults?: { aspect: string; query: string; results: { url: string }[] }[];
     angleResults?: { angle: string; query: string; results: { url: string }[] }[];
     deep?: boolean; // For deep research mode
+    round1ExtractionsHash?: string; // Hash of R1 extractions for R2 cache key
   }
 ): string {
   const normalizedQuery = params.query.toLowerCase().trim();
@@ -210,6 +212,11 @@ export function generateCacheKey(
     case 'round1-extractions':
       // Round 1 extractions: query + provider (for deep research retry optimization)
       return `round1:${md5(normalizedQuery)}:${params.provider || 'default'}`;
+
+    case 'round2-data':
+      // Round 2 data: query + R1 extractions hash + provider
+      // Uses R1 extractions hash to ensure R2 cache is invalidated when R1 changes
+      return `round2:${md5(normalizedQuery)}:${params.round1ExtractionsHash || 'nohash'}:${params.provider || 'default'}`;
 
     default:
       return `unknown:${md5(normalizedQuery)}`;
