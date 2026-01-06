@@ -129,7 +129,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         query,
         provider: searchProvider,
         mode: searchMode,
-        sources_count: fetchedSources.length
+        sources_count: fetchedSources.length,
+        deep: searchMode === 'pro' ? deep : false
       }).then(entry => {
         if (entry?.id) {
           setHistoryEntryId(entry.id);
@@ -1257,7 +1258,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           query,
           provider,
           mode: mode as 'web' | 'pro' | 'brainstorm',
-          sources_count: fetchedSources.length
+          sources_count: fetchedSources.length,
+          deep: false // Web mode doesn't use deep research
         }).then(entry => {
           if (entry?.id) {
             setHistoryEntryId(entry.id);

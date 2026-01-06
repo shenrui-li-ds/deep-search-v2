@@ -95,7 +95,8 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}`;
+  // Build search URL, including deep parameter if it was a deep research
+  const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}${entry.deep ? '&deep=true' : ''}`;
 
   const handleMenuDelete = () => {
     if (entry.id) {

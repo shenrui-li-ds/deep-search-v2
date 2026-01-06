@@ -1,19 +1,13 @@
--- Migration: Add upsert_search_history function
--- Run this in Supabase SQL Editor
+-- Migration: Add deep column to search_history
+-- Run this in Supabase SQL Editor if you have an existing database
 --
--- Purpose: Optimizes the "add to history" flow by combining the duplicate check
--- and insert/update into a single database call. This eliminates one round trip
--- when saving search history, especially important for bookmarked entries.
---
--- Behavior:
--- 1. If a BOOKMARKED entry with same (user_id, query, provider, mode) exists:
---    → Updates that entry's sources_count, refined_query, and created_at
--- 2. Otherwise:
---    → Inserts a new entry (bookmarked = false by default)
---
--- This prevents duplicate entries when users re-run bookmarked searches.
+-- This adds support for tracking whether a search used "deep research" mode
 
--- Create or replace the function
+-- Add the deep column if it doesn't exist
+ALTER TABLE search_history
+ADD COLUMN IF NOT EXISTS deep BOOLEAN DEFAULT false;
+
+-- Update the upsert_search_history function to accept p_deep parameter
 CREATE OR REPLACE FUNCTION public.upsert_search_history(
   p_user_id UUID,
   p_query TEXT,
@@ -65,17 +59,5 @@ $$;
 -- Set search_path for security (prevents search_path injection attacks)
 ALTER FUNCTION public.upsert_search_history(UUID, TEXT, TEXT, TEXT, INTEGER, TEXT, BOOLEAN) SET search_path = public;
 
--- Grant execute permission to authenticated users
+-- Grant execute permission
 GRANT EXECUTE ON FUNCTION public.upsert_search_history TO authenticated;
-
--- Add index to speed up the bookmarked entry lookup (if not exists)
--- This index is specifically for the function's query pattern
-CREATE INDEX IF NOT EXISTS idx_search_history_bookmarked_lookup
-ON public.search_history(user_id, query, provider, mode)
-WHERE bookmarked = true;
-
--- Add comment for documentation
-COMMENT ON FUNCTION public.upsert_search_history IS
-'Upserts a search history entry. If a bookmarked entry with the same query/provider/mode exists,
-updates it instead of creating a duplicate. Called from the client via supabase.rpc().
-Parameters include p_deep (boolean) for deep research mode tracking.';

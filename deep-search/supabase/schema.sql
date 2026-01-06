@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS search_history (
   refined_query TEXT,
   provider TEXT NOT NULL,
   mode TEXT NOT NULL CHECK (mode IN ('web', 'pro', 'brainstorm')),
+  deep BOOLEAN DEFAULT false,
   sources_count INTEGER DEFAULT 0,
   bookmarked BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

@@ -8,6 +8,7 @@ export interface SearchHistoryEntry {
   refined_query?: string;
   provider: string;
   mode: 'web' | 'pro' | 'brainstorm';
+  deep?: boolean;  // Whether deep research mode was used (for pro mode)
   sources_count: number;
   bookmarked?: boolean;
   created_at?: string;
@@ -93,6 +94,7 @@ export async function addSearchToHistory(entry: Omit<SearchHistoryEntry, 'id' | 
     p_mode: entry.mode,
     p_sources_count: entry.sources_count,
     p_refined_query: entry.refined_query || null,
+    p_deep: entry.deep || false,
   });
 
   if (error) {
