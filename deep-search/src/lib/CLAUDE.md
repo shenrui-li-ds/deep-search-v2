@@ -87,6 +87,94 @@ const { response, usedProvider } = await callLLMWithFallback(messages, 0.7, true
 // usedProvider tells you which provider actually succeeded
 ```
 
+**Resilience Patterns:**
+
+All provider calls (LLM and Tavily) are wrapped with resilience patterns:
+- **Retry with exponential backoff**: Transient failures are retried automatically
+- **Circuit breaker**: Prevents cascading failures when a provider is down
+- **Configurable timeouts**: Prevents hung requests from blocking resources
+
+| Function | Description |
+|----------|-------------|
+| `getCircuitBreakerStats()` | Get health status of all circuit breakers |
+| `resetAllCircuitBreakers()` | Reset all circuit breakers (after maintenance) |
+| `resetCircuitBreaker(name)` | Reset a specific circuit breaker |
+
+**Timeout Configuration:**
+| Type | Timeout | Use Case |
+|------|---------|----------|
+| `llm` | 60s | Non-streaming LLM calls |
+| `llmStreaming` | 120s | Streaming LLM calls |
+| `search` | 15s | Tavily search calls |
+
+**Retry Configuration:**
+| Type | Max Retries | Initial Delay | Max Delay |
+|------|-------------|---------------|-----------|
+| `llm` | 2 | 1000ms | 5000ms |
+| `search` | 2 | 500ms | 3000ms |
+
+**Circuit Breaker Configuration:**
+| Type | Failure Threshold | Reset Timeout | Success Threshold |
+|------|-------------------|---------------|-------------------|
+| `llm` | 5 failures | 30 seconds | 2 successes |
+| `search` | 3 failures | 20 seconds | 1 success |
+
+**Retryable Errors:**
+- Network errors (ECONNREFUSED, ECONNRESET, ETIMEDOUT)
+- Rate limiting (429)
+- Server errors (5xx)
+- Timeouts
+
+**Non-Retryable Errors:**
+- Client errors (400, 401, 403, 404)
+
+### `resilience.ts` - Resilience Patterns
+
+Provides retry, circuit breaker, and timeout utilities for external API calls.
+
+**Key Exports:**
+
+| Export | Description |
+|--------|-------------|
+| `withRetry(fn, options)` | Wrap function with retry logic |
+| `withTimeout(promise, ms)` | Wrap promise with timeout |
+| `CircuitBreaker` | Circuit breaker class |
+| `resilientCall(fn, options)` | Combined resilience wrapper |
+| `circuitBreakerRegistry` | Global registry for circuit breakers |
+| `isRetryableError(error)` | Check if error should trigger retry |
+| `TimeoutError` | Error class for timeouts |
+
+**Usage:**
+```typescript
+import { resilientCall, CircuitBreaker, circuitBreakerRegistry } from '@/lib/resilience';
+
+// Simple retry with timeout
+const result = await resilientCall(
+  () => fetch('https://api.example.com'),
+  {
+    name: 'api-call',
+    timeoutMs: 10000,
+    maxRetries: 3,
+  }
+);
+
+// With shared circuit breaker
+const breaker = circuitBreakerRegistry.getBreaker('my-service');
+const result = await resilientCall(
+  () => fetch('https://api.example.com'),
+  {
+    name: 'api-call',
+    timeoutMs: 10000,
+    maxRetries: 3,
+    circuitBreaker: breaker,
+  }
+);
+
+// Monitor circuit breaker health
+const stats = circuitBreakerRegistry.getAllStats();
+// { 'my-service': { state: 'closed', failures: 0, ... } }
+```
+
 ### `prompts.ts` - LLM Prompts
 
 XML-structured prompts for consistent LLM behavior.

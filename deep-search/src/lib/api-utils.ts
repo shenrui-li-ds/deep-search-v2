@@ -1,6 +1,20 @@
 /**
  * Utility functions for API requests
+ *
+ * Features:
+ * - Multi-provider LLM support with automatic fallback
+ * - Retry with exponential backoff for transient failures
+ * - Circuit breaker pattern to prevent cascading failures
+ * - Configurable timeouts
  */
+
+import {
+  circuitBreakerRegistry,
+  resilientCall,
+  PROVIDER_TIMEOUTS,
+  PROVIDER_RETRY_OPTIONS,
+  CIRCUIT_BREAKER_OPTIONS,
+} from './resilience';
 
 // Message type for LLM API calls
 interface ChatMessage {
@@ -112,7 +126,9 @@ export async function callDeepSeek(
   temperature: number = 0.7,
   stream: boolean = false
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('deepseek', CIRCUIT_BREAKER_OPTIONS.llm);
+
+  const makeRequest = async () => {
     const response = await fetch(DEEPSEEK_API_URL, {
       method: 'POST',
       headers: {
@@ -138,10 +154,14 @@ export async function callDeepSeek(
       const data = await response.json();
       return data.choices[0].message.content;
     }
-  } catch (error) {
-    console.error('Error calling DeepSeek API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'deepseek',
+    timeoutMs: stream ? PROVIDER_TIMEOUTS.llmStreaming : PROVIDER_TIMEOUTS.llm,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.llm,
+  });
 }
 
 // OpenAI API request
@@ -151,7 +171,9 @@ export async function callOpenAI(
   temperature: number = 0.7,
   stream: boolean = false
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('openai', CIRCUIT_BREAKER_OPTIONS.llm);
+
+  const makeRequest = async () => {
     // Some models (reasoning models like o1, o3, gpt-5) don't support custom temperature
     // GPT-5, GPT-5.1, GPT-5.2 are reasoning models; GPT-5 mini supports temperature
     const noTemperatureModels = ['o1', 'o3', 'gpt-5.1', 'gpt-5.2'];
@@ -188,10 +210,14 @@ export async function callOpenAI(
       const data = await response.json();
       return data.choices[0].message.content;
     }
-  } catch (error) {
-    console.error('Error calling OpenAI API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'openai',
+    timeoutMs: stream ? PROVIDER_TIMEOUTS.llmStreaming : PROVIDER_TIMEOUTS.llm,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.llm,
+  });
 }
 
 // Grok API request (OpenAI-compatible, from x.ai)
@@ -201,7 +227,9 @@ export async function callGrok(
   temperature: number = 0.7,
   stream: boolean = false
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('grok', CIRCUIT_BREAKER_OPTIONS.llm);
+
+  const makeRequest = async () => {
     const response = await fetch(GROK_API_URL, {
       method: 'POST',
       headers: {
@@ -227,10 +255,14 @@ export async function callGrok(
       const data = await response.json();
       return data.choices[0].message.content;
     }
-  } catch (error) {
-    console.error('Error calling Grok API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'grok',
+    timeoutMs: stream ? PROVIDER_TIMEOUTS.llmStreaming : PROVIDER_TIMEOUTS.llm,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.llm,
+  });
 }
 
 // Claude API request (Anthropic format)
@@ -240,7 +272,9 @@ export async function callClaude(
   temperature: number = 0.7,
   stream: boolean = false
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('claude', CIRCUIT_BREAKER_OPTIONS.llm);
+
+  const makeRequest = async () => {
     // Convert OpenAI message format to Anthropic format
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     const anthropicMessages = messages
@@ -278,10 +312,14 @@ export async function callClaude(
       const data = await response.json();
       return data.content[0].text;
     }
-  } catch (error) {
-    console.error('Error calling Claude API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'claude',
+    timeoutMs: stream ? PROVIDER_TIMEOUTS.llmStreaming : PROVIDER_TIMEOUTS.llm,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.llm,
+  });
 }
 
 // Gemini API request (Google AI format)
@@ -291,7 +329,9 @@ export async function callGemini(
   temperature: number = 0.7,
   stream: boolean = false
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('gemini', CIRCUIT_BREAKER_OPTIONS.llm);
+
+  const makeRequest = async () => {
     // Convert OpenAI message format to Gemini format
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     const geminiContents = messages
@@ -340,10 +380,14 @@ export async function callGemini(
       const data = await response.json();
       return data.candidates[0]?.content?.parts[0]?.text || '';
     }
-  } catch (error) {
-    console.error('Error calling Gemini API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'gemini',
+    timeoutMs: stream ? PROVIDER_TIMEOUTS.llmStreaming : PROVIDER_TIMEOUTS.llm,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.llm,
+  });
 }
 
 // Vercel AI Gateway request (OpenAI-compatible, unified API for 100+ models)
@@ -354,7 +398,9 @@ export async function callVercelGateway(
   temperature: number = 0.7,
   stream: boolean = false
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('vercel-gateway', CIRCUIT_BREAKER_OPTIONS.llm);
+
+  const makeRequest = async () => {
     const response = await fetch(VERCEL_GATEWAY_API_URL, {
       method: 'POST',
       headers: {
@@ -380,10 +426,14 @@ export async function callVercelGateway(
       const data = await response.json();
       return data.choices[0].message.content;
     }
-  } catch (error) {
-    console.error('Error calling Vercel Gateway API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'vercel-gateway',
+    timeoutMs: stream ? PROVIDER_TIMEOUTS.llmStreaming : PROVIDER_TIMEOUTS.llm,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.llm,
+  });
 }
 
 // Helper function to parse stream response from Claude (Anthropic format)
@@ -687,13 +737,15 @@ export async function callTavily(
   searchDepth: 'basic' | 'advanced' = 'basic',
   maxResults: number = 10
 ) {
-  try {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('tavily', CIRCUIT_BREAKER_OPTIONS.search);
+
+  const makeRequest = async () => {
     console.log('Calling Tavily API with:', { query, includeImages, searchDepth, maxResults });
-    
+
     if (!process.env.TAVILY_API_KEY) {
       throw new Error('TAVILY_API_KEY is not defined in environment variables');
     }
-    
+
     const requestBody = {
       api_key: process.env.TAVILY_API_KEY,
       query,
@@ -701,7 +753,7 @@ export async function callTavily(
       include_images: includeImages,
       max_results: maxResults,
     };
-    
+
     const response = await fetch(TAVILY_API_URL, {
       method: 'POST',
       headers: {
@@ -709,7 +761,7 @@ export async function callTavily(
       },
       body: JSON.stringify(requestBody),
     });
-    
+
     if (!response.ok) {
       let errorMessage = 'Unknown error';
       try {
@@ -728,10 +780,14 @@ export async function callTavily(
 
     const data = await response.json();
     return data;
-  } catch (error) {
-    console.error('Error calling Tavily API:', error);
-    throw error;
-  }
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'tavily',
+    timeoutMs: PROVIDER_TIMEOUTS.search,
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.search,
+  });
 }
 
 // Helper function to parse stream response from OpenAI
@@ -865,4 +921,31 @@ export function detectLanguage(text: string): ResponseLanguage {
 
   // Default to English for Latin-based text without clear markers
   return 'English';
+}
+
+// ============================================
+// CIRCUIT BREAKER MONITORING
+// ============================================
+
+/**
+ * Get the health status of all circuit breakers.
+ * Useful for monitoring and debugging.
+ */
+export function getCircuitBreakerStats() {
+  return circuitBreakerRegistry.getAllStats();
+}
+
+/**
+ * Reset all circuit breakers.
+ * Useful for recovery after maintenance.
+ */
+export function resetAllCircuitBreakers() {
+  circuitBreakerRegistry.resetAll();
+}
+
+/**
+ * Reset a specific circuit breaker by name.
+ */
+export function resetCircuitBreaker(name: string) {
+  circuitBreakerRegistry.resetBreaker(name);
 }
