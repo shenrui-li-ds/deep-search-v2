@@ -58,6 +58,12 @@ Supabase (for auth and database):
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon/public key
 
+Sentry (for error tracking):
+- `NEXT_PUBLIC_SENTRY_DSN` - Sentry Data Source Name (required for error tracking)
+- `SENTRY_ORG` - Sentry organization slug (for source map uploads)
+- `SENTRY_PROJECT` - Sentry project name (for source map uploads)
+- `SENTRY_AUTH_TOKEN` - Sentry auth token (for source map uploads in CI)
+
 ## Architecture
 
 ### Search Flow

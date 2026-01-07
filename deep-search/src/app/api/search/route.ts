@@ -3,6 +3,7 @@ import { callTavily } from '@/lib/api-utils';
 import { Source, SearchImage, TavilySearchResult } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createApiLogger, createTimer, LogMessages } from '@/lib/logger';
 
 // Helper function to convert Tavily results to our Source format
 function convertToSources(tavilyResults: TavilySearchResult): Source[] {
@@ -91,15 +92,21 @@ interface SearchResponse {
 }
 
 export async function POST(req: NextRequest) {
+  const log = createApiLogger('search');
+  const timer = createTimer();
+
   try {
     const { query, searchDepth = 'basic', maxResults = 10 } = await req.json();
 
     if (!query) {
+      log.warn('Missing query parameter');
       return NextResponse.json(
         { error: 'Query parameter is required' },
         { status: 400 }
       );
     }
+
+    log.info(LogMessages.SEARCH_STARTED, { query, searchDepth, maxResults });
 
     // Generate cache key
     const cacheKey = generateCacheKey('search', {
@@ -114,7 +121,7 @@ export async function POST(req: NextRequest) {
       supabase = await createClient();
     } catch {
       // Supabase not available, continue without tier 2 cache
-      console.log('[Cache] Supabase not available, using memory cache only');
+      log.debug('Supabase not available, using memory cache only');
     }
 
     const { data: cachedData, source } = await getFromCache<SearchResponse>(
@@ -123,12 +130,18 @@ export async function POST(req: NextRequest) {
     );
 
     if (cachedData) {
-      console.log(`[Search] Cache ${source} hit for: ${query.slice(0, 50)}`);
+      log.info(LogMessages.SEARCH_CACHE_HIT, {
+        query,
+        cacheSource: source,
+        durationMs: timer.elapsed(),
+      });
       return NextResponse.json({
         ...cachedData,
         cached: true,
       });
     }
+
+    log.debug(LogMessages.SEARCH_CACHE_MISS, { query });
 
     // Cache miss - call Tavily search API
     const tavilyResults = await callTavily(
@@ -152,9 +165,16 @@ export async function POST(req: NextRequest) {
     // Cache the response
     await setToCache(cacheKey, 'search', query, response, undefined, supabase);
 
+    log.info(LogMessages.SEARCH_COMPLETED, {
+      query,
+      sourcesCount: sources.length,
+      imagesCount: images.length,
+      durationMs: timer.elapsed(),
+    });
+
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error in search API:', error);
+    log.error(LogMessages.SEARCH_FAILED, { durationMs: timer.elapsed() }, error);
     return NextResponse.json(
       { error: 'Failed to perform search' },
       { status: 500 }

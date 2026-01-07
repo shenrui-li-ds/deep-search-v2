@@ -175,6 +175,88 @@ const stats = circuitBreakerRegistry.getAllStats();
 // { 'my-service': { state: 'closed', failures: 0, ... } }
 ```
 
+### `logger.ts` - Structured Logging & Sentry Integration
+
+Structured JSON logging with automatic Sentry error reporting.
+
+**Features:**
+- JSON structured output for Vercel logs
+- Log levels: debug, info, warn, error
+- Request context tracking (correlation IDs, user IDs)
+- Automatic Sentry integration for errors
+- Performance timing helpers
+
+**Key Exports:**
+
+| Export | Description |
+|--------|-------------|
+| `createLogger(context?)` | Create logger with preset context |
+| `createApiLogger(route, userId?)` | Create logger for API routes with auto request ID |
+| `logger` | Default logger instance |
+| `createTimer()` | Create timer for manual duration tracking |
+| `withTiming(op, fn, context?)` | Execute function with automatic timing logs |
+| `generateRequestId()` | Generate unique request ID |
+| `captureError(error, context?)` | Report error to Sentry without logging |
+| `addBreadcrumb(message, data?)` | Add Sentry breadcrumb for debugging |
+| `LogMessages` | Standard log message constants |
+| `LogContextKeys` | Standard context key constants |
+
+**Usage in API Routes:**
+```typescript
+import { createApiLogger, createTimer, LogMessages } from '@/lib/logger';
+
+export async function POST(req: NextRequest) {
+  const log = createApiLogger('search');
+  const timer = createTimer();
+
+  log.info(LogMessages.SEARCH_STARTED, { query });
+
+  try {
+    const result = await performSearch(query);
+    log.info(LogMessages.SEARCH_COMPLETED, {
+      sourcesCount: result.sources.length,
+      durationMs: timer.elapsed(),
+    });
+    return NextResponse.json(result);
+  } catch (error) {
+    // Logs error AND reports to Sentry automatically
+    log.error(LogMessages.SEARCH_FAILED, { durationMs: timer.elapsed() }, error);
+    return NextResponse.json({ error: 'Search failed' }, { status: 500 });
+  }
+}
+```
+
+**Log Output Format (JSON):**
+```json
+{
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "level": "info",
+  "message": "Search completed",
+  "context": {
+    "requestId": "m1abc-x2y3z4",
+    "route": "search",
+    "query": "quantum computing",
+    "sourcesCount": 10,
+    "durationMs": 1234
+  },
+  "environment": "production",
+  "service": "athenius"
+}
+```
+
+**Standard Log Messages:**
+- Search: `SEARCH_STARTED`, `SEARCH_COMPLETED`, `SEARCH_FAILED`, `SEARCH_CACHE_HIT`, `SEARCH_CACHE_MISS`
+- LLM: `LLM_CALL_STARTED`, `LLM_CALL_COMPLETED`, `LLM_CALL_FAILED`, `LLM_FALLBACK_TRIGGERED`
+- Research: `RESEARCH_PLAN_*`, `RESEARCH_EXTRACT_*`, `RESEARCH_SYNTHESIS_*`
+- Credits: `CREDITS_RESERVED`, `CREDITS_FINALIZED`, `CREDITS_INSUFFICIENT`
+- Auth: `AUTH_LOGIN_SUCCESS`, `AUTH_LOGIN_FAILED`, `AUTH_SIGNUP_SUCCESS`, `AUTH_LOCKOUT_TRIGGERED`
+
+**Sentry Integration:**
+- Errors logged with `log.error()` are automatically reported to Sentry
+- Context (requestId, userId, route, provider) is attached as tags/extras
+- Use `captureError()` to report errors without logging
+- Use `addBreadcrumb()` to add debugging context
+
 ### `prompts.ts` - LLM Prompts
 
 XML-structured prompts for consistent LLM behavior.
