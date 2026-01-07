@@ -1,5 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
-import { type SupabaseClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 // User tier type
@@ -81,6 +81,32 @@ export async function createClient() {
             // user sessions.
           }
         },
+      },
+    }
+  );
+}
+
+/**
+ * Create a Supabase client with service_role key for admin operations.
+ * Use this for operations that need to bypass RLS (e.g., cache writes).
+ *
+ * IMPORTANT: Only use server-side. Never expose service_role key to client.
+ */
+export function createServiceClient(): SupabaseClient | null {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!serviceRoleKey) {
+    console.warn('[Supabase] SUPABASE_SERVICE_ROLE_KEY not set, falling back to anon key');
+    return null;
+  }
+
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    serviceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );

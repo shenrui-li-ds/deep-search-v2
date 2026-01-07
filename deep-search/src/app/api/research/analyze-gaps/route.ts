@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, LLMProvider } from '@/lib/api-utils';
+import { callLLM, LLMProvider, LLMResponse } from '@/lib/api-utils';
 import { gapAnalyzerPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 export type GapType =
   | 'missing_perspective'
@@ -71,12 +72,22 @@ export async function POST(req: NextRequest) {
     ];
 
     // Use low temperature for analytical task
-    const response = await callLLM(messages, 0.4, false, llmProvider);
+    const llmResult = await callLLM(messages, 0.4, false, llmProvider) as LLMResponse;
+
+    // Track API usage
+    const inputTokens = estimateTokens(prompt + extractedSummary);
+    const outputTokens = estimateTokens(llmResult.content);
+    trackServerApiUsage({
+      provider: llmProvider || 'auto',
+      tokens_used: inputTokens + outputTokens,
+      request_type: 'research',
+      actual_usage: llmResult.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     // Parse the JSON response
     let gaps: ResearchGap[] = [];
     try {
-      let jsonStr = response.trim();
+      let jsonStr = llmResult.content.trim();
 
       // Extract from markdown code block if present
       const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -106,7 +117,7 @@ export async function POST(req: NextRequest) {
       }
     } catch (parseError) {
       console.error('[Gap Analysis] Failed to parse response:', parseError);
-      console.error('[Gap Analysis] Raw response:', response);
+      console.error('[Gap Analysis] Raw response:', llmResult.content);
       // On parse error, treat as no gaps (don't block the pipeline)
       gaps = [];
     }

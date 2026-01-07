@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, getCurrentDate, LLMProvider } from '@/lib/api-utils';
+import { callLLM, getCurrentDate, LLMProvider, LLMResponse } from '@/lib/api-utils';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 import {
   researchRouterPrompt,
   researchPlannerPrompt,
@@ -68,10 +69,20 @@ async function classifyQuery(query: string, provider: LLMProvider | undefined): 
   const defaultResult: RouterResult = { category: 'general', suggestedDepth: 'standard' };
 
   try {
-    const response = await callLLM(messages, 0.3, false, provider);
+    const llmResult = await callLLM(messages, 0.3, false, provider) as LLMResponse;
+
+    // Track API usage for router
+    const routerInputTokens = estimateTokens(prompt);
+    const routerOutputTokens = estimateTokens(llmResult.content);
+    trackServerApiUsage({
+      provider: provider || 'auto',
+      tokens_used: routerInputTokens + routerOutputTokens,
+      request_type: 'plan',
+      actual_usage: llmResult.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     // Parse JSON response
-    let jsonStr = response.trim();
+    let jsonStr = llmResult.content.trim();
     // Extract from markdown code block if present
     const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
@@ -146,13 +157,23 @@ export async function POST(req: NextRequest) {
       { role: 'user', content: prompt }
     ];
 
-    const response = await callLLM(messages, 0.7, false, llmProvider);
+    const plannerResult = await callLLM(messages, 0.7, false, llmProvider) as LLMResponse;
+
+    // Track API usage for planner
+    const plannerInputTokens = estimateTokens(prompt);
+    const plannerOutputTokens = estimateTokens(plannerResult.content);
+    trackServerApiUsage({
+      provider: llmProvider || 'auto',
+      tokens_used: plannerInputTokens + plannerOutputTokens,
+      request_type: 'plan',
+      actual_usage: plannerResult.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     // Parse the JSON response
     let plan: ResearchPlanItem[] = [];
     try {
       // Extract JSON from potential markdown code blocks
-      let jsonStr = response.trim();
+      let jsonStr = plannerResult.content.trim();
       const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1].trim();

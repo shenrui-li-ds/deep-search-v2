@@ -23,6 +23,25 @@ interface ChatMessage {
   content: string;
 }
 
+// Token usage from LLM providers
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+// LLM response with optional usage data
+export interface LLMResponse {
+  content: string;
+  usage?: TokenUsage;
+}
+
+// Streaming result with final usage
+export interface StreamingResult {
+  response: Response;
+  getUsage?: () => TokenUsage | undefined;
+}
+
 // Search result type for summarization
 interface SearchResultItem {
   title: string;
@@ -227,22 +246,29 @@ export async function callDeepSeek(
   model: string = 'deepseek-chat',
   temperature: number = 0.7,
   stream: boolean = false
-) {
+): Promise<Response | LLMResponse> {
   const circuitBreaker = circuitBreakerRegistry.getBreaker('deepseek', CIRCUIT_BREAKER_OPTIONS.llm);
 
-  const makeRequest = async () => {
+  const makeRequest = async (): Promise<Response | LLMResponse> => {
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      temperature,
+      stream,
+    };
+
+    // Request usage data in streaming response
+    if (stream) {
+      requestBody.stream_options = { include_usage: true };
+    }
+
     const response = await fetch(DEEPSEEK_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        stream,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -254,7 +280,14 @@ export async function callDeepSeek(
       return response;
     } else {
       const data = await response.json();
-      return data.choices[0].message.content;
+      return {
+        content: data.choices[0].message.content,
+        usage: data.usage ? {
+          prompt_tokens: data.usage.prompt_tokens || 0,
+          completion_tokens: data.usage.completion_tokens || 0,
+          total_tokens: data.usage.total_tokens || 0,
+        } : undefined,
+      };
     }
   };
 
@@ -272,10 +305,10 @@ export async function callOpenAI(
   model: string = 'gpt-5.2-2025-12-11',
   temperature: number = 0.7,
   stream: boolean = false
-) {
+): Promise<Response | LLMResponse> {
   const circuitBreaker = circuitBreakerRegistry.getBreaker('openai', CIRCUIT_BREAKER_OPTIONS.llm);
 
-  const makeRequest = async () => {
+  const makeRequest = async (): Promise<Response | LLMResponse> => {
     // Some models (reasoning models like o1, o3, gpt-5) don't support custom temperature
     // GPT-5, GPT-5.1, GPT-5.2 are reasoning models; GPT-5 mini supports temperature
     const noTemperatureModels = ['o1', 'o3', 'gpt-5.1', 'gpt-5.2'];
@@ -290,6 +323,11 @@ export async function callOpenAI(
     // Only include temperature for models that support it
     if (supportsTemperature) {
       requestBody.temperature = temperature;
+    }
+
+    // Request usage data in streaming response
+    if (stream) {
+      requestBody.stream_options = { include_usage: true };
     }
 
     const response = await fetch(OPENAI_API_URL, {
@@ -310,7 +348,14 @@ export async function callOpenAI(
       return response;
     } else {
       const data = await response.json();
-      return data.choices[0].message.content;
+      return {
+        content: data.choices[0].message.content,
+        usage: data.usage ? {
+          prompt_tokens: data.usage.prompt_tokens || 0,
+          completion_tokens: data.usage.completion_tokens || 0,
+          total_tokens: data.usage.total_tokens || 0,
+        } : undefined,
+      };
     }
   };
 
@@ -328,22 +373,29 @@ export async function callGrok(
   model: string = 'grok-4-1-fast',
   temperature: number = 0.7,
   stream: boolean = false
-) {
+): Promise<Response | LLMResponse> {
   const circuitBreaker = circuitBreakerRegistry.getBreaker('grok', CIRCUIT_BREAKER_OPTIONS.llm);
 
-  const makeRequest = async () => {
+  const makeRequest = async (): Promise<Response | LLMResponse> => {
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      temperature,
+      stream,
+    };
+
+    // Request usage data in streaming response
+    if (stream) {
+      requestBody.stream_options = { include_usage: true };
+    }
+
     const response = await fetch(GROK_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.GROK_API_KEY}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        stream,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -355,7 +407,14 @@ export async function callGrok(
       return response;
     } else {
       const data = await response.json();
-      return data.choices[0].message.content;
+      return {
+        content: data.choices[0].message.content,
+        usage: data.usage ? {
+          prompt_tokens: data.usage.prompt_tokens || 0,
+          completion_tokens: data.usage.completion_tokens || 0,
+          total_tokens: data.usage.total_tokens || 0,
+        } : undefined,
+      };
     }
   };
 
@@ -373,10 +432,10 @@ export async function callClaude(
   model: string = 'claude-haiku-4-5',
   temperature: number = 0.7,
   stream: boolean = false
-) {
+): Promise<Response | LLMResponse> {
   const circuitBreaker = circuitBreakerRegistry.getBreaker('claude', CIRCUIT_BREAKER_OPTIONS.llm);
 
-  const makeRequest = async () => {
+  const makeRequest = async (): Promise<Response | LLMResponse> => {
     // Convert OpenAI message format to Anthropic format
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     const anthropicMessages = messages
@@ -412,7 +471,15 @@ export async function callClaude(
       return response;
     } else {
       const data = await response.json();
-      return data.content[0].text;
+      // Claude uses input_tokens and output_tokens
+      return {
+        content: data.content[0].text,
+        usage: data.usage ? {
+          prompt_tokens: data.usage.input_tokens || 0,
+          completion_tokens: data.usage.output_tokens || 0,
+          total_tokens: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+        } : undefined,
+      };
     }
   };
 
@@ -430,10 +497,10 @@ export async function callGemini(
   model: string = 'gemini-3-flash-preview',
   temperature: number = 0.7,
   stream: boolean = false
-) {
+): Promise<Response | LLMResponse> {
   const circuitBreaker = circuitBreakerRegistry.getBreaker('gemini', CIRCUIT_BREAKER_OPTIONS.llm);
 
-  const makeRequest = async () => {
+  const makeRequest = async (): Promise<Response | LLMResponse> => {
     // Convert OpenAI message format to Gemini format
     const systemMessage = messages.find(m => m.role === 'system')?.content || '';
     const geminiContents = messages
@@ -480,7 +547,16 @@ export async function callGemini(
       return response;
     } else {
       const data = await response.json();
-      return data.candidates[0]?.content?.parts[0]?.text || '';
+      // Gemini uses usageMetadata with promptTokenCount and candidatesTokenCount
+      const usageMetadata = data.usageMetadata;
+      return {
+        content: data.candidates[0]?.content?.parts[0]?.text || '',
+        usage: usageMetadata ? {
+          prompt_tokens: usageMetadata.promptTokenCount || 0,
+          completion_tokens: usageMetadata.candidatesTokenCount || 0,
+          total_tokens: usageMetadata.totalTokenCount || 0,
+        } : undefined,
+      };
     }
   };
 
@@ -499,22 +575,29 @@ export async function callVercelGateway(
   model: string = 'alibaba/qwen3-max',
   temperature: number = 0.7,
   stream: boolean = false
-) {
+): Promise<Response | LLMResponse> {
   const circuitBreaker = circuitBreakerRegistry.getBreaker('vercel-gateway', CIRCUIT_BREAKER_OPTIONS.llm);
 
-  const makeRequest = async () => {
+  const makeRequest = async (): Promise<Response | LLMResponse> => {
+    const requestBody: Record<string, unknown> = {
+      model,
+      messages,
+      temperature,
+      stream,
+    };
+
+    // Request usage data in streaming response
+    if (stream) {
+      requestBody.stream_options = { include_usage: true };
+    }
+
     const response = await fetch(VERCEL_GATEWAY_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.VERCEL_AI_GATEWAY_KEY}`,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        stream,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -526,7 +609,14 @@ export async function callVercelGateway(
       return response;
     } else {
       const data = await response.json();
-      return data.choices[0].message.content;
+      return {
+        content: data.choices[0].message.content,
+        usage: data.usage ? {
+          prompt_tokens: data.usage.prompt_tokens || 0,
+          completion_tokens: data.usage.completion_tokens || 0,
+          total_tokens: data.usage.total_tokens || 0,
+        } : undefined,
+      };
     }
   };
 
@@ -538,8 +628,15 @@ export async function callVercelGateway(
   });
 }
 
+// Stream chunk type - yields content or final usage
+export interface StreamChunk {
+  type: 'content' | 'usage';
+  content?: string;
+  usage?: TokenUsage;
+}
+
 // Helper function to parse stream response from Claude (Anthropic format)
-export async function* streamClaudeResponse(response: Response) {
+export async function* streamClaudeResponse(response: Response): AsyncGenerator<StreamChunk> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -547,6 +644,7 @@ export async function* streamClaudeResponse(response: Response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
+  let finalUsage: TokenUsage | undefined;
 
   try {
     while (true) {
@@ -563,6 +661,10 @@ export async function* streamClaudeResponse(response: Response) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
           if (data.trim() === '[DONE]') {
+            // Yield final usage if captured
+            if (finalUsage) {
+              yield { type: 'usage', usage: finalUsage };
+            }
             return;
           }
           try {
@@ -571,14 +673,26 @@ export async function* streamClaudeResponse(response: Response) {
             if (parsed.type === 'content_block_delta') {
               const content = parsed.delta?.text || '';
               if (content) {
-                yield content;
+                yield { type: 'content', content };
               }
+            }
+            // Capture usage from message_delta event (end of stream)
+            if (parsed.type === 'message_delta' && parsed.usage) {
+              finalUsage = {
+                prompt_tokens: parsed.usage.input_tokens || 0,
+                completion_tokens: parsed.usage.output_tokens || 0,
+                total_tokens: (parsed.usage.input_tokens || 0) + (parsed.usage.output_tokens || 0),
+              };
             }
           } catch {
             // Ignore parse errors for non-JSON lines
           }
         }
       }
+    }
+    // Yield final usage if captured (stream ended without [DONE])
+    if (finalUsage) {
+      yield { type: 'usage', usage: finalUsage };
     }
   } catch (error) {
     console.error('Error reading Claude stream:', error);
@@ -589,7 +703,7 @@ export async function* streamClaudeResponse(response: Response) {
 }
 
 // Helper function to parse stream response from Gemini (SSE format with alt=sse)
-export async function* streamGeminiResponse(response: Response) {
+export async function* streamGeminiResponse(response: Response): AsyncGenerator<StreamChunk> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -597,6 +711,7 @@ export async function* streamGeminiResponse(response: Response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
+  let finalUsage: TokenUsage | undefined;
 
   try {
     while (true) {
@@ -614,10 +729,23 @@ export async function* streamGeminiResponse(response: Response) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
           if (data.trim() === '[DONE]') {
+            // Yield final usage if captured
+            if (finalUsage) {
+              yield { type: 'usage', usage: finalUsage };
+            }
             return;
           }
           try {
             const parsed = JSON.parse(data);
+
+            // Capture usage metadata (appears in chunks, last one has final counts)
+            if (parsed.usageMetadata) {
+              finalUsage = {
+                prompt_tokens: parsed.usageMetadata.promptTokenCount || 0,
+                completion_tokens: parsed.usageMetadata.candidatesTokenCount || 0,
+                total_tokens: parsed.usageMetadata.totalTokenCount || 0,
+              };
+            }
 
             // Check for finish reason and log if response was truncated
             const finishReason = parsed.candidates?.[0]?.finishReason;
@@ -633,13 +761,17 @@ export async function* streamGeminiResponse(response: Response) {
             // Gemini uses candidates[0].content.parts[0].text
             const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
             if (content) {
-              yield content;
+              yield { type: 'content', content };
             }
           } catch {
             // Ignore parse errors for non-JSON lines
           }
         }
       }
+    }
+    // Yield final usage if captured (stream ended without [DONE])
+    if (finalUsage) {
+      yield { type: 'usage', usage: finalUsage };
     }
   } catch (error) {
     console.error('Error reading Gemini stream:', error);
@@ -690,7 +822,7 @@ export async function callLLMWithFallback(
   temperature: number = 0.7,
   stream: boolean = false,
   provider?: LLMProvider
-): Promise<{ response: Response | string; usedProvider: LLMProvider }> {
+): Promise<{ response: Response | LLMResponse; usedProvider: LLMProvider }> {
   const errors: { provider: LLMProvider; error: Error }[] = [];
 
   // Build ordered list of providers to try
@@ -1103,7 +1235,7 @@ export async function callSearchWithFallback(
 }
 
 // Helper function to parse stream response from OpenAI
-export async function* streamOpenAIResponse(response: Response) {
+export async function* streamOpenAIResponse(response: Response): AsyncGenerator<StreamChunk> {
   if (!response.body) {
     throw new Error('Response body is null');
   }
@@ -1111,15 +1243,12 @@ export async function* streamOpenAIResponse(response: Response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buffer = '';
+  let finalUsage: TokenUsage | undefined;
 
   try {
     while (true) {
       const { value, done } = await reader.read();
       if (done) {
-        // If there's anything left in the buffer when the stream ends, yield it
-        if (buffer.trim()) {
-          yield buffer.trim();
-        }
         break;
       }
 
@@ -1131,19 +1260,38 @@ export async function* streamOpenAIResponse(response: Response) {
         if (line.startsWith('data: ')) {
           const data = line.slice(6);
           if (data.trim() === '[DONE]') {
+            // Yield final usage if captured
+            if (finalUsage) {
+              yield { type: 'usage', usage: finalUsage };
+            }
             return;
           }
           try {
             const parsed = JSON.parse(data);
-            const content = parsed.choices[0]?.delta?.content || '';
+
+            // Capture usage from final chunk (OpenAI includes usage in last chunk with stream_options)
+            // Note: Requires stream_options: { include_usage: true } in request
+            if (parsed.usage) {
+              finalUsage = {
+                prompt_tokens: parsed.usage.prompt_tokens || 0,
+                completion_tokens: parsed.usage.completion_tokens || 0,
+                total_tokens: parsed.usage.total_tokens || 0,
+              };
+            }
+
+            const content = parsed.choices?.[0]?.delta?.content || '';
             if (content) {
-              yield content;
+              yield { type: 'content', content };
             }
           } catch (e) {
             console.error('Error parsing JSON from stream:', e);
           }
         }
       }
+    }
+    // Yield final usage if captured (stream ended without [DONE])
+    if (finalUsage) {
+      yield { type: 'usage', usage: finalUsage };
     }
   } catch (error) {
     console.error('Error reading stream:', error);

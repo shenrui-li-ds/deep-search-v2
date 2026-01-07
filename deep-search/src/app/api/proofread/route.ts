@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, LLMProvider, getStreamParser } from '@/lib/api-utils';
+import { callLLM, LLMProvider, getStreamParser, LLMResponse, TokenUsage } from '@/lib/api-utils';
 import { proofreadContentPrompt, proofreadParagraphPrompt, researchProofreadPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 /**
  * Lightweight text cleanup without LLM
@@ -105,10 +106,20 @@ export async function POST(req: NextRequest) {
         }
       ];
 
-      const proofread = await callLLM(messages, 0.2, false, llmProvider);
+      const result = await callLLM(messages, 0.2, false, llmProvider) as LLMResponse;
+
+      // Track API usage
+      const inputTokens = estimateTokens(content);
+      const outputTokens = estimateTokens(result.content);
+      trackServerApiUsage({
+        provider: llmProvider || 'auto',
+        tokens_used: inputTokens + outputTokens,
+        request_type: 'proofread',
+        actual_usage: result.usage
+      }).catch(err => console.error('Failed to track API usage:', err));
 
       return NextResponse.json({
-        proofread,
+        proofread: result.content,
         mode: 'paragraph',
         paragraphIndex
       });
@@ -116,6 +127,7 @@ export async function POST(req: NextRequest) {
 
     // Research mode: specialized proofreading for research documents
     if (mode === 'research') {
+      const prompt = `Please proofread and polish the following research document:\n\n${content}`;
       const messages: OpenAIMessage[] = [
         {
           role: 'system',
@@ -123,20 +135,31 @@ export async function POST(req: NextRequest) {
         },
         {
           role: 'user',
-          content: `Please proofread and polish the following research document:\n\n${content}`
+          content: prompt
         }
       ];
 
-      const proofread = await callLLM(messages, 0.3, false, llmProvider);
+      const result = await callLLM(messages, 0.3, false, llmProvider) as LLMResponse;
+
+      // Track API usage
+      const inputTokens = estimateTokens(prompt);
+      const outputTokens = estimateTokens(result.content);
+      trackServerApiUsage({
+        provider: llmProvider || 'auto',
+        tokens_used: inputTokens + outputTokens,
+        request_type: 'proofread',
+        actual_usage: result.usage
+      }).catch(err => console.error('Failed to track API usage:', err));
 
       return NextResponse.json({
-        proofread,
+        proofread: result.content,
         mode: 'research',
         paragraphIndex
       });
     }
 
     // Full mode: use LLM for thorough proofreading of entire content
+    const prompt = `Please proofread and clean up the following content:\n\n${content}`;
     const messages: OpenAIMessage[] = [
       {
         role: 'system',
@@ -144,23 +167,42 @@ export async function POST(req: NextRequest) {
       },
       {
         role: 'user',
-        content: `Please proofread and clean up the following content:\n\n${content}`
+        content: prompt
       }
     ];
 
     // Streaming mode for full proofreading
     if (stream && mode === 'full') {
-      const response = await callLLM(messages, 0.3, true, llmProvider);
+      const response = await callLLM(messages, 0.3, true, llmProvider) as Response;
       const streamParser = getStreamParser(llmProvider || 'deepseek');
+
+      // Track total output and actual usage
+      let totalOutput = '';
+      let actualUsage: TokenUsage | undefined;
+      const inputTokens = estimateTokens(prompt);
 
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
             for await (const chunk of streamParser(response)) {
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
+              if (chunk.type === 'content' && chunk.content) {
+                totalOutput += chunk.content;
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk.content, done: false })}\n\n`));
+              } else if (chunk.type === 'usage' && chunk.usage) {
+                actualUsage = chunk.usage;
+              }
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
+
+            // Track API usage after stream completes
+            const outputTokens = estimateTokens(totalOutput);
+            trackServerApiUsage({
+              provider: llmProvider || 'auto',
+              tokens_used: inputTokens + outputTokens,
+              request_type: 'proofread',
+              actual_usage: actualUsage
+            }).catch(err => console.error('Failed to track API usage:', err));
           } catch (error) {
             controller.error(error);
           }
@@ -177,10 +219,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Non-streaming mode
-    const proofread = await callLLM(messages, 0.3, false, llmProvider);
+    const result = await callLLM(messages, 0.3, false, llmProvider) as LLMResponse;
+
+    // Track API usage
+    const inputTokens = estimateTokens(prompt);
+    const outputTokens = estimateTokens(result.content);
+    trackServerApiUsage({
+      provider: llmProvider || 'auto',
+      tokens_used: inputTokens + outputTokens,
+      request_type: 'proofread',
+      actual_usage: result.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     return NextResponse.json({
-      proofread,
+      proofread: result.content,
       mode: 'full',
       paragraphIndex
     });

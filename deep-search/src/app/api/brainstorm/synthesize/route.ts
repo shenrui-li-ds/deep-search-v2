@@ -4,12 +4,15 @@ import {
   getCurrentDate,
   getStreamParser,
   LLMProvider,
-  detectLanguage
+  detectLanguage,
+  TokenUsage,
+  LLMResponse
 } from '@/lib/api-utils';
 import { brainstormSynthesizerPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 interface SynthesisCache {
   content: string;
@@ -138,19 +141,25 @@ Focus on actionable ideas and experiments, not just observations.
     ];
 
     if (stream) {
-      const response = await callLLM(messages, 0.8, true, llmProvider);
+      const response = await callLLM(messages, 0.8, true, llmProvider) as Response;
       const streamParser = getStreamParser(llmProvider || 'openai');
 
-      // Track total output for caching
+      // Track total output and actual usage from provider
       let totalOutput = '';
+      let actualUsage: TokenUsage | undefined;
+      const inputTokens = estimateTokens(completePrompt);
 
       // Create a ReadableStream for streaming the response
       const readableStream = new ReadableStream({
         async start(controller) {
           try {
             for await (const chunk of streamParser(response)) {
-              totalOutput += chunk;
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
+              if (chunk.type === 'content' && chunk.content) {
+                totalOutput += chunk.content;
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk.content, done: false })}\n\n`));
+              } else if (chunk.type === 'usage' && chunk.usage) {
+                actualUsage = chunk.usage;
+              }
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
@@ -158,6 +167,15 @@ Focus on actionable ideas and experiments, not just observations.
             // Cache the completed synthesis result
             setToCache(cacheKey, 'brainstorm-synthesis', query, { content: totalOutput }, llmProvider, supabase)
               .catch(err => console.error('Failed to cache brainstorm synthesis:', err));
+
+            // Track API usage after stream completes
+            const outputTokens = estimateTokens(totalOutput);
+            trackServerApiUsage({
+              provider: llmProvider || 'auto',
+              tokens_used: inputTokens + outputTokens,
+              request_type: 'synthesize',
+              actual_usage: actualUsage
+            }).catch(err => console.error('Failed to track API usage:', err));
           } catch (error) {
             controller.error(error);
           }
@@ -172,8 +190,19 @@ Focus on actionable ideas and experiments, not just observations.
         },
       });
     } else {
-      const synthesis = await callLLM(messages, 0.8, false, llmProvider);
-      return NextResponse.json({ synthesis });
+      const result = await callLLM(messages, 0.8, false, llmProvider) as LLMResponse;
+
+      // Track API usage (non-streaming)
+      const inputTokens = estimateTokens(completePrompt);
+      const outputTokens = estimateTokens(result.content);
+      trackServerApiUsage({
+        provider: llmProvider || 'auto',
+        tokens_used: inputTokens + outputTokens,
+        request_type: 'synthesize',
+        actual_usage: result.usage
+      }).catch(err => console.error('Failed to track API usage:', err));
+
+      return NextResponse.json({ synthesis: result.content });
     }
   } catch (error) {
     console.error('Error in brainstorm synthesize API:', error);

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, LLMProvider } from '@/lib/api-utils';
+import { callLLM, LLMProvider, LLMResponse } from '@/lib/api-utils';
 import { generateRelatedSearchesPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 // Response type for caching
 interface RelatedSearchesResponse {
@@ -67,12 +68,23 @@ export async function POST(req: NextRequest) {
       }
     ];
 
-    const response = await callLLM(messages, 0.7, false, llmProvider);
+    const llmResult = await callLLM(messages, 0.7, false, llmProvider) as LLMResponse;
+
+    // Track API usage
+    const promptContent = generateRelatedSearchesPrompt(query, keyTopics);
+    const inputTokens = estimateTokens(promptContent);
+    const outputTokens = estimateTokens(llmResult.content);
+    trackServerApiUsage({
+      provider: llmProvider || 'auto',
+      tokens_used: inputTokens + outputTokens,
+      request_type: 'related',
+      actual_usage: llmResult.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     // Parse the JSON response
     try {
       // Clean the response - remove markdown code blocks if present
-      let cleanResponse = response.trim();
+      let cleanResponse = llmResult.content.trim();
       if (cleanResponse.startsWith('```json')) {
         cleanResponse = cleanResponse.slice(7);
       }

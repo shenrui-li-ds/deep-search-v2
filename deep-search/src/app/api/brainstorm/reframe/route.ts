@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, getCurrentDate, LLMProvider, detectLanguage } from '@/lib/api-utils';
+import { callLLM, getCurrentDate, LLMProvider, detectLanguage, LLMResponse } from '@/lib/api-utils';
 import { brainstormReframePrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 export interface ReframeItem {
   angle: string;
@@ -38,13 +39,23 @@ export async function POST(req: NextRequest) {
       { role: 'user', content: prompt }
     ];
 
-    const response = await callLLM(messages, 0.8, false, llmProvider);
+    const result = await callLLM(messages, 0.8, false, llmProvider) as LLMResponse;
+
+    // Track API usage
+    const inputTokens = estimateTokens(prompt);
+    const outputTokens = estimateTokens(result.content);
+    trackServerApiUsage({
+      provider: llmProvider || 'auto',
+      tokens_used: inputTokens + outputTokens,
+      request_type: 'plan',
+      actual_usage: result.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     // Parse the JSON response
     let angles: ReframeItem[] = [];
     try {
       // Extract JSON from potential markdown code blocks
-      let jsonStr = response.trim();
+      let jsonStr = result.content.trim();
       const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1].trim();

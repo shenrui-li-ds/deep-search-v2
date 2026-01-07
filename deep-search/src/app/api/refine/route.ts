@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, getCurrentDate, getStreamParser, LLMProvider } from '@/lib/api-utils';
+import { callLLM, getCurrentDate, getStreamParser, LLMProvider, LLMResponse, TokenUsage } from '@/lib/api-utils';
 import { refineSearchQueryPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 // Response type for caching
 interface RefineResponse {
@@ -89,10 +90,20 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: prompt }
       ];
 
-      const llmResponse = await callLLM(messages, 0.7, false, llmProvider);
-      const { refinedQuery, searchIntent } = parseRefineResponse(llmResponse, query);
+      const llmResult = await callLLM(messages, 0.7, false, llmProvider) as LLMResponse;
+      const { refinedQuery, searchIntent } = parseRefineResponse(llmResult.content, query);
 
       const response: RefineResponse = { refinedQuery, searchIntent };
+
+      // Track API usage (non-streaming)
+      const inputTokens = estimateTokens(prompt);
+      const outputTokens = estimateTokens(llmResult.content);
+      trackServerApiUsage({
+        provider: llmProvider || 'auto',
+        tokens_used: inputTokens + outputTokens,
+        request_type: 'refine',
+        actual_usage: llmResult.usage
+      }).catch(err => console.error('Failed to track API usage:', err));
 
       // Cache the response
       await setToCache(cacheKey, 'refine', query, response, llmProvider, supabase);
@@ -109,18 +120,37 @@ export async function POST(req: NextRequest) {
       { role: 'user', content: prompt }
     ];
 
-    const response = await callLLM(messages, 0.7, true, llmProvider);
+    const response = await callLLM(messages, 0.7, true, llmProvider) as Response;
     const streamParser = getStreamParser(llmProvider || 'openai');
+
+    // Track total output and actual usage from provider
+    let totalOutput = '';
+    let actualUsage: TokenUsage | undefined;
+    const inputTokens = estimateTokens(prompt);
 
     // Create a ReadableStream for streaming the response
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of streamParser(response)) {
-            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
+            if (chunk.type === 'content' && chunk.content) {
+              totalOutput += chunk.content;
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk.content, done: false })}\n\n`));
+            } else if (chunk.type === 'usage' && chunk.usage) {
+              actualUsage = chunk.usage;
+            }
           }
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
           controller.close();
+
+          // Track API usage after stream completes
+          const outputTokens = estimateTokens(totalOutput);
+          trackServerApiUsage({
+            provider: llmProvider || 'auto',
+            tokens_used: inputTokens + outputTokens,
+            request_type: 'refine',
+            actual_usage: actualUsage
+          }).catch(err => console.error('Failed to track API usage:', err));
         } catch (error) {
           controller.error(error);
         }

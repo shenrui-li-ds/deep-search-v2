@@ -1,4 +1,5 @@
 import { createClient } from './server';
+import type { TokenUsage } from '../api-utils';
 
 // Server-side usage tracking utilities
 
@@ -6,11 +7,17 @@ export interface UsageRecord {
   provider: string;
   tokens_used: number;
   request_type: 'refine' | 'summarize' | 'proofread' | 'research' | 'plan' | 'synthesize' | 'related';
+  // Optional: actual token usage from LLM provider (more accurate than estimation)
+  actual_usage?: TokenUsage;
 }
 
 /**
  * Track API usage on the server side.
  * Call this after each LLM API request to record token usage.
+ *
+ * Token priority:
+ * 1. actual_usage.total_tokens (most accurate, from LLM provider)
+ * 2. tokens_used (estimated fallback)
  */
 export async function trackServerApiUsage(record: UsageRecord): Promise<void> {
   try {
@@ -24,15 +31,31 @@ export async function trackServerApiUsage(record: UsageRecord): Promise<void> {
       return;
     }
 
-    // Insert usage record
+    // Prefer actual usage from provider, fall back to estimate
+    const tokensToTrack = record.actual_usage?.total_tokens || record.tokens_used;
+
+    // Log when we have actual usage for debugging
+    if (record.actual_usage) {
+      console.log(`[Usage] Tracking actual tokens: ${tokensToTrack} (in: ${record.actual_usage.prompt_tokens}, out: ${record.actual_usage.completion_tokens})`);
+    }
+
+    // Insert usage record with token breakdown if available
+    const insertData: Record<string, unknown> = {
+      user_id: user.id,
+      provider: record.provider,
+      tokens_used: tokensToTrack,
+      request_type: record.request_type,
+    };
+
+    // Add breakdown if we have actual usage data
+    if (record.actual_usage) {
+      insertData.prompt_tokens = record.actual_usage.prompt_tokens;
+      insertData.completion_tokens = record.actual_usage.completion_tokens;
+    }
+
     const { error: insertError } = await supabase
       .from('api_usage')
-      .insert({
-        user_id: user.id,
-        provider: record.provider,
-        tokens_used: record.tokens_used,
-        request_type: record.request_type,
-      });
+      .insert(insertData);
 
     if (insertError) {
       console.error('Error tracking API usage:', insertError);
@@ -43,7 +66,7 @@ export async function trackServerApiUsage(record: UsageRecord): Promise<void> {
     // Note: Using raw SQL for atomic increment
     const { error: updateError } = await supabase.rpc('increment_token_usage', {
       p_user_id: user.id,
-      p_tokens: record.tokens_used
+      p_tokens: tokensToTrack
     });
 
     if (updateError) {

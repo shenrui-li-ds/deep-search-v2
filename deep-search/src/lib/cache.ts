@@ -3,9 +3,13 @@
  *
  * Tier 1: In-memory LRU cache (fast, 15 min TTL, up to 500 entries)
  * Tier 2: Supabase table (persistent, 48 hour TTL)
+ *
+ * Cache writes use service_role client to bypass RLS (server-side only).
+ * Cache reads use authenticated client (RLS allows SELECT for all authenticated users).
  */
 
 import crypto from 'crypto';
+import { createServiceClient } from '@/lib/supabase/server';
 
 // =============================================================================
 // Types
@@ -361,9 +365,13 @@ export async function setToCache<T>(
   // Tier 1: Set to memory cache
   memoryCache.set(cacheKey, data);
 
-  // Tier 2: Set to Supabase (if client provided)
-  if (supabase) {
-    await setToSupabase(cacheKey, type, query, data, provider || null, supabase);
+  // Tier 2: Set to Supabase using service_role client (bypasses RLS for writes)
+  // Falls back to provided client if service_role key not configured
+  const serviceClient = createServiceClient();
+  const writeClient = serviceClient || supabase;
+
+  if (writeClient) {
+    await setToSupabase(cacheKey, type, query, data, provider || null, writeClient);
   }
 
   console.log(`[Cache] SET: ${cacheKey.slice(0, 50)}...`);
@@ -378,8 +386,12 @@ export async function deleteFromCache(
 ): Promise<void> {
   memoryCache.delete(cacheKey);
 
-  if (supabase) {
-    await supabase.from('search_cache').delete().eq('cache_key', cacheKey);
+  // Use service_role client for deletes (bypasses RLS)
+  const serviceClient = createServiceClient();
+  const writeClient = serviceClient || supabase;
+
+  if (writeClient) {
+    await writeClient.from('search_cache').delete().eq('cache_key', cacheKey);
   }
 }
 

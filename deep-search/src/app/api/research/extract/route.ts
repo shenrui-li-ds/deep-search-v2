@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callLLM, LLMProvider, detectLanguage } from '@/lib/api-utils';
+import { callLLM, LLMProvider, detectLanguage, LLMResponse } from '@/lib/api-utils';
 import { aspectExtractorPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
 interface SearchResultItem {
   title: string;
@@ -128,13 +129,23 @@ Return ONLY valid JSON matching the specified format.
       { role: 'user', content: completePrompt }
     ];
 
-    const response = await callLLM(messages, 0.3, false, llmProvider); // Lower temperature for factual extraction
+    const llmResult = await callLLM(messages, 0.3, false, llmProvider) as LLMResponse; // Lower temperature for factual extraction
+
+    // Track API usage
+    const inputTokens = estimateTokens(completePrompt);
+    const outputTokens = estimateTokens(llmResult.content);
+    trackServerApiUsage({
+      provider: llmProvider || 'auto',
+      tokens_used: inputTokens + outputTokens,
+      request_type: 'research',
+      actual_usage: llmResult.usage
+    }).catch(err => console.error('Failed to track API usage:', err));
 
     // Parse the JSON response
     let extraction: AspectExtraction;
     try {
       // Extract JSON from potential markdown code blocks
-      let jsonStr = response.trim();
+      let jsonStr = llmResult.content.trim();
       const jsonMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         jsonStr = jsonMatch[1].trim();

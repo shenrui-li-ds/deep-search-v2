@@ -5,7 +5,9 @@ import {
   formatSearchResultsForSummarization,
   getStreamParser,
   LLMProvider,
-  detectLanguage
+  detectLanguage,
+  TokenUsage,
+  LLMResponse
 } from '@/lib/api-utils';
 import { summarizeSearchResultsPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
@@ -102,11 +104,12 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
     ];
 
     if (stream) {
-      const response = await callLLM(messages, 0.7, true, llmProvider);
+      const response = await callLLM(messages, 0.7, true, llmProvider) as Response;
       const streamParser = getStreamParser(llmProvider || 'openai');
 
-      // Track total output for usage tracking
+      // Track total output and actual usage from provider
       let totalOutput = '';
+      let actualUsage: TokenUsage | undefined;
       const inputTokens = estimateTokens(completePrompt);
 
       // Create a ReadableStream for streaming the response
@@ -114,8 +117,13 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
         async start(controller) {
           try {
             for await (const chunk of streamParser(response)) {
-              totalOutput += chunk;
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk, done: false })}\n\n`));
+              if (chunk.type === 'content' && chunk.content) {
+                totalOutput += chunk.content;
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: chunk.content, done: false })}\n\n`));
+              } else if (chunk.type === 'usage' && chunk.usage) {
+                // Capture actual usage from provider
+                actualUsage = chunk.usage;
+              }
             }
             controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ data: '', done: true })}\n\n`));
             controller.close();
@@ -124,12 +132,13 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
             setToCache(cacheKey, 'summary', query, { content: totalOutput }, llmProvider, supabase)
               .catch(err => console.error('Failed to cache synthesis:', err));
 
-            // Track API usage after stream completes
+            // Track API usage after stream completes (prefer actual usage from provider)
             const outputTokens = estimateTokens(totalOutput);
             trackServerApiUsage({
               provider: llmProvider || 'auto',
               tokens_used: inputTokens + outputTokens,
-              request_type: 'summarize'
+              request_type: 'summarize',
+              actual_usage: actualUsage
             }).catch(err => console.error('Failed to track API usage:', err));
           } catch (error) {
             controller.error(error);
@@ -145,18 +154,19 @@ sentences mid-way. Output complete, coherent paragraphs with proper spacing.
         },
       });
     } else {
-      const summary = await callLLM(messages, 0.7, false, llmProvider);
+      const result = await callLLM(messages, 0.7, false, llmProvider) as LLMResponse;
 
-      // Track API usage (non-streaming)
+      // Track API usage (non-streaming) - prefer actual usage from provider
       const inputTokens = estimateTokens(completePrompt);
-      const outputTokens = estimateTokens(summary);
+      const outputTokens = estimateTokens(result.content);
       trackServerApiUsage({
         provider: llmProvider || 'auto',
         tokens_used: inputTokens + outputTokens,
-        request_type: 'summarize'
+        request_type: 'summarize',
+        actual_usage: result.usage
       }).catch(err => console.error('Failed to track API usage:', err));
 
-      return NextResponse.json({ summary });
+      return NextResponse.json({ summary: result.content });
     }
   } catch (error) {
     console.error('Error in summarize API:', error);
