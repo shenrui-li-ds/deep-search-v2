@@ -2,6 +2,67 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SearchResult from '@/components/SearchResult';
 
+// Mock next-intl
+jest.mock('next-intl', () => ({
+  useTranslations: (namespace: string) => (key: string, params?: Record<string, unknown>) => {
+    const translations: Record<string, Record<string, string>> = {
+      search: {
+        'results.answer': 'Answer',
+        'results.links': 'Links',
+        'results.sources': 'Sources',
+        'results.images': 'Images',
+        'results.relatedSearches': 'Related searches',
+        'results.noResults': 'No results found',
+        'results.tryDifferent': 'Try a different search term',
+        'results.reviewedSources': `Reviewed ${params?.count || 0} sources`,
+        'results.sourcesCount': `${params?.count || 0} sources`,
+        'results.sourceNumber': `Source ${params?.number || 0}`,
+        'actions.copyText': 'Copy as text',
+        'actions.copyLink': 'Copy link',
+        'actions.downloadPdf': 'Download PDF',
+        'actions.like': 'Like',
+        'actions.dislike': 'Dislike',
+        'actions.rewrite': 'Rewrite',
+        'actions.save': 'Save',
+        'actions.saved': 'Saved',
+        'actions.saving': 'Saving...',
+        'actions.saveToFavorites': 'Save to favorites',
+        'actions.removeFromFavorites': 'Remove from favorites',
+        'actions.comingSoon': '(coming soon)',
+        'followUp': 'Ask a follow-up',
+        'incomplete.title': 'Response may be incomplete',
+        'incomplete.description': 'The connection was interrupted. Try refreshing or searching again.',
+        'incomplete.retry': 'Retry',
+        'thinking.title': 'Thinking',
+        'thinking.searchStrategy': 'Search Strategy',
+        'thinking.searchIntent': 'Search Intent',
+        'thinking.searchQuery': 'Search Query',
+        'thinking.refinedQuery': 'Refined Query',
+        'thinking.researchApproach': 'Research Approach',
+        'thinking.queryType': 'Query Type',
+        'thinking.researchPlan': 'Research Plan',
+        'thinking.creativeApproach': 'Creative Approach',
+        'thinking.creativeAngles': 'Creative Angles',
+        'thinking.exploringFrom': 'Exploring inspiration from:',
+        'thinking.angles': 'angles',
+        'thinking.deep': 'Deep',
+        'thinking.aiSuggestedDeep': 'AI suggested Deep Research for this query',
+        'thinking.aiSuggestedStandard': 'AI suggested Standard Research for this query',
+        'thinking.deepeningGaps': 'Deepening research on gaps:',
+      },
+      common: {
+        share: 'Share',
+        copy: 'Copy',
+        copied: 'Copied!',
+        download: 'Download',
+      },
+    };
+    const ns = translations[namespace] || {};
+    return ns[key] || key;
+  },
+  useLocale: () => 'en',
+}));
+
 // Mock next/navigation
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({

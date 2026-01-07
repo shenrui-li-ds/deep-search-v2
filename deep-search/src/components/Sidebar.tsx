@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import ThemeToggle from './ThemeToggle';
+import LanguageToggle from './LanguageToggle';
 import { getUserCredits } from '@/lib/supabase/database';
+import { useTranslations } from 'next-intl';
 
 interface NavItemProps {
   href: string;
@@ -33,6 +35,7 @@ const NavItem = ({ href, icon, label, isActive }: NavItemProps) => (
 const Sidebar = () => {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
+  const t = useTranslations('nav');
 
   useEffect(() => {
     async function checkAdmin() {
@@ -67,14 +70,14 @@ const Sidebar = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </div>
-        <span className="text-[10px] mt-1 font-medium">New</span>
+        <span className="text-[10px] mt-1 font-medium">{t('newSearch')}</span>
       </Link>
 
       {/* Navigation Items */}
       <nav className="w-full flex flex-col items-center space-y-1 px-2">
         <NavItem
           href="/"
-          label="Home"
+          label={t('home')}
           isActive={pathname === '/'}
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -85,7 +88,7 @@ const Sidebar = () => {
 
         <NavItem
           href="/library"
-          label="Library"
+          label={t('library')}
           isActive={pathname === '/library' || pathname.startsWith('/library/')}
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -97,9 +100,15 @@ const Sidebar = () => {
 
       {/* Bottom Items */}
       <div className="mt-auto w-full flex flex-col items-center space-y-1 px-2">
+        {/* Language Toggle */}
+        <div className="w-full flex flex-col items-center justify-center py-2 px-1">
+          <LanguageToggle size="sm" />
+        </div>
+
+        {/* Theme Toggle */}
         <div className="w-full flex flex-col items-center justify-center py-2 px-1">
           <ThemeToggle />
-          <span className="text-[10px] mt-1 font-medium text-[var(--text-muted)]">Theme</span>
+          <span className="text-[10px] mt-1 font-medium text-[var(--text-muted)]">{t('theme')}</span>
         </div>
 
         {/* Admin link - only visible to admin users */}
@@ -119,7 +128,7 @@ const Sidebar = () => {
 
         <NavItem
           href="/account"
-          label="Account"
+          label={t('account')}
           isActive={pathname === '/account'}
           icon={
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

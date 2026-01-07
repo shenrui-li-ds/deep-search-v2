@@ -25,37 +25,32 @@ import SearchLoading from './SearchLoading';
 import MobileBottomSheet from './MobileBottomSheet';
 import type { QueryType, ResearchPlanItem } from '@/app/api/research/plan/route';
 import type { ResearchGap } from '@/app/api/research/analyze-gaps/route';
+import { useTranslations } from 'next-intl';
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
 
-// Human-readable labels for query types
-const queryTypeLabels: Record<QueryType, string> = {
-  shopping: 'Shopping Research',
-  travel: 'Travel Guide',
-  technical: 'Technical Analysis',
-  academic: 'Academic Research',
-  explanatory: 'Concept Explanation',
-  finance: 'Financial Analysis',
-  general: 'General Research',
-};
+// Query type labels are now handled via translations (search.queryTypes.*)
 
-const searchModes = [
-  { id: 'web' as SearchMode, label: 'Web Search', shortLabel: 'Search', icon: (
+// Search mode icons only - labels come from translations
+const searchModeIcons: Record<SearchMode, React.ReactNode> = {
+  web: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
-  ) },
-  { id: 'pro' as SearchMode, label: 'Research', shortLabel: 'Research', icon: (
+  ),
+  pro: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
-  ) },
-  { id: 'brainstorm' as SearchMode, label: 'Brainstorm', shortLabel: 'Brainstorm', icon: (
+  ),
+  brainstorm: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
     </svg>
-  ) },
-];
+  ),
+};
+
+const searchModeIds: SearchMode[] = ['web', 'pro', 'brainstorm'];
 
 interface Source {
   id: string;
@@ -109,6 +104,8 @@ interface SearchResultProps {
 }
 
 const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null, streamCompleted = false }) => {
+  const t = useTranslations('search');
+  const tCommon = useTranslations('common');
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
   const [followUpMode, setFollowUpMode] = useState<SearchMode>(mode as SearchMode);
@@ -132,7 +129,9 @@ const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearc
     adjustFollowUpHeight();
   }, [followUpQuery, adjustFollowUpHeight]);
 
-  const currentFollowUpMode = searchModes.find(m => m.id === followUpMode);
+  // Get translated mode label
+  const getModeLabel = (modeId: SearchMode) => t(`modes.${modeId}`);
+  const currentFollowUpModeIcon = searchModeIcons[followUpMode];
 
   // Copy just the answer content (for Copy button in action bar)
   const handleCopyContent = useCallback(async () => {
@@ -251,21 +250,21 @@ ${sourcesText}
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
             <span className="text-sm font-medium text-[var(--accent)]">
-              {loadingStage === 'refining' ? 'Refining query...' :
-               loadingStage === 'searching' ? 'Searching the web...' :
-               loadingStage === 'planning' ? 'Planning research approach...' :
-               loadingStage === 'researching' ? 'Searching multiple sources...' :
-               loadingStage === 'extracting' ? 'Extracting key insights...' :
-               loadingStage === 'analyzing_gaps' ? 'Analyzing coverage gaps...' :
-               loadingStage === 'deepening' ? 'Deepening research...' :
-               loadingStage === 'synthesizing' ? 'Synthesizing findings...' :
-               loadingStage === 'reframing' ? 'Finding creative angles...' :
-               loadingStage === 'exploring' ? 'Exploring cross-domain inspiration...' :
-               loadingStage === 'ideating' ? 'Generating ideas...' :
-               loadingStage === 'proofreading' ? 'Polishing response...' :
-               loadingStage === 'summarizing' ? 'Generating response...' :
-               isSearching ? 'Searching the web...' :
-               isPolishing ? 'Polishing response...' : 'Generating response...'}
+              {loadingStage === 'refining' ? t('status.refining') :
+               loadingStage === 'searching' ? t('status.searching') :
+               loadingStage === 'planning' ? t('status.planning') :
+               loadingStage === 'researching' ? t('status.researching') :
+               loadingStage === 'extracting' ? t('status.extracting') :
+               loadingStage === 'analyzing_gaps' ? t('status.analyzingGaps') :
+               loadingStage === 'deepening' ? t('status.deepening') :
+               loadingStage === 'synthesizing' ? t('status.synthesizing') :
+               loadingStage === 'reframing' ? t('status.reframing') :
+               loadingStage === 'exploring' ? t('status.exploring') :
+               loadingStage === 'ideating' ? t('status.ideating') :
+               loadingStage === 'proofreading' ? t('status.proofreading') :
+               loadingStage === 'summarizing' ? t('status.summarizing') :
+               isSearching ? t('status.searching') :
+               isPolishing ? t('status.proofreading') : t('status.summarizing')}
             </span>
           </div>
         )}
@@ -277,14 +276,14 @@ ${sourcesText}
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Response may be incomplete</p>
-              <p className="text-xs text-amber-600/80 dark:text-amber-400/80">The connection was interrupted. Try refreshing or searching again.</p>
+              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">{t('incomplete.title')}</p>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80">{t('incomplete.description')}</p>
             </div>
             <button
               onClick={() => window.location.reload()}
               className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-md transition-colors"
             >
-              Retry
+              {t('incomplete.retry')}
             </button>
           </div>
         )}
@@ -296,7 +295,7 @@ ${sourcesText}
               <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              Search Strategy
+              {t('thinking.searchStrategy')}
             </summary>
             <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--background)]">
               <div className="space-y-2">
@@ -305,7 +304,7 @@ ${sourcesText}
                 )}
                 {refinedQuery && refinedQuery !== query && (
                   <div className="flex items-start gap-2 text-sm">
-                    <span className="flex-shrink-0 text-[var(--text-muted)] text-xs">Query:</span>
+                    <span className="flex-shrink-0 text-[var(--text-muted)] text-xs">{t('thinking.searchQuery')}:</span>
                     <span className="text-[var(--text-secondary)] font-mono text-xs bg-[var(--card)] px-2 py-1 rounded">{refinedQuery}</span>
                   </div>
                 )}
@@ -321,10 +320,10 @@ ${sourcesText}
               <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
-              Research Approach
+              {t('thinking.researchApproach')}
               {queryType && (
                 <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                  {queryTypeLabels[queryType]}
+                  {t(`queryTypes.${queryType}`)}
                 </Badge>
               )}
               {deep && (
@@ -333,7 +332,7 @@ ${sourcesText}
                   <svg className="w-3 h-3 mr-1" viewBox="0 -960 960 960" fill="currentColor">
                     <path d="M390-120q-51 0-88-35.5T260-241q-60-8-100-53t-40-106q0-21 5.5-41.5T142-480q-11-18-16.5-38t-5.5-42q0-61 40-105.5t99-52.5q3-51 41-86.5t90-35.5q26 0 48.5 10t41.5 27q18-17 41-27t49-10q52 0 89.5 35t40.5 86q59 8 99.5 53T840-560q0 22-5.5 42T818-480q11 18 16.5 38.5T840-400q0 62-40.5 106.5T699-241q-5 50-41.5 85.5T570-120q-25 0-48.5-9.5T480-156q-19 17-42 26.5t-48 9.5Zm130-590v460q0 21 14.5 35.5T570-200q20 0 34.5-16t15.5-36q-21-8-38.5-21.5T550-306q-10-14-7.5-30t16.5-26q14-10 30-7.5t26 16.5q11 16 28 24.5t37 8.5q33 0 56.5-23.5T760-400q0-5-.5-10t-2.5-10q-17 10-36.5 15t-40.5 5q-17 0-28.5-11.5T640-440q0-17 11.5-28.5T680-480q33 0 56.5-23.5T760-560q0-33-23.5-56T680-640q-11 18-28.5 31.5T613-587q-16 6-31-1t-20-23q-5-16 1.5-31t22.5-20q15-5 24.5-18t9.5-30q0-21-14.5-35.5T570-760q-21 0-35.5 14.5T520-710Zm-80 460v-460q0-21-14.5-35.5T390-760q-21 0-35.5 14.5T340-710q0 16 9 29.5t24 18.5q16 5 23 20t2 31q-6 16-21 23t-31 1q-21-8-38.5-21.5T279-640q-32 1-55.5 24.5T200-560q0 33 23.5 56.5T280-480q17 0 28.5 11.5T320-440q0 17-11.5 28.5T280-400q-21 0-40.5-5T203-420q-2 5-2.5 10t-.5 10q0 33 23.5 56.5T280-320q20 0 37-8.5t28-24.5q10-14 26-16.5t30 7.5q14 10 16.5 26t-7.5 30q-14 19-32 33t-39 22q1 20 16 35.5t35 15.5q21 0 35.5-14.5T440-250Zm40-230Z" />
                   </svg>
-                  Deep
+                  {t('thinking.deep')}
                 </Badge>
               )}
             </summary>
@@ -344,12 +343,12 @@ ${sourcesText}
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
-                  AI suggested {suggestedDepth === 'deep' ? 'Deep Research' : 'Standard Research'} for this query
+                  {suggestedDepth === 'deep' ? t('thinking.aiSuggestedDeep') : t('thinking.aiSuggestedStandard')}
                 </div>
               )}
               {researchPlan && researchPlan.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs text-[var(--text-muted)] mb-2">Searching for:</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-2">{t('thinking.researchPlan')}:</p>
                   <ul className="space-y-1.5">
                     {researchPlan.map((item, index) => (
                       <li key={index} className="flex items-start gap-2 text-sm">
@@ -372,7 +371,7 @@ ${sourcesText}
                     <svg className="w-3.5 h-3.5" viewBox="0 -960 960 960" fill="currentColor">
                       <path d="M390-120q-51 0-88-35.5T260-241q-60-8-100-53t-40-106q0-21 5.5-41.5T142-480q-11-18-16.5-38t-5.5-42q0-61 40-105.5t99-52.5q3-51 41-86.5t90-35.5q26 0 48.5 10t41.5 27q18-17 41-27t49-10q52 0 89.5 35t40.5 86q59 8 99.5 53T840-560q0 22-5.5 42T818-480q11 18 16.5 38.5T840-400q0 62-40.5 106.5T699-241q-5 50-41.5 85.5T570-120q-25 0-48.5-9.5T480-156q-19 17-42 26.5t-48 9.5Zm130-590v460q0 21 14.5 35.5T570-200q20 0 34.5-16t15.5-36q-21-8-38.5-21.5T550-306q-10-14-7.5-30t16.5-26q14-10 30-7.5t26 16.5q11 16 28 24.5t37 8.5q33 0 56.5-23.5T760-400q0-5-.5-10t-2.5-10q-17 10-36.5 15t-40.5 5q-17 0-28.5-11.5T640-440q0-17 11.5-28.5T680-480q33 0 56.5-23.5T760-560q0-33-23.5-56T680-640q-11 18-28.5 31.5T613-587q-16 6-31-1t-20-23q-5-16 1.5-31t22.5-20q15-5 24.5-18t9.5-30q0-21-14.5-35.5T570-760q-21 0-35.5 14.5T520-710Zm-80 460v-460q0-21-14.5-35.5T390-760q-21 0-35.5 14.5T340-710q0 16 9 29.5t24 18.5q16 5 23 20t2 31q-6 16-21 23t-31 1q-21-8-38.5-21.5T279-640q-32 1-55.5 24.5T200-560q0 33 23.5 56.5T280-480q17 0 28.5 11.5T320-440q0 17-11.5 28.5T280-400q-21 0-40.5-5T203-420q-2 5-2.5 10t-.5 10q0 33 23.5 56.5T280-320q20 0 37-8.5t28-24.5q10-14 26-16.5t30 7.5q14 10 16.5 26t-7.5 30q-14 19-32 33t-39 22q1 20 16 35.5t35 15.5q21 0 35.5-14.5T440-250Zm40-230Z" />
                     </svg>
-                    Deepening research on gaps:
+                    {t('thinking.deepeningGaps')}
                   </p>
                   <ul className="space-y-1.5">
                     {researchGaps.map((gap, index) => (
@@ -400,14 +399,14 @@ ${sourcesText}
               <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
-              Creative Approach
+              {t('thinking.creativeApproach')}
               <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                {brainstormAngles.length} angles
+                {brainstormAngles.length} {t('thinking.angles')}
               </Badge>
             </summary>
             <div className="px-4 py-3 border-t border-[var(--border)] bg-[var(--background)]">
               <div className="space-y-2">
-                <p className="text-xs text-[var(--text-muted)] mb-2">Exploring inspiration from:</p>
+                <p className="text-xs text-[var(--text-muted)] mb-2">{t('thinking.exploringFrom')}</p>
                 <ul className="space-y-1.5">
                   {brainstormAngles.map((item, index) => (
                     <li key={index} className="flex items-start gap-2 text-sm">
@@ -434,13 +433,13 @@ ${sourcesText}
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Answer
+                {t('results.answer')}
               </TabsTrigger>
               <TabsTrigger value="links">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-                Links
+                {t('results.links')}
               </TabsTrigger>
             </TabsList>
 
@@ -471,15 +470,15 @@ ${sourcesText}
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                     </svg>
-                    {isBookmarked ? 'Saved' : 'Save'}
+                    {isBookmarked ? t('actions.saved') : t('actions.save')}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
                   {!historyEntryId
-                    ? 'Saving...'
+                    ? t('actions.saving')
                     : isBookmarked
-                      ? 'Remove from favorites'
-                      : 'Save to favorites'}
+                      ? t('actions.removeFromFavorites')
+                      : t('actions.saveToFavorites')}
                 </TooltipContent>
               </Tooltip>
 
@@ -490,7 +489,7 @@ ${sourcesText}
                     <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                     </svg>
-                    {copyFeedback === 'formatted' || copyFeedback === 'link' ? 'Copied!' : 'Share'}
+                    {copyFeedback === 'formatted' || copyFeedback === 'link' ? tCommon('copied') : tCommon('share')}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
@@ -498,20 +497,20 @@ ${sourcesText}
                     <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Copy as text
+                    {t('actions.copyText')}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer">
                     <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                     </svg>
-                    Copy link
+                    {t('actions.copyLink')}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleDownloadPDF} className="cursor-pointer">
                     <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Download PDF
+                    {t('actions.downloadPdf')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -528,7 +527,7 @@ ${sourcesText}
                 onClick={() => setSourcesExpanded(!sourcesExpanded)}
                 className="flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
               >
-                <span>Reviewed {result.sources.length} sources</span>
+                <span>{t('results.reviewedSources', { count: result.sources.length })}</span>
                 <svg
                   className={`w-4 h-4 transition-transform ${sourcesExpanded ? 'rotate-180' : ''}`}
                   fill="none"
@@ -668,7 +667,7 @@ ${sourcesText}
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>{copyFeedback === 'copied' ? 'Copied!' : 'Copy'}</TooltipContent>
+                <TooltipContent>{copyFeedback === 'copied' ? tCommon('copied') : tCommon('copy')}</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -679,7 +678,7 @@ ${sourcesText}
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Like (coming soon)</TooltipContent>
+                <TooltipContent>{t('actions.like')} {t('actions.comingSoon')}</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -690,7 +689,7 @@ ${sourcesText}
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Dislike (coming soon)</TooltipContent>
+                <TooltipContent>{t('actions.dislike')} {t('actions.comingSoon')}</TooltipContent>
               </Tooltip>
 
               <Tooltip>
@@ -701,21 +700,21 @@ ${sourcesText}
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Rewrite (coming soon)</TooltipContent>
+                <TooltipContent>{t('actions.rewrite')} {t('actions.comingSoon')}</TooltipContent>
               </Tooltip>
 
               <div className="ml-auto flex items-center gap-2 text-sm text-[var(--text-muted)]">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                 </svg>
-                <span>{result.sources.length} sources</span>
+                <span>{t('results.sourcesCount', { count: result.sources.length })}</span>
               </div>
             </div>
 
             {/* Related Searches */}
             {relatedSearches.length > 0 && (
               <div className="mt-8">
-                <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">Related searches</h3>
+                <h3 className="text-sm font-medium text-[var(--text-muted)] mb-3">{t('results.relatedSearches')}</h3>
                 <div className="flex flex-wrap gap-2">
                   {relatedSearches.map((search, index) => (
                     <a
@@ -738,7 +737,7 @@ ${sourcesText}
           </TabsContent>
 
           <TabsContent value="links">
-            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Sources</h2>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">{t('results.sources')}</h2>
             <div className="space-y-4">
               {result.sources.map((source, index) => (
                 <Card
@@ -761,7 +760,7 @@ ${sourcesText}
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs text-[var(--text-muted)]">{getDomain(source.url)}</span>
                         <span className="w-1 h-1 bg-[var(--border)] rounded-full"></span>
-                        <Badge variant="secondary" className="text-xs">Source {index + 1}</Badge>
+                        <Badge variant="secondary" className="text-xs">{t('results.sourceNumber', { number: index + 1 })}</Badge>
                       </div>
                       <h3 className="font-medium text-[var(--text-primary)] mb-1 line-clamp-2">{source.title}</h3>
                       {source.snippet && (
@@ -793,7 +792,7 @@ ${sourcesText}
             onClick={() => setIsModeSheetOpen(true)}
             className="md:hidden flex items-center gap-1 px-2 py-1 bg-[var(--background)] rounded-lg text-[var(--text-muted)] flex-shrink-0"
           >
-            {currentFollowUpMode?.icon}
+            {currentFollowUpModeIcon}
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
@@ -803,23 +802,23 @@ ${sourcesText}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="hidden md:flex items-center gap-1.5 px-2 py-1 bg-[var(--background)] rounded-lg text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors flex-shrink-0">
-                {currentFollowUpMode?.icon}
-                <span className="text-xs font-medium">{currentFollowUpMode?.shortLabel}</span>
+                {currentFollowUpModeIcon}
+                <span className="text-xs font-medium">{getModeLabel(followUpMode)}</span>
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-40">
-              {searchModes.map((m) => (
+              {searchModeIds.map((modeId) => (
                 <DropdownMenuItem
-                  key={m.id}
-                  onClick={() => setFollowUpMode(m.id)}
-                  className={`flex items-center gap-2 ${followUpMode === m.id ? 'bg-[var(--card)]' : ''}`}
+                  key={modeId}
+                  onClick={() => setFollowUpMode(modeId)}
+                  className={`flex items-center gap-2 ${followUpMode === modeId ? 'bg-[var(--card)]' : ''}`}
                 >
-                  {m.icon}
-                  <span>{m.label}</span>
-                  {followUpMode === m.id && (
+                  {searchModeIcons[modeId]}
+                  <span>{getModeLabel(modeId)}</span>
+                  {followUpMode === modeId && (
                     <svg className="w-4 h-4 ml-auto text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
@@ -832,7 +831,7 @@ ${sourcesText}
           <textarea
             ref={followUpTextareaRef}
             rows={1}
-            placeholder="Ask a follow-up"
+            placeholder={t('followUp')}
             value={followUpQuery}
             onChange={(e) => setFollowUpQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -857,33 +856,33 @@ ${sourcesText}
       <MobileBottomSheet
         isOpen={isModeSheetOpen}
         onClose={() => setIsModeSheetOpen(false)}
-        title="Search Mode"
+        title={t('searchMode')}
       >
         <div className="space-y-1.5">
-          {searchModes.map((m) => (
+          {searchModeIds.map((modeId) => (
             <button
-              key={m.id}
+              key={modeId}
               onClick={() => {
-                setFollowUpMode(m.id);
+                setFollowUpMode(modeId);
                 setIsModeSheetOpen(false);
               }}
               className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg transition-colors ${
-                followUpMode === m.id
+                followUpMode === modeId
                   ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
                   : 'bg-[var(--card)] border-2 border-transparent'
               }`}
             >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                followUpMode === m.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
+                followUpMode === modeId ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
               }`}>
-                {m.icon}
+                {searchModeIcons[modeId]}
               </div>
               <div className="flex-1 text-left">
-                <div className={`font-medium ${followUpMode === m.id ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
-                  {m.label}
+                <div className={`font-medium ${followUpMode === modeId ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
+                  {getModeLabel(modeId)}
                 </div>
               </div>
-              {followUpMode === m.id && (
+              {followUpMode === modeId && (
                 <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>

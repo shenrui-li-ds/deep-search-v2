@@ -2,6 +2,46 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import Sidebar from '@/components/Sidebar';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { LanguageProvider } from '@/context/LanguageContext';
+
+// Mock next-intl
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => {
+    const translations: Record<string, string> = {
+      home: 'Home',
+      library: 'Library',
+      account: 'Account',
+      signOut: 'Sign Out',
+      newSearch: 'New',
+      theme: 'Theme',
+      language: 'Lang',
+    };
+    return translations[key] || key;
+  },
+  useLocale: () => 'en',
+}));
+
+// Mock Supabase client
+jest.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+      onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: jest.fn() } } })),
+    },
+    from: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnValue({
+        eq: jest.fn().mockReturnValue({
+          single: jest.fn().mockResolvedValue({ data: null, error: null }),
+        }),
+      }),
+      update: jest.fn().mockReturnValue({
+        eq: jest.fn().mockResolvedValue({ error: null }),
+      }),
+      insert: jest.fn().mockResolvedValue({ error: null }),
+    }),
+    rpc: jest.fn().mockResolvedValue({ data: null, error: null }),
+  }),
+}));
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -37,11 +77,13 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-const renderWithThemeProvider = (component: React.ReactElement) => {
+const renderWithProviders = (component: React.ReactElement) => {
   return render(
-    <ThemeProvider>
-      {component}
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        {component}
+      </ThemeProvider>
+    </LanguageProvider>
   );
 };
 
@@ -52,20 +94,20 @@ describe('Sidebar', () => {
 
   describe('Rendering', () => {
     it('renders the sidebar container', () => {
-      const { container } = renderWithThemeProvider(<Sidebar />);
+      const { container } = renderWithProviders(<Sidebar />);
       // Sidebar uses h-screen (full height) and fixed positioning
       expect(container.querySelector('.h-screen')).toBeInTheDocument();
     });
 
     it('renders the logo link to home', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
       const homeLinks = screen.getAllByRole('link');
       const logoLink = homeLinks.find(link => link.getAttribute('href') === '/');
       expect(logoLink).toBeInTheDocument();
     });
 
     it('renders navigation links with text labels', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
 
       // New sidebar uses text labels below icons
       expect(screen.getByText('Home')).toBeInTheDocument();
@@ -73,24 +115,24 @@ describe('Sidebar', () => {
     });
 
     it('does not render Discover and Spaces (removed)', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
 
       expect(screen.queryByText('Discover')).not.toBeInTheDocument();
       expect(screen.queryByText('Spaces')).not.toBeInTheDocument();
     });
 
     it('renders New search button', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
       expect(screen.getByText('New')).toBeInTheDocument();
     });
 
     it('renders account link', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
       expect(screen.getByText('Account')).toBeInTheDocument();
     });
 
     it('has correct link destinations', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
 
       const homeLink = screen.getByText('Home').closest('a');
       const libraryLink = screen.getByText('Library').closest('a');
@@ -102,27 +144,27 @@ describe('Sidebar', () => {
     });
 
     it('renders theme toggle button', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
       // Theme toggle should have aria-label
       const themeToggle = screen.getByLabelText(/switch to (dark|light) mode/i);
       expect(themeToggle).toBeInTheDocument();
     });
 
     it('renders Theme label below toggle', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
       expect(screen.getByText('Theme')).toBeInTheDocument();
     });
   });
 
   describe('Styling', () => {
     it('has border on the right side', () => {
-      const { container } = renderWithThemeProvider(<Sidebar />);
+      const { container } = renderWithProviders(<Sidebar />);
       const sidebar = container.firstChild as HTMLElement;
       expect(sidebar).toHaveClass('border-r');
     });
 
     it('has correct width (72px)', () => {
-      const { container } = renderWithThemeProvider(<Sidebar />);
+      const { container } = renderWithProviders(<Sidebar />);
       const sidebar = container.firstChild as HTMLElement;
       expect(sidebar).toHaveClass('w-[72px]');
     });
@@ -130,7 +172,7 @@ describe('Sidebar', () => {
 
   describe('Accessibility', () => {
     it('navigation items have visible text labels', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
 
       // Text labels provide accessibility without needing title attributes
       const navLabels = ['Home', 'Library', 'Account', 'Theme'];
@@ -140,7 +182,7 @@ describe('Sidebar', () => {
     });
 
     it('all navigation links are accessible via role', () => {
-      renderWithThemeProvider(<Sidebar />);
+      renderWithProviders(<Sidebar />);
 
       const links = screen.getAllByRole('link');
       // Should have: logo, New, Home, Library, Account = 5 links

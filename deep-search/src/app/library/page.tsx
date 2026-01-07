@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import MainLayout from '@/components/MainLayout';
 import MobileBottomSheet from '@/components/MobileBottomSheet';
+import { useTranslations, useLocale } from 'next-intl';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +26,8 @@ import {
   type SearchHistoryEntry
 } from '@/lib/supabase/database';
 
-function formatTimeAgo(dateString: string): string {
+// Raw time calculation - returns { type, count } for translation
+function getTimeAgoData(dateString: string): { type: 'justNow' | 'minutesAgo' | 'hoursAgo' | 'daysAgo' | 'date', count?: number, date?: Date } {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -33,24 +35,32 @@ function formatTimeAgo(dateString: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffMins < 1) return { type: 'justNow' };
+  if (diffMins < 60) return { type: 'minutesAgo', count: diffMins };
+  if (diffHours < 24) return { type: 'hoursAgo', count: diffHours };
+  if (diffDays < 7) return { type: 'daysAgo', count: diffDays };
 
-  return date.toLocaleDateString('en-US', {
+  return { type: 'date', date };
+}
+
+// Helper to format time with translation function
+type TranslatorFn = (key: string, params?: Record<string, number>) => string;
+function formatTimeAgoWithT(dateString: string, t: TranslatorFn, locale: string = 'en'): string {
+  const data = getTimeAgoData(dateString);
+
+  if (data.type === 'justNow') return t('justNow');
+  if (data.type === 'minutesAgo') return t('minutesAgo', { count: data.count ?? 0 });
+  if (data.type === 'hoursAgo') return t('hoursAgo', { count: data.count ?? 0 });
+  if (data.type === 'daysAgo') return t('daysAgo', { count: data.count ?? 0 });
+
+  // For dates older than 7 days, use localized date format
+  const date = data.date!;
+  const now = new Date();
+  return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US', {
     month: 'short',
     day: 'numeric',
     year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
   });
-}
-
-function getModeLabel(mode: string): string {
-  switch (mode) {
-    case 'pro': return 'Research';
-    case 'brainstorm': return 'Brainstorm';
-    default: return 'Web';
-  }
 }
 
 function getModeColor(mode: string): string {
@@ -94,6 +104,10 @@ interface HistoryItemProps {
 function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: HistoryItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const t = useTranslations('library');
+  const tSearch = useTranslations('search');
+  const tCommon = useTranslations('common');
+  const locale = useLocale();
 
   // Build search URL, including deep parameter if it was a deep research
   const searchUrl = `/search?q=${encodeURIComponent(entry.query)}&provider=${entry.provider}&mode=${entry.mode}${entry.deep ? '&deep=true' : ''}`;
@@ -133,7 +147,7 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
-        <span>Delete</span>
+        <span>{tCommon('delete')}</span>
       </button>
       <button
         onClick={handleMenuBookmark}
@@ -146,7 +160,7 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={entry.bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
         </svg>
-        <span>{entry.bookmarked ? 'Remove Bookmark' : 'Bookmark'}</span>
+        <span>{entry.bookmarked ? t('removeBookmark') : t('bookmark')}</span>
       </button>
       <button
         onClick={handleCopyQuery}
@@ -159,7 +173,7 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
-        <span>{copied ? 'Copied!' : 'Copy Query'}</span>
+        <span>{copied ? tCommon('copied') : t('copyQuery')}</span>
       </button>
       <button
         disabled
@@ -168,8 +182,8 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
         </svg>
-        <span>Share</span>
-        <span className="ml-auto text-xs">(Coming soon)</span>
+        <span>{t('share')}</span>
+        <span className="ml-auto text-xs">({t('comingSoon')})</span>
       </button>
     </>
   );
@@ -203,14 +217,14 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
             </Link>
             <div className="flex items-center gap-2 mt-1.5">
               <span className={`text-xs px-2 py-0.5 rounded-full ${getModeColor(entry.mode)}`}>
-                {getModeLabel(entry.mode)}
+                {tSearch(`modes.${entry.mode || 'web'}`)}
               </span>
               <span className="text-xs text-[var(--text-muted)]">
-                {entry.sources_count} sources
+                {entry.sources_count} {t('sources')}
               </span>
               <span className="text-xs text-[var(--text-muted)]">•</span>
               <span className="text-xs text-[var(--text-muted)]">
-                {entry.created_at ? formatTimeAgo(entry.created_at) : ''}
+                {entry.created_at ? formatTimeAgoWithT(entry.created_at, t as TranslatorFn, locale) : ''}
               </span>
             </div>
           </div>
@@ -233,7 +247,7 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete
+                  {tCommon('delete')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleMenuBookmark}
@@ -242,7 +256,7 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill={entry.bookmarked ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
-                  {entry.bookmarked ? 'Remove Bookmark' : 'Bookmark'}
+                  {entry.bookmarked ? t('removeBookmark') : t('bookmark')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleCopyQuery}
@@ -251,14 +265,14 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
-                  {copied ? 'Copied!' : 'Copy Query'}
+                  {copied ? tCommon('copied') : t('copyQuery')}
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled className="opacity-50 cursor-not-allowed">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                   </svg>
-                  Share
-                  <span className="ml-auto text-xs text-[var(--text-muted)]">Soon</span>
+                  {t('share')}
+                  <span className="ml-auto text-xs text-[var(--text-muted)]">{t('comingSoon')}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -279,7 +293,7 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
       <MobileBottomSheet
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        title="Options"
+        title={t('options')}
       >
         <div className="space-y-1.5">
           {menuItems}
@@ -292,12 +306,13 @@ function HistoryItem({ entry, onDelete, onToggleBookmark, isPendingDelete }: His
 // Undo Toast Component
 interface UndoToastProps {
   message: string;
+  undoLabel?: string;
   onUndo: () => void;
   onDismiss: () => void;
   duration?: number;
 }
 
-function UndoToast({ message, onUndo, onDismiss, duration = 3000 }: UndoToastProps) {
+function UndoToast({ message, undoLabel = 'Undo', onUndo, onDismiss, duration = 3000 }: UndoToastProps) {
   const [progress, setProgress] = useState(100);
 
   useEffect(() => {
@@ -324,7 +339,7 @@ function UndoToast({ message, onUndo, onDismiss, duration = 3000 }: UndoToastPro
           onClick={onUndo}
           className="text-sm font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity"
         >
-          Undo
+          {undoLabel}
         </button>
       </div>
       {/* Progress bar */}
@@ -355,6 +370,9 @@ interface DeletedHistoryItemProps {
 
 function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHistoryItemProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const t = useTranslations('library');
+  const tSearch = useTranslations('search');
+  const locale = useLocale();
 
   const handleRecover = () => {
     if (entry.id) {
@@ -364,7 +382,7 @@ function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHisto
   };
 
   // Format deleted time
-  const deletedTimeAgo = entry.deleted_at ? formatTimeAgo(entry.deleted_at) : '';
+  const deletedTimeAgo = entry.deleted_at ? formatTimeAgoWithT(entry.deleted_at, t as TranslatorFn, locale) : '';
 
   if (isPendingRecover) {
     return null;
@@ -380,7 +398,7 @@ function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHisto
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
         </svg>
-        <span>Recover</span>
+        <span>{t('recover')}</span>
       </button>
     </>
   );
@@ -400,10 +418,10 @@ function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHisto
           </h3>
           <div className="flex items-center gap-2 mt-1.5">
             <span className={`text-xs px-2 py-0.5 rounded-full ${getModeColor(entry.mode)}`}>
-              {getModeLabel(entry.mode)}
+              {tSearch(`modes.${entry.mode || 'web'}`)}
             </span>
             <span className="text-xs text-[var(--text-muted)]">
-              Deleted {deletedTimeAgo}
+              {t('deletedAgo', { time: deletedTimeAgo })}
             </span>
           </div>
         </div>
@@ -426,7 +444,7 @@ function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHisto
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Recover
+                {t('recover')}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -447,7 +465,7 @@ function DeletedHistoryItem({ entry, onRecover, isPendingRecover }: DeletedHisto
       <MobileBottomSheet
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        title="Options"
+        title={t('options')}
       >
         <div className="space-y-1.5">
           {menuItems}
@@ -469,6 +487,7 @@ export default function LibraryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
+  const t = useTranslations('library');
 
   const loadHistory = useCallback(async () => {
     try {
@@ -597,7 +616,7 @@ export default function LibraryPage() {
   }, []);
 
   const handleClearAll = async () => {
-    if (window.confirm('Are you sure you want to clear all search history? Deleted items can be recovered from the Deleted tab.')) {
+    if (window.confirm(t('clearAllConfirm'))) {
       try {
         // Move all history items to deleted list before clearing
         const deletedAt = new Date().toISOString();
@@ -679,9 +698,9 @@ export default function LibraryPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Library</h1>
+            <h1 className="text-2xl font-semibold text-[var(--text-primary)]">{t('title')}</h1>
             <p className="text-sm text-[var(--text-muted)] mt-1">
-              Your search history and saved favorites
+              {t('subtitle')}
             </p>
           </div>
           {totalCount > 0 && (
@@ -689,7 +708,7 @@ export default function LibraryPage() {
               onClick={handleClearAll}
               className="text-sm text-[var(--text-muted)] hover:text-rose-500 transition-colors"
             >
-              Clear all
+              {t('clearAll')}
             </button>
           )}
         </div>
@@ -708,7 +727,7 @@ export default function LibraryPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              History
+              {t('history')}
               {totalCount > 0 && (
                 <span className="text-xs text-[var(--text-muted)]">({totalCount})</span>
               )}
@@ -726,7 +745,7 @@ export default function LibraryPage() {
               <svg className="w-4 h-4" fill={activeTab === 'favorites' ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
-              Favorites
+              {t('favorites')}
               {favoritesCount > 0 && (
                 <span className="text-xs text-[var(--text-muted)]">({favoritesCount})</span>
               )}
@@ -744,7 +763,7 @@ export default function LibraryPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              Deleted
+              {t('deleted')}
               {deletedCount > 0 && (
                 <span className="text-xs text-[var(--text-muted)]">({deletedCount})</span>
               )}
@@ -766,7 +785,7 @@ export default function LibraryPage() {
           </svg>
           <input
             type="text"
-            placeholder="Search your history..."
+            placeholder={t('searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
@@ -795,12 +814,12 @@ export default function LibraryPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
-                {searchTerm ? 'No matches found' : 'No search history yet'}
+                {searchTerm ? t('noMatchesFound') : t('empty')}
               </h3>
               <p className="text-[var(--text-muted)] mb-6">
                 {searchTerm
-                  ? 'Try a different search term'
-                  : 'Your search history will appear here'
+                  ? t('tryDifferentTerm')
+                  : t('emptyDescription')
                 }
               </p>
               {!searchTerm && (
@@ -811,7 +830,7 @@ export default function LibraryPage() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  Start searching
+                  {t('startSearching')}
                 </Link>
               )}
             </div>
@@ -838,12 +857,12 @@ export default function LibraryPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
-                {searchTerm ? 'No matching favorites' : 'No favorites yet'}
+                {searchTerm ? t('noMatchingFavorites') : t('emptyBookmarks')}
               </h3>
               <p className="text-[var(--text-muted)] mb-6">
                 {searchTerm
-                  ? 'Try a different search term'
-                  : 'Bookmark searches to save them here'
+                  ? t('tryDifferentTerm')
+                  : t('emptyBookmarksDescription')
                 }
               </p>
             </div>
@@ -865,7 +884,7 @@ export default function LibraryPage() {
           <>
             {/* Retention notice */}
             <p className="text-xs text-[var(--text-muted)] mb-4">
-              Deleted searches are kept for 1 year, then permanently removed.
+              {t('deletedRetention')}
             </p>
             {deleted && deleted.length === 0 ? (
               <div className="text-center py-16">
@@ -875,10 +894,10 @@ export default function LibraryPage() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
-                  No deleted searches
+                  {t('emptyDeleted')}
                 </h3>
                 <p className="text-[var(--text-muted)]">
-                  Searches you delete will appear here for recovery
+                  {t('emptyDeletedDescription')}
                 </p>
               </div>
             ) : (
@@ -900,7 +919,8 @@ export default function LibraryPage() {
       {pendingDeletion && (
         <UndoToast
           key={pendingDeletion.id}
-          message="Search deleted"
+          message={t('searchDeleted')}
+          undoLabel={t('undo')}
           onUndo={handleUndo}
           onDismiss={handleDismissUndo}
           duration={3000}

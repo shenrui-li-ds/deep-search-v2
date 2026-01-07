@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
+import LanguageToggle from '@/components/LanguageToggle';
+import { useTranslations } from 'next-intl';
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('');
@@ -16,6 +18,7 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
   const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
   const router = useRouter();
+  const t = useTranslations('auth');
 
   useEffect(() => {
     // Check if we have a valid recovery session
@@ -42,16 +45,16 @@ export default function ResetPasswordPage() {
 
   const validatePassword = (pwd: string): string | null => {
     if (pwd.length < 10) {
-      return 'Password must be at least 10 characters';
+      return t('errors.passwordLength');
     }
     if (!/[a-z]/.test(pwd)) {
-      return 'Password must contain at least one lowercase letter';
+      return t('errors.passwordLowercase');
     }
     if (!/[A-Z]/.test(pwd)) {
-      return 'Password must contain at least one uppercase letter';
+      return t('errors.passwordUppercase');
     }
     if (!/[0-9]/.test(pwd)) {
-      return 'Password must contain at least one digit';
+      return t('errors.passwordDigit');
     }
     return null;
   };
@@ -68,7 +71,7 @@ export default function ResetPasswordPage() {
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('errors.passwordMismatch'));
       return;
     }
 
@@ -97,10 +100,15 @@ export default function ResetPasswordPage() {
   // Loading state while checking session
   if (isValidSession === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+        {/* Language Toggle */}
+        <div className="absolute top-4 right-4">
+          <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
+        </div>
+
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[var(--text-muted)]">Verifying reset link...</p>
+          <p className="text-[var(--text-muted)]">{t('verifyingLink')}</p>
         </div>
       </div>
     );
@@ -109,7 +117,12 @@ export default function ResetPasswordPage() {
   // Invalid or expired link
   if (!isValidSession) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+        {/* Language Toggle */}
+        <div className="absolute top-4 right-4">
+          <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
+        </div>
+
         <div className="w-full max-w-md text-center">
           <div className="mb-8">
             <Link href="/" className="inline-block">
@@ -129,21 +142,21 @@ export default function ResetPasswordPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Invalid or expired link</h1>
+            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">{t('invalidLink')}</h1>
             <p className="text-[var(--text-muted)] mb-4">
-              This password reset link is invalid or has expired. Please request a new one.
+              {t('linkExpiredMessage')}
             </p>
             <Link
               href="/auth/forgot-password"
               className="inline-block px-4 py-2 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
             >
-              Request new link
+              {t('requestNewLink')}
             </Link>
           </div>
 
           <p className="mt-6 text-[var(--text-muted)]">
             <Link href="/auth/login" className="text-[var(--accent)] hover:underline">
-              Back to sign in
+              {t('backToLogin')}
             </Link>
           </p>
         </div>
@@ -154,7 +167,12 @@ export default function ResetPasswordPage() {
   // Success state
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+        {/* Language Toggle */}
+        <div className="absolute top-4 right-4">
+          <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
+        </div>
+
         <div className="w-full max-w-md text-center">
           <div className="mb-8">
             <Link href="/" className="inline-block">
@@ -174,9 +192,9 @@ export default function ResetPasswordPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Password updated!</h1>
+            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">{t('passwordUpdated')}</h1>
             <p className="text-[var(--text-muted)]">
-              Your password has been successfully reset. Redirecting you to the home page...
+              {t('passwordResetSuccess')}
             </p>
           </div>
         </div>
@@ -186,7 +204,12 @@ export default function ResetPasswordPage() {
 
   // Password reset form
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+      {/* Language Toggle */}
+      <div className="absolute top-4 right-4">
+        <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
+      </div>
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -199,8 +222,8 @@ export default function ResetPasswordPage() {
               className="mx-auto mb-4"
             />
           </Link>
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Set new password</h1>
-          <p className="text-[var(--text-muted)] mt-2">Choose a strong password for your account</p>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">{t('setNewPassword')}</h1>
+          <p className="text-[var(--text-muted)] mt-2">{t('chooseStrongPassword')}</p>
         </div>
 
         {/* Reset Form */}
@@ -213,7 +236,7 @@ export default function ResetPasswordPage() {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-              New Password
+              {t('newPassword')}
             </label>
             <div className="relative">
               <input
@@ -223,7 +246,7 @@ export default function ResetPasswordPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full px-4 py-3 pr-12 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
-                placeholder="Enter new password"
+                placeholder={t('newPasswordPlaceholder')}
               />
               <button
                 type="button"
@@ -243,13 +266,13 @@ export default function ResetPasswordPage() {
               </button>
             </div>
             <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-              At least 10 characters with lowercase, uppercase, and a number
+              {t('passwordHint')}
             </p>
           </div>
 
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-              Confirm Password
+              {t('confirmPassword')}
             </label>
             <div className="relative">
               <input
@@ -259,7 +282,7 @@ export default function ResetPasswordPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 className="w-full px-4 py-3 pr-12 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
-                placeholder="Confirm new password"
+                placeholder={t('confirmNewPasswordPlaceholder')}
               />
               <button
                 type="button"
@@ -285,14 +308,14 @@ export default function ResetPasswordPage() {
             disabled={loading}
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Updating...' : 'Update password'}
+            {loading ? t('updating') : t('updatePassword')}
           </button>
         </form>
 
         {/* Back to login */}
         <p className="text-center mt-6 text-[var(--text-muted)]">
           <Link href="/auth/login" className="text-[var(--accent)] hover:underline">
-            Back to sign in
+            {t('backToLogin')}
           </Link>
         </p>
       </div>

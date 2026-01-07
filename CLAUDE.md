@@ -273,6 +273,143 @@ See `src/lib/supabase/CLAUDE.md` for auth and database documentation.
 - react-markdown with remark-gfm for GFM support
 - shadcn/ui components
 - Supabase (Auth + PostgreSQL database)
+- next-intl for internationalization
+
+## Internationalization (i18n)
+
+Uses `next-intl` with cookie-based locale storage (no URL routing).
+
+### Supported Languages
+| Code | Language | Status |
+|------|----------|--------|
+| `en` | English | Complete |
+| `zh` | Chinese (Simplified) | Complete |
+
+### File Structure
+```
+src/i18n/
+├── config.ts        # Locale configuration (locales, defaultLocale)
+├── request.ts       # Server-side locale detection (cookies → default)
+└── messages/
+    ├── en.json      # English translations
+    └── zh.json      # Chinese translations
+```
+
+### Translation Namespaces
+
+Messages are organized by namespace in JSON files:
+
+| Namespace | Purpose | Example Keys |
+|-----------|---------|--------------|
+| `common` | Shared UI elements | `search`, `cancel`, `save` |
+| `nav` | Navigation labels | `home`, `library`, `account` |
+| `search` | Search interface | `placeholder`, `modes.web`, `modes.pro` |
+| `results` | Search results | `sources`, `relatedSearches`, `copyLink` |
+| `library` | Search history | `title`, `noHistory`, `deleteConfirm` |
+| `account` | Account page | `profile`, `preferences`, `billing` |
+| `auth` | Authentication | `login`, `signup`, `forgotPassword` |
+| `providers` | LLM provider names | `deepseek`, `openai`, `gemini` |
+| `providerGroups` | Provider categories | `google`, `anthropic`, `openai` |
+| `errors` | Error messages | `generic`, `networkError` |
+
+### Usage in Components
+
+**Client Components:**
+```tsx
+import { useTranslations, useLocale } from 'next-intl';
+
+function MyComponent() {
+  const t = useTranslations('search');
+  const locale = useLocale();
+
+  return <p>{t('placeholder')}</p>;
+}
+```
+
+**With Parameters:**
+```tsx
+const t = useTranslations('library');
+// In JSON: "itemCount": "{count} items"
+return <span>{t('itemCount', { count: 5 })}</span>;
+```
+
+**Multiple Namespaces:**
+```tsx
+const tSearch = useTranslations('search');
+const tProviders = useTranslations('providers');
+
+return (
+  <>
+    <span>{tSearch('modes.web')}</span>
+    <span>{tProviders('gemini')}</span>
+  </>
+);
+```
+
+### Adding a New Language
+
+1. Add locale code to `src/i18n/config.ts`:
+   ```ts
+   export const locales = ['en', 'zh', 'ja'] as const;
+   ```
+
+2. Create message file `src/i18n/messages/ja.json` (copy structure from `en.json`)
+
+3. Translate all keys in the new file
+
+4. Update language selector in `Sidebar.tsx` and `MobileSidebar.tsx`
+
+### Adding New Translations
+
+1. Add key to English file first (`en.json`):
+   ```json
+   {
+     "myNamespace": {
+       "newKey": "New text here"
+     }
+   }
+   ```
+
+2. Add same key to all other language files (`zh.json`, etc.)
+
+3. Use in component:
+   ```tsx
+   const t = useTranslations('myNamespace');
+   return <span>{t('newKey')}</span>;
+   ```
+
+### Language Switching
+
+Language is stored in a cookie (`NEXT_LOCALE`) and managed by `LanguageContext`:
+
+```tsx
+import { useLanguage } from '@/context/LanguageContext';
+
+function LanguageSwitcher() {
+  const { language, setLanguage } = useLanguage();
+  return (
+    <button onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}>
+      {language === 'en' ? '中文' : 'EN'}
+    </button>
+  );
+}
+```
+
+### Testing with Translations
+
+Mock `next-intl` in test files:
+```tsx
+jest.mock('next-intl', () => ({
+  useTranslations: (namespace: string) => (key: string) => {
+    const translations: Record<string, Record<string, string>> = {
+      search: { placeholder: 'Ask anything...' },
+      nav: { home: 'Home', library: 'Library' },
+    };
+    return translations[namespace]?.[key] || key;
+  },
+  useLocale: () => 'en',
+}));
+```
 
 ## Authentication
 

@@ -53,10 +53,13 @@ export type UserModelId =
   | 'claude'          // Anthropic Claude
   | 'vercel-gateway'; // Vercel AI Gateway
 
+export type UILanguage = 'en' | 'zh';
+
 export interface UserPreferences {
   user_id: string;
   default_provider: UserModelId;
   default_mode: 'web' | 'pro' | 'brainstorm';
+  language: UILanguage;
   created_at?: string;
   updated_at?: string;
 }
@@ -559,17 +562,22 @@ export async function getUserPreferences(): Promise<UserPreferences | null> {
         user_id: user.id,
         default_provider: 'gemini',
         default_mode: 'web',
+        language: 'en',
       };
     }
     console.error('Error fetching user preferences:', error);
     throw error;
   }
 
-  return data;
+  // Ensure language has a default
+  return {
+    ...data,
+    language: data.language || 'en',
+  };
 }
 
 export async function updateUserPreferences(
-  preferences: Partial<Pick<UserPreferences, 'default_provider' | 'default_mode'>>
+  preferences: Partial<Pick<UserPreferences, 'default_provider' | 'default_mode' | 'language'>>
 ): Promise<UserPreferences | null> {
   const supabase = createClient();
 
@@ -580,6 +588,7 @@ export async function updateUserPreferences(
   const { data, error } = await supabase.rpc('upsert_user_preferences', {
     p_default_provider: preferences.default_provider || null,
     p_default_mode: preferences.default_mode || null,
+    p_language: preferences.language || null,
   });
 
   if (error) {

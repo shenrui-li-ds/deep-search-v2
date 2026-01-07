@@ -5,8 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import ThemeToggle from './ThemeToggle';
+import LanguageToggle from './LanguageToggle';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { getUserCredits } from '@/lib/supabase/database';
+import { useTranslations } from 'next-intl';
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -44,6 +46,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const t = useTranslations('nav');
 
   // Touch handling for swipe gesture
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -215,7 +218,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           <NavItem
             href="/"
-            label="Home"
+            label={t('home')}
             isActive={pathname === '/'}
             onClick={() => handleClose()}
             icon={
@@ -227,7 +230,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
 
           <NavItem
             href="/library"
-            label="Library"
+            label={t('library')}
             isActive={pathname === '/library' || pathname.startsWith('/library/')}
             onClick={() => handleClose()}
             icon={
@@ -239,7 +242,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
 
           <NavItem
             href="/account"
-            label="Account"
+            label={t('account')}
             isActive={pathname === '/account'}
             onClick={() => handleClose()}
             icon={
@@ -268,9 +271,14 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         <div className="p-4 border-t border-[var(--border)] space-y-3">
+          {/* Language Toggle */}
+          <div className="flex items-center justify-center px-4 py-2">
+            <LanguageToggle />
+          </div>
+
           {/* Theme Toggle */}
           <div className="flex items-center justify-between px-4 py-2">
-            <span className="text-sm text-[var(--text-secondary)]">Theme</span>
+            <span className="text-sm text-[var(--text-secondary)]">{t('theme')}</span>
             <ThemeToggle />
           </div>
 
@@ -285,7 +293,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
-                Sign out
+                {t('signOut')}
               </button>
             </div>
           )}

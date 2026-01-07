@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import MobileBottomSheet from './MobileBottomSheet';
+import { useTranslations } from 'next-intl';
 
 interface SearchBoxProps {
   large?: boolean;
@@ -26,84 +27,56 @@ interface SearchBoxProps {
 type SearchMode = 'web' | 'pro' | 'brainstorm';
 type ModelId = 'gemini' | 'gemini-pro' | 'openai' | 'openai-mini' | 'deepseek' | 'grok' | 'claude' | 'vercel-gateway';
 
-const searchModes = [
-  { id: 'web' as SearchMode, label: 'Web Search', shortLabel: 'Search', icon: (
+// Search mode icons - labels come from translations
+const searchModeIcons: Record<SearchMode, React.ReactNode> = {
+  web: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
-  ), description: 'Fast answers to everyday questions' },
-  { id: 'pro' as SearchMode, label: 'Research', shortLabel: 'Research', icon: (
+  ),
+  pro: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
     </svg>
-  ), description: 'Multi-angle in-depth research' },
-  { id: 'brainstorm' as SearchMode, label: 'Brainstorm', shortLabel: 'Brainstorm', icon: (
+  ),
+  brainstorm: (
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
     </svg>
-  ), description: 'Creative exploration of ideas' },
-];
+  ),
+};
 
-// Grouped model providers structure
-interface ModelOption {
-  id: ModelId;
-  label: string;
-  description?: string;
-  tag?: string;
-}
+const searchModeIds: SearchMode[] = ['web', 'pro', 'brainstorm'];
 
-interface ProviderGroup {
-  provider: string;
-  models: ModelOption[];
+// Provider groups structure - labels come from translations
+type ProviderKey = 'google' | 'anthropic' | 'deepseek' | 'openai' | 'xai' | 'vercel';
+
+interface ProviderGroupConfig {
+  key: ProviderKey;
+  models: ModelId[];
   experimental?: boolean;
 }
 
-const modelProviderGroups: ProviderGroup[] = [
-  {
-    provider: 'Google',
-    models: [
-      { id: 'gemini', label: 'Gemini 3 Flash', description: 'Latest & fast', tag: 'Recommended' },
-      { id: 'gemini-pro', label: 'Gemini 3 Pro', description: 'Higher quality' },
-    ],
-  },
-  {
-    provider: 'Anthropic',
-    models: [
-      { id: 'claude', label: 'Claude Haiku 4.5', description: 'Latest & fast' },
-    ],
-  },
-  {
-    provider: 'DeepSeek',
-    models: [
-      { id: 'deepseek', label: 'DeepSeek Chat', description: 'Cost-effective' },
-    ],
-  },
-  {
-    provider: 'OpenAI',
-    models: [
-      { id: 'openai-mini', label: 'GPT-5 mini', description: 'Cost-effective' },
-      { id: 'openai', label: 'GPT-5.2', description: 'Higher quality', tag: 'Reference' },
-    ],
-  },
-  {
-    provider: 'xAI',
-    models: [
-      { id: 'grok', label: 'Grok 4.1 Fast', description: 'Latest & fast' },
-    ],
-  },
-  {
-    provider: 'Vercel Gateway',
-    models: [
-      { id: 'vercel-gateway', label: 'Qwen 3 Max', description: 'Fallback' },
-    ],
-    experimental: true,
-  },
+const providerGroupConfigs: ProviderGroupConfig[] = [
+  { key: 'google', models: ['gemini', 'gemini-pro'] },
+  { key: 'anthropic', models: ['claude'] },
+  { key: 'deepseek', models: ['deepseek'] },
+  { key: 'openai', models: ['openai-mini', 'openai'] },
+  { key: 'xai', models: ['grok'] },
+  { key: 'vercel', models: ['vercel-gateway'], experimental: true },
 ];
 
-// Flat list of all models for easy lookup
-const allModels = modelProviderGroups.flatMap(group =>
-  group.models.map(model => ({ ...model, provider: group.provider, experimental: group.experimental }))
-);
+// Map model IDs to translation keys
+const modelTranslationKeys: Record<ModelId, string> = {
+  'gemini': 'gemini',
+  'gemini-pro': 'geminiPro',
+  'openai': 'openai',
+  'openai-mini': 'openaiMini',
+  'deepseek': 'deepseek',
+  'grok': 'grok',
+  'claude': 'claude',
+  'vercel-gateway': 'vercelGateway',
+};
 
 const quickActions = [
   { icon: '⚖️', label: 'iPhone vs Android', query: 'Compare iPhone and Android phones for everyday use in 2025' },
@@ -130,6 +103,18 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Translations
+  const t = useTranslations('search');
+  const tCommon = useTranslations('common');
+  const tProviders = useTranslations('providers');
+  const tProviderGroups = useTranslations('providerGroups');
+
+  // Get translated labels
+  const getModeLabel = (modeId: SearchMode) => t(`modes.${modeId}`);
+  const getModeDescription = (modeId: SearchMode) => t(`modeDescriptions.${modeId}`);
+  const getModelLabel = (modelId: ModelId) => tProviders(modelTranslationKeys[modelId]);
+  const getProviderLabel = (providerKey: ProviderKey) => tProviderGroups(providerKey);
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -193,8 +178,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     setTimeout(() => setIsSearching(false), 500);
   };
 
-  const currentMode = searchModes.find(m => m.id === searchMode);
-  const currentModel = allModels.find(m => m.id === selectedModel);
+  // Get current mode icon
+  const currentModeIcon = searchModeIcons[searchMode];
 
   const buildSearchUrl = (queryText: string) => {
     const params = new URLSearchParams({
@@ -238,23 +223,23 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             {/* Desktop: Icon-only toggle buttons with tooltips */}
             <div className="hidden sm:flex items-center gap-2">
               <div className="flex items-center bg-[var(--card)] rounded-lg p-0.5 gap-0.5">
-                {searchModes.map((mode) => (
-                  <Tooltip key={mode.id}>
+                {searchModeIds.map((modeId) => (
+                  <Tooltip key={modeId}>
                     <TooltipTrigger asChild>
                       <button
-                        onClick={() => setSearchMode(mode.id)}
+                        onClick={() => setSearchMode(modeId)}
                         className={`flex items-center justify-center w-8 h-8 rounded-md transition-all ${
-                          searchMode === mode.id
+                          searchMode === modeId
                             ? 'bg-[var(--background)] text-[var(--text-primary)] shadow-sm'
                             : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                         }`}
                       >
-                        {mode.icon}
+                        {searchModeIcons[modeId]}
                       </button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom">
-                      <p className="font-medium">{mode.label}</p>
-                      <p className="text-xs text-[var(--text-muted)]">{mode.description}</p>
+                      <p className="font-medium">{getModeLabel(modeId)}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{getModeDescription(modeId)}</p>
                     </TooltipContent>
                   </Tooltip>
                 ))}
@@ -285,8 +270,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-[220px]">
-                    <p className="font-medium">Deep Research</p>
-                    <p className="text-xs text-[var(--text-muted)]">Multi-round research with gap analysis for comprehensive coverage (8 credits)</p>
+                    <p className="font-medium">{t('deepMode.title')}</p>
+                    <p className="text-xs text-[var(--text-muted)]">{t('deepMode.description')}</p>
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -299,8 +284,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 onClick={() => setIsModeSheetOpen(true)}
                 className="flex items-center gap-1.5 px-2 py-1.5 bg-[var(--card)] rounded-lg text-sm text-[var(--text-muted)]"
               >
-                {currentMode?.icon}
-                <span className="text-xs font-medium">{currentMode?.shortLabel}</span>
+                {currentModeIcon}
+                <span className="text-xs font-medium">{getModeLabel(searchMode)}</span>
                 {/* Show deep indicator when Research + Deep mode is enabled */}
                 {searchMode === 'pro' && deepMode && (
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]"></span>
@@ -318,7 +303,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
-                <span className="text-xs font-medium">{currentModel?.label}</span>
+                <span className="text-xs font-medium">{getModelLabel(selectedModel)}</span>
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -339,48 +324,34 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      <span className="text-xs font-medium">{currentModel?.label}</span>
+                      <span className="text-xs font-medium">{getModelLabel(selectedModel)}</span>
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto">
-                    <DropdownMenuLabel>Select Model</DropdownMenuLabel>
-                    {modelProviderGroups.map((group, groupIndex) => (
-                      <div key={group.provider}>
+                    <DropdownMenuLabel>{t('selectModel')}</DropdownMenuLabel>
+                    {providerGroupConfigs.map((group, groupIndex) => (
+                      <div key={group.key}>
                         {groupIndex > 0 && <DropdownMenuSeparator />}
                         <div className={`px-2 py-1.5 text-xs font-semibold tracking-wider uppercase ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                          {group.provider}
+                          {getProviderLabel(group.key)}
                         </div>
-                        {group.models.map((model) => (
+                        {group.models.map((modelId) => (
                           <DropdownMenuItem
-                            key={model.id}
-                            onClick={() => setSelectedModel(model.id)}
+                            key={modelId}
+                            onClick={() => setSelectedModel(modelId)}
                             className={`flex items-center justify-between ml-2 ${
-                              selectedModel === model.id ? 'bg-[var(--card)]' : ''
+                              selectedModel === modelId ? 'bg-[var(--card)]' : ''
                             }`}
                           >
                             <div className="flex-1 min-w-0">
                               <div className={`font-medium flex items-center gap-1.5 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'}`}>
-                                {model.label}
-                                {model.tag && (
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                                    model.tag === 'Recommended'
-                                      ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
-                                      : 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]'
-                                  }`}>
-                                    {model.tag}
-                                  </span>
-                                )}
+                                {getModelLabel(modelId)}
                               </div>
-                              {model.description && (
-                                <div className={`text-xs ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                                  {model.description}
-                                </div>
-                              )}
                             </div>
-                            {selectedModel === model.id && (
+                            {selectedModel === modelId && (
                               <svg className={`w-4 h-4 flex-shrink-0 ml-2 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                               </svg>
@@ -402,7 +373,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     </svg>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Attach files (coming soon)</TooltipContent>
+                <TooltipContent>{t('actions.attachFiles')}</TooltipContent>
               </Tooltip>
 
               {/* Submit button */}
@@ -431,7 +402,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Search</TooltipContent>
+                <TooltipContent>{tCommon('search')}</TooltipContent>
               </Tooltip>
             </div>
           </div>
@@ -463,37 +434,37 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       <MobileBottomSheet
         isOpen={isModeSheetOpen}
         onClose={() => setIsModeSheetOpen(false)}
-        title="Search Mode"
+        title={t('searchMode')}
       >
         <div className="space-y-1.5">
-          {searchModes.map((mode) => (
+          {searchModeIds.map((modeId) => (
             <button
-              key={mode.id}
+              key={modeId}
               onClick={() => {
-                setSearchMode(mode.id);
+                setSearchMode(modeId);
                 // Don't close sheet if selecting Research - allow user to toggle deep mode
-                if (mode.id !== 'pro') {
+                if (modeId !== 'pro') {
                   setIsModeSheetOpen(false);
                 }
               }}
               className={`w-full flex items-center gap-2.5 py-2 px-3 rounded-lg transition-colors ${
-                searchMode === mode.id
+                searchMode === modeId
                   ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
                   : 'bg-[var(--card)] border-2 border-transparent'
               }`}
             >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                searchMode === mode.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
+                searchMode === modeId ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
               }`}>
-                {mode.icon}
+                {searchModeIcons[modeId]}
               </div>
               <div className="flex-1 text-left">
-                <div className={`font-medium ${searchMode === mode.id ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
-                  {mode.label}
+                <div className={`font-medium ${searchMode === modeId ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
+                  {getModeLabel(modeId)}
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">{mode.description}</div>
+                <div className="text-xs text-[var(--text-muted)]">{getModeDescription(modeId)}</div>
               </div>
-              {searchMode === mode.id && (
+              {searchMode === modeId && (
                 <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
@@ -525,9 +496,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                   </div>
                   <div className="text-left">
                     <div className={`font-medium ${deepMode ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
-                      Deep Research
+                      Deep
                     </div>
-                    <div className="text-xs text-[var(--text-muted)]">Multi-round research with gap analysis (8 credits)</div>
                   </div>
                 </div>
                 {/* Toggle switch - absolute positioning for precise control */}
@@ -543,7 +513,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 onClick={() => setIsModeSheetOpen(false)}
                 className="w-full mt-3 py-2.5 rounded-lg bg-[var(--accent)] text-white font-medium"
               >
-                Done
+                {tCommon('confirm')}
               </button>
             </div>
           )}
@@ -554,17 +524,17 @@ const SearchBox: React.FC<SearchBoxProps> = ({
       <MobileBottomSheet
         isOpen={isModelSheetOpen}
         onClose={() => setIsModelSheetOpen(false)}
-        title="AI Model"
+        title={t('selectModel')}
       >
         <div className="space-y-4">
-          {modelProviderGroups.map((group) => (
-            <div key={group.provider}>
+          {providerGroupConfigs.map((group) => (
+            <div key={group.key}>
               <div className={`text-xs font-semibold tracking-wider uppercase mb-2 ${group.experimental ? 'text-[var(--text-muted)]/60' : 'text-[var(--text-muted)]'}`}>
-                {group.provider}
+                {getProviderLabel(group.key)}
               </div>
               <div className="space-y-1.5">
-                {group.models.map((model) => {
-                  const isSelected = selectedModel === model.id;
+                {group.models.map((modelId) => {
+                  const isSelected = selectedModel === modelId;
                   const borderColor = group.experimental
                     ? (isSelected ? 'border-[var(--text-muted)]/50' : 'border-transparent')
                     : (isSelected ? 'border-[var(--accent)]' : 'border-transparent');
@@ -574,35 +544,20 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                   const textColor = group.experimental
                     ? 'text-[var(--text-muted)]'
                     : (isSelected ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]');
-                  const descColor = group.experimental
-                    ? 'text-[var(--text-muted)]/60'
-                    : 'text-[var(--text-muted)]';
 
                   return (
                     <button
-                      key={model.id}
+                      key={modelId}
                       onClick={() => {
-                        setSelectedModel(model.id);
+                        setSelectedModel(modelId);
                         setIsModelSheetOpen(false);
                       }}
                       className={`w-full flex items-center justify-between py-2 px-3 rounded-lg transition-colors ${bgColor} border-2 ${borderColor}`}
                     >
                       <div className="text-left">
                         <div className={`font-medium flex items-center gap-1.5 ${textColor}`}>
-                          {model.label}
-                          {model.tag && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                              model.tag === 'Recommended'
-                                ? 'bg-[var(--accent)]/20 text-[var(--accent)]'
-                                : 'bg-[var(--text-muted)]/20 text-[var(--text-muted)]'
-                            }`}>
-                              {model.tag}
-                            </span>
-                          )}
+                          {getModelLabel(modelId)}
                         </div>
-                        {model.description && (
-                          <div className={`text-xs ${descColor}`}>{model.description}</div>
-                        )}
                       </div>
                       {isSelected && (
                         <svg className={`w-5 h-5 ${group.experimental ? 'text-[var(--text-muted)]' : 'text-[var(--accent)]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

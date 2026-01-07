@@ -5,6 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile from '@/components/Turnstile';
+import LanguageToggle from '@/components/LanguageToggle';
+import { useTranslations } from 'next-intl';
 
 // Rate limiting: track last request time in sessionStorage
 const COOLDOWN_SECONDS = 60;
@@ -17,6 +19,8 @@ export default function ForgotPasswordPage() {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const t = useTranslations('auth');
+  const tCommon = useTranslations('common');
 
   // Turnstile callbacks
   const handleTurnstileVerify = useCallback((token: string) => {
@@ -25,8 +29,8 @@ export default function ForgotPasswordPage() {
 
   const handleTurnstileError = useCallback(() => {
     setTurnstileToken(null);
-    setError('Security verification failed. Please try again.');
-  }, []);
+    setError(t('errors.securityFailed'));
+  }, [t]);
 
   const handleTurnstileExpire = useCallback(() => {
     setTurnstileToken(null);
@@ -74,7 +78,7 @@ export default function ForgotPasswordPage() {
 
     // Check cooldown
     if (cooldownRemaining > 0) {
-      setError(`Please wait ${cooldownRemaining} seconds before requesting another reset link.`);
+      setError(t('waitSeconds', { seconds: cooldownRemaining }));
       return;
     }
 
@@ -85,14 +89,14 @@ export default function ForgotPasswordPage() {
     const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     if (siteKey) {
       if (!turnstileToken) {
-        setError('Please complete the security verification.');
+        setError(t('errors.completeVerification'));
         setLoading(false);
         return;
       }
 
       const isValid = await verifyTurnstileToken(turnstileToken);
       if (!isValid) {
-        setError('Security verification failed. Please try again.');
+        setError(t('errors.securityFailed'));
         resetTurnstile();
         setLoading(false);
         return;
@@ -125,7 +129,12 @@ export default function ForgotPasswordPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+        {/* Language Toggle */}
+        <div className="absolute top-4 right-4">
+          <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
+        </div>
+
         <div className="w-full max-w-md text-center">
           {/* Logo */}
           <div className="mb-8">
@@ -147,24 +156,24 @@ export default function ForgotPasswordPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">Check your email</h1>
+            <h1 className="text-xl font-semibold text-[var(--text-primary)] mb-2">{t('checkYourEmail')}</h1>
             <p className="text-[var(--text-muted)] mb-4">
-              We&apos;ve sent a password reset link to <span className="text-[var(--text-primary)] font-medium">{email}</span>
+              {t('sentConfirmation')} <span className="text-[var(--text-primary)] font-medium">{email}</span>
             </p>
             <p className="text-sm text-[var(--text-muted)]">
-              Didn&apos;t receive the email? Check your spam folder or{' '}
+              {t('checkInbox')}{' '}
               <button
                 onClick={() => setSuccess(false)}
                 className="text-[var(--accent)] hover:underline"
               >
-                try again
+                {tCommon('retry')}
               </button>
             </p>
           </div>
 
           <p className="mt-6 text-[var(--text-muted)]">
             <Link href="/auth/login" className="text-[var(--accent)] hover:underline">
-              Back to sign in
+              {t('backToLogin')}
             </Link>
           </p>
         </div>
@@ -173,7 +182,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+      {/* Language Toggle */}
+      <div className="absolute top-4 right-4">
+        <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
+      </div>
+
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -186,8 +200,8 @@ export default function ForgotPasswordPage() {
               className="mx-auto mb-4"
             />
           </Link>
-          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">Reset your password</h1>
-          <p className="text-[var(--text-muted)] mt-2">Enter your email to receive a reset link</p>
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">{t('resetYourPassword')}</h1>
+          <p className="text-[var(--text-muted)] mt-2">{t('enterEmailForReset')}</p>
         </div>
 
         {/* Reset Form */}
@@ -200,7 +214,7 @@ export default function ForgotPasswordPage() {
 
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-              Email
+              {t('email')}
             </label>
             <input
               id="email"
@@ -209,7 +223,7 @@ export default function ForgotPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
-              placeholder="you@example.com"
+              placeholder={t('emailPlaceholder')}
             />
           </div>
 
@@ -232,15 +246,15 @@ export default function ForgotPasswordPage() {
             disabled={loading || cooldownRemaining > 0 || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Sending...' : cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s` : 'Send reset link'}
+            {loading ? t('sending') : cooldownRemaining > 0 ? t('waitSeconds', { seconds: cooldownRemaining }) : t('sendResetLink')}
           </button>
         </form>
 
         {/* Back to login */}
         <p className="text-center mt-6 text-[var(--text-muted)]">
-          Remember your password?{' '}
+          {t('rememberPassword')}{' '}
           <Link href="/auth/login" className="text-[var(--accent)] hover:underline">
-            Sign in
+            {t('signIn')}
           </Link>
         </p>
       </div>

@@ -22,6 +22,7 @@ An AI-powered search application that provides a Perplexity-like search experien
 - **Copy & Share**: Copy answers, share formatted text, export to PDF
 - **Dark/Light Theme**: System-aware theme support
 - **LaTeX Math Rendering**: KaTeX for mathematical expressions
+- **Internationalization**: English and Chinese (Simplified) with cookie-based locale
 
 ## Tech Stack
 
@@ -318,6 +319,30 @@ Supabase's default email has strict rate limits. Use [Resend](https://resend.com
    - See `supabase/email-templates/README.md` for subject lines and details
 
 **Note:** Free Resend tier includes 3,000 emails/month. For production, verify your domain for better deliverability.
+
+## Internationalization
+
+The app supports multiple languages using `next-intl` with cookie-based locale storage.
+
+### Supported Languages
+
+| Language | Code |
+|----------|------|
+| English | `en` |
+| Chinese (Simplified) | `zh` |
+
+### Switching Languages
+
+Click the language toggle in the sidebar (desktop) or hamburger menu (mobile) to switch between languages. The preference is stored in a cookie and persists across sessions.
+
+### Adding a New Language
+
+1. Add locale code to `src/i18n/config.ts`
+2. Create message file in `src/i18n/messages/` (e.g., `ja.json`)
+3. Copy structure from `en.json` and translate all keys
+4. Update language selector UI in `Sidebar.tsx` and `MobileSidebar.tsx`
+
+For detailed developer documentation, see the "Internationalization (i18n)" section in `CLAUDE.md`.
 
 ## License
 

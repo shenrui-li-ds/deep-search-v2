@@ -3,6 +3,46 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SearchBox from '@/components/SearchBox';
 
+// Mock next-intl
+jest.mock('next-intl', () => ({
+  useTranslations: (namespace: string) => (key: string) => {
+    const translations: Record<string, Record<string, string>> = {
+      search: {
+        placeholder: 'Ask anything...',
+        placeholderLarge: 'What do you want to know?',
+        selectModel: 'Select Model',
+        searchMode: 'Search Mode',
+        'deepMode.title': 'Deep Research',
+        'deepMode.description': 'Multi-round research with gap analysis for comprehensive coverage (8 credits)',
+        'modes.web': 'Web Search',
+        'modes.pro': 'Research',
+        'modes.brainstorm': 'Brainstorm',
+        'actions.attachFiles': 'Attach files (coming soon)',
+      },
+      common: {
+        search: 'Search',
+      },
+      providers: {
+        deepseek: 'DeepSeek',
+        openai: 'GPT-5.2',
+        grok: 'Grok',
+        claude: 'Claude Haiku',
+        gemini: 'Gemini Flash',
+      },
+      providerGroups: {
+        google: 'Google',
+        anthropic: 'Anthropic',
+        openai: 'OpenAI',
+        xai: 'xAI',
+        deepseek: 'DeepSeek',
+      },
+    };
+    const ns = translations[namespace] || {};
+    return ns[key] || key;
+  },
+  useLocale: () => 'en',
+}));
+
 // Mock useRouter
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
@@ -105,7 +145,7 @@ describe('SearchBox', () => {
         );
         // Should also include provider and mode
         expect(mockPush).toHaveBeenCalledWith(
-          expect.stringContaining('provider=deepseek')
+          expect.stringContaining('provider=gemini')
         );
         expect(mockPush).toHaveBeenCalledWith(
           expect.stringContaining('mode=web')
