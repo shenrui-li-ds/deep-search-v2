@@ -40,6 +40,7 @@ export interface TavilySearchResult {
     retrieved_from?: string;
     search_depth?: string;
     search_type?: string;
+    content_extraction?: string;  // 'jina' | 'snippet' for Google fallback
   };
 }
 

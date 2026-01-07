@@ -53,7 +53,12 @@ Maps ModelId to provider and actual model string. Update model strings here when
 | `callClaude(messages, model, temp, stream)` | Anthropic Claude API |
 | `callGemini(messages, model, temp, stream)` | Google Gemini API |
 | `callVercelGateway(messages, model, temp, stream)` | Vercel AI Gateway (unified API for 100+ models) |
-| `callTavily(query, includeImages, depth, max)` | Tavily search API |
+| `callTavily(query, includeImages, depth, max)` | Tavily search API (primary) |
+| `callGoogleSearch(query, maxResults, extractContent?)` | Google Custom Search API with Jina extraction (fallback) |
+| `callSearchWithFallback(query, images, depth, max)` | Unified search with auto-fallback |
+| `isGoogleSearchAvailable()` | Check if Google Search is configured |
+| `extractContentWithJina(url, timeout?)` | Extract content from URL via Jina Reader |
+| `extractContentsWithJina(urls, timeout?, concurrent?)` | Parallel content extraction via Jina |
 | `getLLMProvider()` | Auto-detect available provider from env |
 | `isProviderAvailable(provider)` | Check if provider has API key |
 | `streamOpenAIResponse(response)` | Generator for OpenAI-format SSE |
@@ -70,7 +75,31 @@ CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages'
 GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models'
 VERCEL_GATEWAY_API_URL = 'https://ai-gateway.vercel.sh/v1/chat/completions'
 TAVILY_API_URL = 'https://api.tavily.com/search'
+GOOGLE_SEARCH_API_URL = 'https://customsearch.googleapis.com/customsearch/v1'
+JINA_READER_API_URL = 'https://r.jina.ai'
 ```
+
+**Search Fallback Chain (`callSearchWithFallback`):**
+```
+1. Check Tavily circuit breaker
+       ↓ (if open, skip to Google)
+2. Try Tavily search
+       ↓ (on failure)
+3. Google Custom Search + Jina extraction (if configured)
+       ↓ (Jina extracts full content from URLs in parallel)
+```
+
+- Returns `{ results: TavilySearchResult, provider: 'tavily' | 'google' }`
+- Google results are converted to Tavily format for compatibility
+- **Jina Integration**: Google fallback extracts full content via Jina Reader API
+  - Parallel extraction (5 concurrent requests)
+  - 10s timeout per URL
+  - Falls back to Google snippets if Jina fails
+  - 30s total timeout when extracting (vs 15s for Tavily)
+  - **Rate limits**: 20 RPM without key, 500 RPM with `JINA_API_KEY`
+  - New accounts get 10M free tokens
+- Images skipped on Google fallback (requires separate API call)
+- `search_context.content_extraction` indicates 'jina' or 'snippet'
 
 **Fallback Chain (`callLLMWithFallback`):**
 ```

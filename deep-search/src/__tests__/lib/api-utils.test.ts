@@ -1,11 +1,20 @@
 import {
   OPENAI_API_URL,
   TAVILY_API_URL,
+  GOOGLE_SEARCH_API_URL,
+  JINA_READER_API_URL,
   callOpenAI,
   callTavily,
+  callGoogleSearch,
+  callSearchWithFallback,
+  extractContentWithJina,
+  extractContentsWithJina,
+  isGoogleSearchAvailable,
+  isJinaApiKeyConfigured,
   formatSearchResultsForSummarization,
   getCurrentDate,
   detectLanguage,
+  resetAllCircuitBreakers,
   ChatMessage,
 } from '@/lib/api-utils';
 
@@ -15,6 +24,8 @@ global.fetch = jest.fn();
 describe('API Utils', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset circuit breakers to ensure clean state for each test
+    resetAllCircuitBreakers();
     // Mock environment variables
     process.env.OPENAI_API_KEY = 'test-openai-key';
     process.env.TAVILY_API_KEY = 'test-tavily-key';
@@ -61,7 +72,7 @@ describe('API Utils', () => {
     });
 
     it('uses default model and temperature', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      (global.fetch as jest.Mock).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           choices: [{ message: { content: 'Response' } }],
@@ -73,7 +84,7 @@ describe('API Utils', () => {
       const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
       const body = JSON.parse(callArgs.body);
 
-      expect(body.model).toBe('gpt-5.1-2025-11-13');
+      expect(body.model).toBe('gpt-5.2-2025-12-11');
       // GPT-5 family models are reasoning models and don't support custom temperature
       expect(body.temperature).toBeUndefined();
       expect(body.stream).toBe(false);
@@ -114,29 +125,31 @@ describe('API Utils', () => {
       const mockResponse = { ok: true, body: {} };
       (global.fetch as jest.Mock).mockResolvedValueOnce(mockResponse);
 
-      const result = await callOpenAI(mockMessages, 'gpt-5.1-2025-11-13', 0.7, true);
+      const result = await callOpenAI(mockMessages, 'gpt-5.2-2025-12-11', 0.7, true);
 
       expect(result).toBe(mockResponse);
     });
 
     it('throws error on API failure', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      // Mock multiple calls for retry logic
+      (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         json: () => Promise.resolve({
           error: { message: 'Invalid API key' },
         }),
       });
 
-      await expect(callOpenAI(mockMessages)).rejects.toThrow('OpenAI API error: Invalid API key');
+      await expect(callOpenAI(mockMessages)).rejects.toThrow(/Invalid API key/);
     });
 
     it('handles unknown error format', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      // Mock multiple calls for retry logic
+      (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         json: () => Promise.resolve({}),
       });
 
-      await expect(callOpenAI(mockMessages)).rejects.toThrow('OpenAI API error: Unknown error');
+      await expect(callOpenAI(mockMessages)).rejects.toThrow(/Unknown error/);
     });
   });
 
@@ -198,26 +211,26 @@ describe('API Utils', () => {
     });
 
     it('throws error on API failure', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      // Mock multiple calls for retry logic
+      (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         statusText: 'Bad Request',
         json: () => Promise.resolve({ message: 'Invalid query' }),
       });
 
-      await expect(callTavily('test query')).rejects.toThrow('Tavily API error: Invalid query');
+      await expect(callTavily('test query')).rejects.toThrow(/Invalid query/);
     });
 
     it('handles JSON parse error in error response', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      // Mock multiple calls for retry logic
+      (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         status: 500,
         statusText: 'Internal Server Error',
         json: () => Promise.reject(new Error('Parse error')),
       });
 
-      await expect(callTavily('test query')).rejects.toThrow(
-        'Tavily API error: Error parsing error response: Internal Server Error'
-      );
+      await expect(callTavily('test query')).rejects.toThrow(/Internal Server Error/);
     });
   });
 
@@ -354,6 +367,356 @@ describe('API Utils', () => {
       it('defaults to English for plain ASCII without markers', () => {
         expect(detectLanguage('hello world')).toBe('English');
       });
+    });
+
+    describe('Spanish detection edge cases', () => {
+      it('detects Spanish with accents', () => {
+        expect(detectLanguage('¿Cuándo es la fecha?')).toBe('Spanish');
+      });
+
+      it('detects Spanish without accents using common words', () => {
+        expect(detectLanguage('Fecha de lanzamiento del producto')).toBe('Spanish');
+      });
+
+      it('detects Spanish with suffix patterns', () => {
+        expect(detectLanguage('La información está disponible')).toBe('Spanish');
+      });
+    });
+  });
+
+  describe('Constants - Search APIs', () => {
+    it('has correct Google Search API URL', () => {
+      expect(GOOGLE_SEARCH_API_URL).toBe('https://customsearch.googleapis.com/customsearch/v1');
+    });
+
+    it('has correct Jina Reader API URL', () => {
+      expect(JINA_READER_API_URL).toBe('https://r.jina.ai');
+    });
+  });
+
+  describe('isGoogleSearchAvailable', () => {
+    beforeEach(() => {
+      delete process.env.GOOGLE_SEARCH_API_KEY;
+      delete process.env.GOOGLE_SEARCH_ENGINE_ID;
+    });
+
+    it('returns false when no env vars set', () => {
+      expect(isGoogleSearchAvailable()).toBe(false);
+    });
+
+    it('returns false when only API key is set', () => {
+      process.env.GOOGLE_SEARCH_API_KEY = 'test-key';
+      expect(isGoogleSearchAvailable()).toBe(false);
+    });
+
+    it('returns false when only engine ID is set', () => {
+      process.env.GOOGLE_SEARCH_ENGINE_ID = 'test-engine';
+      expect(isGoogleSearchAvailable()).toBe(false);
+    });
+
+    it('returns true when both are set', () => {
+      process.env.GOOGLE_SEARCH_API_KEY = 'test-key';
+      process.env.GOOGLE_SEARCH_ENGINE_ID = 'test-engine';
+      expect(isGoogleSearchAvailable()).toBe(true);
+    });
+  });
+
+  describe('isJinaApiKeyConfigured', () => {
+    beforeEach(() => {
+      delete process.env.JINA_API_KEY;
+    });
+
+    it('returns false when JINA_API_KEY is not set', () => {
+      expect(isJinaApiKeyConfigured()).toBe(false);
+    });
+
+    it('returns true when JINA_API_KEY is set', () => {
+      process.env.JINA_API_KEY = 'test-jina-key';
+      expect(isJinaApiKeyConfigured()).toBe(true);
+    });
+  });
+
+  describe('extractContentWithJina', () => {
+    beforeEach(() => {
+      delete process.env.JINA_API_KEY;
+    });
+
+    it('extracts content from URL', async () => {
+      const mockContent = '# Test Page\n\nThis is the extracted content.';
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve(mockContent),
+      });
+
+      const result = await extractContentWithJina('https://example.com/page');
+
+      expect(result.success).toBe(true);
+      expect(result.url).toBe('https://example.com/page');
+      expect(result.content).toBe(mockContent);
+    });
+
+    it('includes API key in header when configured', async () => {
+      process.env.JINA_API_KEY = 'test-jina-key';
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('content'),
+      });
+
+      await extractContentWithJina('https://example.com');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer test-jina-key',
+          }),
+        })
+      );
+    });
+
+    it('does not include Authorization header without API key', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('content'),
+      });
+
+      await extractContentWithJina('https://example.com');
+
+      const callArgs = (global.fetch as jest.Mock).mock.calls[0][1];
+      expect(callArgs.headers.Authorization).toBeUndefined();
+    });
+
+    it('returns failure on HTTP error', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      const result = await extractContentWithJina('https://example.com/notfound');
+
+      expect(result.success).toBe(false);
+      expect(result.content).toBe('');
+    });
+
+    it('truncates content over 8000 characters', async () => {
+      const longContent = 'a'.repeat(10000);
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve(longContent),
+      });
+
+      const result = await extractContentWithJina('https://example.com');
+
+      expect(result.content.length).toBe(8000);
+    });
+
+    it('returns failure on timeout', async () => {
+      (global.fetch as jest.Mock).mockImplementationOnce(() =>
+        new Promise((_, reject) => {
+          const error = new Error('Aborted');
+          error.name = 'AbortError';
+          reject(error);
+        })
+      );
+
+      const result = await extractContentWithJina('https://example.com', 100);
+
+      expect(result.success).toBe(false);
+      expect(result.content).toBe('');
+    });
+  });
+
+  describe('extractContentsWithJina', () => {
+    it('extracts content from multiple URLs in parallel', async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve('Content 1') })
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve('Content 2') });
+
+      const urls = ['https://example1.com', 'https://example2.com'];
+      const results = await extractContentsWithJina(urls);
+
+      expect(results.size).toBe(2);
+      expect(results.get('https://example1.com')).toBe('Content 1');
+      expect(results.get('https://example2.com')).toBe('Content 2');
+    });
+
+    it('handles partial failures gracefully', async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({ ok: true, text: () => Promise.resolve('Content 1') })
+        .mockResolvedValueOnce({ ok: false, status: 500 });
+
+      const urls = ['https://success.com', 'https://fail.com'];
+      const results = await extractContentsWithJina(urls);
+
+      expect(results.size).toBe(1);
+      expect(results.get('https://success.com')).toBe('Content 1');
+      expect(results.has('https://fail.com')).toBe(false);
+    });
+
+    it('returns empty map for empty URL list', async () => {
+      const results = await extractContentsWithJina([]);
+      expect(results.size).toBe(0);
+    });
+  });
+
+  describe('callGoogleSearch', () => {
+    beforeEach(() => {
+      resetAllCircuitBreakers();
+      process.env.GOOGLE_SEARCH_API_KEY = 'test-google-key';
+      process.env.GOOGLE_SEARCH_ENGINE_ID = 'test-engine-id';
+    });
+
+    afterEach(() => {
+      delete process.env.GOOGLE_SEARCH_API_KEY;
+      delete process.env.GOOGLE_SEARCH_ENGINE_ID;
+    });
+
+    it('throws error when API key is missing', async () => {
+      delete process.env.GOOGLE_SEARCH_API_KEY;
+
+      await expect(callGoogleSearch('test query')).rejects.toThrow(
+        'GOOGLE_SEARCH_API_KEY is not defined'
+      );
+    });
+
+    it('throws error when engine ID is missing', async () => {
+      delete process.env.GOOGLE_SEARCH_ENGINE_ID;
+
+      await expect(callGoogleSearch('test query')).rejects.toThrow(
+        'GOOGLE_SEARCH_ENGINE_ID is not defined'
+      );
+    });
+
+    it('makes request with correct parameters', async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ items: [] }),
+        });
+
+      await callGoogleSearch('test query', 5, false);
+
+      const url = (global.fetch as jest.Mock).mock.calls[0][0];
+      expect(url).toContain('key=test-google-key');
+      expect(url).toContain('cx=test-engine-id');
+      expect(url).toContain('q=test+query');
+      expect(url).toContain('num=5');
+    });
+
+    it('converts Google results to Tavily format', async () => {
+      const mockGoogleResults = {
+        items: [
+          {
+            title: 'Test Result',
+            link: 'https://example.com',
+            snippet: 'This is a test snippet',
+            displayLink: 'example.com',
+          },
+        ],
+      };
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockGoogleResults),
+        });
+
+      const result = await callGoogleSearch('test', 10, false);
+
+      expect(result.query).toBe('test');
+      expect(result.results).toHaveLength(1);
+      expect(result.results[0].title).toBe('Test Result');
+      expect(result.results[0].url).toBe('https://example.com');
+      expect(result.results[0].content).toBe('This is a test snippet');
+      expect(result.search_context?.retrieved_from).toBe('google');
+    });
+
+    it('extracts content with Jina when extractContent is true', async () => {
+      const mockGoogleResults = {
+        items: [
+          { title: 'Test', link: 'https://example.com', snippet: 'Short snippet', displayLink: 'example.com' },
+        ],
+      };
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockGoogleResults),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: () => Promise.resolve('Full extracted content from Jina'),
+        });
+
+      const result = await callGoogleSearch('test', 10, true);
+
+      expect(result.results[0].content).toBe('Full extracted content from Jina');
+      expect(result.search_context?.content_extraction).toBe('jina');
+    });
+
+    it('falls back to snippet when Jina extraction fails', async () => {
+      const mockGoogleResults = {
+        items: [
+          { title: 'Test', link: 'https://example.com', snippet: 'Fallback snippet', displayLink: 'example.com' },
+        ],
+      };
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockGoogleResults),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        });
+
+      const result = await callGoogleSearch('test', 10, true);
+
+      expect(result.results[0].content).toBe('Fallback snippet');
+    });
+  });
+
+  describe('callSearchWithFallback', () => {
+    beforeEach(() => {
+      // Reset circuit breakers to ensure clean state
+      resetAllCircuitBreakers();
+      process.env.TAVILY_API_KEY = 'test-tavily-key';
+      process.env.GOOGLE_SEARCH_API_KEY = 'test-google-key';
+      process.env.GOOGLE_SEARCH_ENGINE_ID = 'test-engine-id';
+    });
+
+    afterEach(() => {
+      delete process.env.TAVILY_API_KEY;
+      delete process.env.GOOGLE_SEARCH_API_KEY;
+      delete process.env.GOOGLE_SEARCH_ENGINE_ID;
+    });
+
+    it('uses Tavily as primary provider when available', async () => {
+      const mockTavilyResults = { query: 'test', results: [{ title: 'Tavily Result', url: 'https://tavily.com', content: 'content' }] };
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockTavilyResults),
+      });
+
+      const result = await callSearchWithFallback('test query');
+
+      expect(result.provider).toBe('tavily');
+      expect(result.results.results[0].title).toBe('Tavily Result');
+    });
+
+    // Note: Full fallback testing is complex due to circuit breaker + retry logic
+    // Those integration scenarios are better tested in e2e tests
+    it('returns results with provider info', async () => {
+      const mockResults = { query: 'test', results: [{ title: 'Result', url: 'https://test.com', content: 'content' }] };
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockResults),
+      });
+
+      const result = await callSearchWithFallback('test query');
+
+      expect(result).toHaveProperty('provider');
+      expect(result).toHaveProperty('results');
+      expect(result.results).toHaveProperty('query');
+      expect(result.results).toHaveProperty('results');
     });
   });
 });

@@ -15,6 +15,7 @@ import {
   PROVIDER_RETRY_OPTIONS,
   CIRCUIT_BREAKER_OPTIONS,
 } from './resilience';
+import { TavilySearchResult } from './types';
 
 // Message type for LLM API calls
 interface ChatMessage {
@@ -77,6 +78,107 @@ export const VERCEL_GATEWAY_API_URL = 'https://ai-gateway.vercel.sh/v1/chat/comp
 
 // Tavily API endpoints
 export const TAVILY_API_URL = 'https://api.tavily.com/search';
+
+// Google Custom Search API endpoints
+export const GOOGLE_SEARCH_API_URL = 'https://customsearch.googleapis.com/customsearch/v1';
+
+// Jina Reader API for content extraction
+export const JINA_READER_API_URL = 'https://r.jina.ai';
+
+// Jina Reader extraction result
+interface JinaExtractionResult {
+  url: string;
+  content: string;
+  success: boolean;
+}
+
+/**
+ * Check if Jina API key is configured (optional but recommended for higher rate limits)
+ * Without key: 20 RPM, With key: 500 RPM + 10M free tokens
+ */
+export function isJinaApiKeyConfigured(): boolean {
+  return !!process.env.JINA_API_KEY;
+}
+
+/**
+ * Extract content from a URL using Jina Reader API
+ * Returns markdown content or empty string on failure
+ */
+export async function extractContentWithJina(
+  url: string,
+  timeoutMs: number = 10000
+): Promise<JinaExtractionResult> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    // Build headers - API key is optional but provides higher rate limits
+    const headers: Record<string, string> = {
+      'Accept': 'text/plain',
+      'X-Return-Format': 'markdown',
+    };
+
+    // Add API key if configured (500 RPM vs 20 RPM without)
+    if (process.env.JINA_API_KEY) {
+      headers['Authorization'] = `Bearer ${process.env.JINA_API_KEY}`;
+    }
+
+    const response = await fetch(`${JINA_READER_API_URL}/${encodeURIComponent(url)}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.warn(`[Jina] Failed to extract ${url}: ${response.status}`);
+      return { url, content: '', success: false };
+    }
+
+    const content = await response.text();
+
+    // Jina returns markdown content, truncate to reasonable size
+    const truncatedContent = content.slice(0, 8000);
+
+    return { url, content: truncatedContent, success: true };
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn(`[Jina] Timeout extracting ${url}`);
+    } else {
+      console.warn(`[Jina] Error extracting ${url}:`, error);
+    }
+    return { url, content: '', success: false };
+  }
+}
+
+/**
+ * Extract content from multiple URLs in parallel using Jina Reader
+ * Returns a map of URL -> content
+ */
+export async function extractContentsWithJina(
+  urls: string[],
+  timeoutMs: number = 10000,
+  maxConcurrent: number = 5
+): Promise<Map<string, string>> {
+  const results = new Map<string, string>();
+
+  // Process in batches to avoid overwhelming the API
+  for (let i = 0; i < urls.length; i += maxConcurrent) {
+    const batch = urls.slice(i, i + maxConcurrent);
+    const batchResults = await Promise.all(
+      batch.map(url => extractContentWithJina(url, timeoutMs))
+    );
+
+    for (const result of batchResults) {
+      if (result.success && result.content) {
+        results.set(result.url, result.content);
+      }
+    }
+  }
+
+  return results;
+}
 
 // Determine which LLM provider to use based on available API keys (fallback)
 export function getLLMProvider(): LLMProvider {
@@ -790,6 +892,216 @@ export async function callTavily(
   });
 }
 
+// Google Custom Search API types
+interface GoogleSearchResponse {
+  kind: string;
+  items?: {
+    title: string;
+    link: string;
+    snippet: string;
+    displayLink: string;
+    pagemap?: {
+      metatags?: Array<{
+        author?: string;
+        'article:published_time'?: string;
+        'og:updated_time'?: string;
+        date?: string;
+      }>;
+      cse_image?: Array<{
+        src: string;
+      }>;
+    };
+  }[];
+  searchInformation?: {
+    totalResults: string;
+    searchTime: number;
+  };
+}
+
+/**
+ * Check if Google Custom Search is available
+ */
+export function isGoogleSearchAvailable(): boolean {
+  return !!(process.env.GOOGLE_SEARCH_API_KEY && process.env.GOOGLE_SEARCH_ENGINE_ID);
+}
+
+/**
+ * Google Custom Search API request
+ * Returns results in TavilySearchResult format for compatibility
+ */
+export async function callGoogleSearch(
+  query: string,
+  maxResults: number = 10,
+  extractContent: boolean = true
+): Promise<TavilySearchResult> {
+  const circuitBreaker = circuitBreakerRegistry.getBreaker('google-search', CIRCUIT_BREAKER_OPTIONS.search);
+
+  const makeRequest = async () => {
+    console.log('Calling Google Custom Search API with:', { query, maxResults, extractContent });
+
+    if (!process.env.GOOGLE_SEARCH_API_KEY) {
+      throw new Error('GOOGLE_SEARCH_API_KEY is not defined in environment variables');
+    }
+    if (!process.env.GOOGLE_SEARCH_ENGINE_ID) {
+      throw new Error('GOOGLE_SEARCH_ENGINE_ID is not defined in environment variables');
+    }
+
+    // Google API returns max 10 results per request
+    const numResults = Math.min(maxResults, 10);
+
+    const params = new URLSearchParams({
+      key: process.env.GOOGLE_SEARCH_API_KEY,
+      cx: process.env.GOOGLE_SEARCH_ENGINE_ID,
+      q: query,
+      num: numResults.toString(),
+    });
+
+    const response = await fetch(`${GOOGLE_SEARCH_API_URL}?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Unknown error';
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error?.message || errorData.message || 'Unknown error';
+      } catch {
+        errorMessage = `Error parsing error response: ${response.statusText}`;
+      }
+      console.error('Google Search API error details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorMessage
+      });
+      throw new Error(`Google Search API error: ${errorMessage}`);
+    }
+
+    const data: GoogleSearchResponse = await response.json();
+
+    // Get URLs for content extraction
+    const urls = (data.items || []).map(item => item.link);
+
+    // Extract full content with Jina Reader if enabled
+    let extractedContent = new Map<string, string>();
+    if (extractContent && urls.length > 0) {
+      console.log(`[Google+Jina] Extracting content from ${urls.length} URLs...`);
+      const startTime = Date.now();
+      extractedContent = await extractContentsWithJina(urls, 10000, 5);
+      console.log(`[Google+Jina] Extracted ${extractedContent.size}/${urls.length} URLs in ${Date.now() - startTime}ms`);
+    }
+
+    // Convert Google response to TavilySearchResult format
+    const results: TavilySearchResult = {
+      query,
+      results: (data.items || []).map(item => {
+        // Try to extract date from pagemap metatags
+        let publishedDate: string | undefined;
+        const metatags = item.pagemap?.metatags?.[0];
+        if (metatags) {
+          publishedDate = metatags['article:published_time'] ||
+                          metatags['og:updated_time'] ||
+                          metatags.date;
+        }
+
+        // Try to extract author from metatags
+        const author = metatags?.author;
+
+        // Use Jina extracted content if available, otherwise fall back to snippet
+        const jinaContent = extractedContent.get(item.link);
+        const content = jinaContent || item.snippet;
+
+        return {
+          title: item.title,
+          url: item.link,
+          content, // Full extracted content or snippet fallback
+          source: item.displayLink,
+          published_date: publishedDate,
+          author,
+        };
+      }),
+      // Google requires separate image search, skip for fallback to save quota
+      images: [],
+      search_context: {
+        retrieved_from: 'google',
+        search_type: 'web',
+        content_extraction: extractContent ? 'jina' : 'snippet',
+      },
+    };
+
+    return results;
+  };
+
+  return resilientCall(makeRequest, {
+    name: 'google-search',
+    timeoutMs: extractContent ? 30000 : PROVIDER_TIMEOUTS.search, // Longer timeout when extracting
+    circuitBreaker,
+    ...PROVIDER_RETRY_OPTIONS.search,
+  });
+}
+
+/**
+ * Search provider type for tracking which provider was used
+ */
+export type SearchProvider = 'tavily' | 'google';
+
+/**
+ * Result type for unified search function
+ */
+export interface SearchWithFallbackResult {
+  results: TavilySearchResult;
+  provider: SearchProvider;
+}
+
+/**
+ * Unified search function with automatic fallback
+ * Tries Tavily first, falls back to Google Custom Search on failure
+ */
+export async function callSearchWithFallback(
+  query: string,
+  includeImages: boolean = true,
+  searchDepth: 'basic' | 'advanced' = 'basic',
+  maxResults: number = 10
+): Promise<SearchWithFallbackResult> {
+  // Check if Tavily circuit breaker is open
+  const tavilyBreaker = circuitBreakerRegistry.getBreaker('tavily');
+  const tavilyCircuitOpen = !tavilyBreaker.isAllowed();
+
+  // If Tavily circuit is open and Google is available, skip directly to Google
+  if (tavilyCircuitOpen && isGoogleSearchAvailable()) {
+    console.log('[Search] Tavily circuit breaker open, using Google Search directly');
+    const results = await callGoogleSearch(query, maxResults);
+    return { results, provider: 'google' };
+  }
+
+  // Try Tavily first
+  try {
+    const results = await callTavily(query, includeImages, searchDepth, maxResults);
+    return { results, provider: 'tavily' };
+  } catch (tavilyError) {
+    console.error('[Search] Tavily failed:', tavilyError);
+
+    // Check if Google fallback is available
+    if (!isGoogleSearchAvailable()) {
+      console.error('[Search] Google Search not configured, cannot fallback');
+      throw tavilyError; // Re-throw original error
+    }
+
+    // Try Google as fallback
+    console.log('[Search] Falling back to Google Custom Search');
+    try {
+      const results = await callGoogleSearch(query, maxResults);
+      return { results, provider: 'google' };
+    } catch (googleError) {
+      console.error('[Search] Google Search also failed:', googleError);
+      // Throw the original Tavily error as it's the primary provider
+      throw tavilyError;
+    }
+  }
+}
+
 // Helper function to parse stream response from OpenAI
 export async function* streamOpenAIResponse(response: Response) {
   if (!response.body) {
@@ -904,19 +1216,36 @@ export function detectLanguage(text: string): ResponseLanguage {
   }
 
   // For European languages, check for common patterns
-  // Spanish: common accented characters and patterns
-  if (/[áéíóúüñ¿¡]/i.test(text) && /\b(el|la|los|las|de|en|que|es|un|una)\b/i.test(text)) {
-    return 'Spanish';
-  }
+  const lowerText = text.toLowerCase();
 
-  // French: common accented characters and patterns
-  if (/[àâçéèêëîïôùûü]/i.test(text) && /\b(le|la|les|de|des|en|est|un|une|que)\b/i.test(text)) {
+  // French detection - check first because French accents are very distinct (grave, circumflex, cedilla)
+  const hasFrenchAccents = /[àâçèêëîïôùûœæ]/.test(lowerText);
+  const frenchCommonWords = ['le', 'la', 'les', 'des', 'du', 'au', 'aux', 'est', 'sont', 'une', 'qui', 'pour', 'avec', 'dans', 'sur', 'par', 'mais', 'donc', 'comme', 'tout', 'cette', 'ces', 'quel', 'quelle', 'vous', 'nous', 'être', 'avoir', 'faire', 'peut', 'plus', 'très'];
+  const frenchWordCount = frenchCommonWords.filter(word => new RegExp(`\\b${word}\\b`, 'i').test(text)).length;
+
+  if (hasFrenchAccents || frenchWordCount >= 3) {
     return 'French';
   }
 
-  // German: common patterns and umlauts
-  if (/[äöüß]/i.test(text) && /\b(der|die|das|und|ist|ein|eine|zu|den)\b/i.test(text)) {
+  // German detection - check before Spanish because umlauts are distinct
+  const hasGermanChars = /[äöüß]/.test(lowerText);
+  const germanCommonWords = ['der', 'die', 'das', 'und', 'ist', 'ein', 'eine', 'den', 'dem', 'des', 'von', 'mit', 'auch', 'auf', 'für', 'nicht', 'sich', 'bei', 'nach', 'werden', 'haben', 'wird', 'kann', 'sind', 'wurde', 'sein', 'oder', 'wenn', 'noch', 'über', 'diese', 'dieser'];
+  const germanWordCount = germanCommonWords.filter(word => new RegExp(`\\b${word}\\b`, 'i').test(text)).length;
+
+  if (hasGermanChars || germanWordCount >= 2) {
     return 'German';
+  }
+
+  // Spanish detection - check accents (áéíóúñ¿¡) and word patterns
+  // Note: "la", "el" overlap with other languages, so require accents or more words
+  const hasSpanishAccents = /[áéíóúñ¿¡]/.test(lowerText);
+  const spanishCommonWords = ['el', 'la', 'los', 'las', 'del', 'al', 'un', 'una', 'que', 'para', 'por', 'con', 'como', 'pero', 'más', 'este', 'esta', 'ese', 'esa', 'qué', 'cómo', 'cuándo', 'dónde', 'sobre', 'entre', 'desde', 'hasta', 'también', 'porque', 'cuando', 'donde', 'mejor', 'nuevo', 'nueva', 'fecha', 'precio', 'tiempo'];
+  const spanishWordCount = spanishCommonWords.filter(word => new RegExp(`\\b${word}\\b`, 'i').test(text)).length;
+  const hasSpanishSuffixes = /\b\w+(ción|miento|mente|idad|ado|ada|ero|era|ando|iendo|amiento)\b/i.test(text);
+
+  // Spanish if: has accents, OR 2+ common words, OR common words + Spanish suffixes
+  if (hasSpanishAccents || spanishWordCount >= 2 || (spanishWordCount >= 1 && hasSpanishSuffixes)) {
+    return 'Spanish';
   }
 
   // Default to English for Latin-based text without clear markers

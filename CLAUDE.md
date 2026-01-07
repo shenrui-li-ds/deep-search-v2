@@ -44,6 +44,11 @@ The dev server runs at http://localhost:3000
 Required in `deep-search/.env.local`:
 - `TAVILY_API_KEY` - Tavily API key for web search (required)
 
+Optional search fallback (if Tavily is down):
+- `GOOGLE_SEARCH_API_KEY` - Google Custom Search API key
+- `GOOGLE_SEARCH_ENGINE_ID` - Programmable Search Engine ID (cx parameter)
+- `JINA_API_KEY` - Jina Reader API key (optional, 500 RPM vs 20 RPM without)
+
 At least one LLM provider key:
 - `DEEPSEEK_API_KEY` - DeepSeek Chat (preferred, cost-effective)
 - `OPENAI_API_KEY` - OpenAI GPT-5.1

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { callTavily } from '@/lib/api-utils';
+import { callSearchWithFallback, SearchProvider } from '@/lib/api-utils';
 import { Source, SearchImage, TavilySearchResult } from '@/lib/types';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
@@ -88,6 +88,7 @@ interface SearchResponse {
   sources: Source[];
   images: SearchImage[];
   rawResults: TavilySearchResult;
+  searchProvider?: SearchProvider;
   cached?: boolean;
 }
 
@@ -143,23 +144,24 @@ export async function POST(req: NextRequest) {
 
     log.debug(LogMessages.SEARCH_CACHE_MISS, { query });
 
-    // Cache miss - call Tavily search API
-    const tavilyResults = await callTavily(
+    // Cache miss - call search API with fallback
+    const { results: searchResults, provider: searchProvider } = await callSearchWithFallback(
       query,
       true, // include images
       searchDepth as 'basic' | 'advanced',
       maxResults
     );
 
-    // Convert Tavily results to our format
-    const sources = convertToSources(tavilyResults);
-    const images = convertToImages(tavilyResults);
+    // Convert search results to our format
+    const sources = convertToSources(searchResults);
+    const images = convertToImages(searchResults);
 
     const response: SearchResponse = {
       query,
       sources,
       images,
-      rawResults: tavilyResults,
+      rawResults: searchResults,
+      searchProvider,
     };
 
     // Cache the response
@@ -167,6 +169,7 @@ export async function POST(req: NextRequest) {
 
     log.info(LogMessages.SEARCH_COMPLETED, {
       query,
+      searchProvider,
       sourcesCount: sources.length,
       imagesCount: images.length,
       durationMs: timer.elapsed(),
