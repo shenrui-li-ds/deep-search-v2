@@ -9,6 +9,7 @@ import type { ResearchGap, AnalyzeGapsResponse } from '@/app/api/research/analyz
 import type { Round1CacheData } from '@/app/api/research/cache-round1/route';
 import type { Round2CacheData } from '@/app/api/research/cache-round2/route';
 import { Button } from '@/components/ui/button';
+import { ErrorType, errorMessages, detectErrorType } from '@/lib/error-types';
 
 // Simple hash function for browser (djb2 algorithm)
 function simpleHash(str: string): string {
@@ -40,7 +41,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [images, setImages] = useState<SearchImage[]>([]);
   const [relatedSearches, setRelatedSearches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<ErrorType | null>(null);
   const [isCreditError, setIsCreditError] = useState(false);
+  const [streamCompleted, setStreamCompleted] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -70,6 +73,52 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       updateTimeoutRef.current = null;
     }, 50);
   }, []);
+
+  // Retry pending credit finalizations on mount
+  useEffect(() => {
+    const FINALIZE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes (matches server-side expiry)
+
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('pending_finalize_'));
+
+      for (const key of keys) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key) || '');
+          const age = Date.now() - (data.timestamp || 0);
+
+          if (age > FINALIZE_EXPIRY_MS) {
+            // Expired - server-side cleanup will handle it
+            localStorage.removeItem(key);
+            continue;
+          }
+
+          // Retry finalization
+          fetch('/api/finalize-credits', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reservationId: data.reservationId,
+              actualCredits: data.actualCredits
+            })
+          })
+            .then(res => {
+              if (res.ok) {
+                localStorage.removeItem(key);
+                console.log('[Credit Finalize] Retried pending finalization successfully');
+              }
+            })
+            .catch(() => {
+              // Will retry on next page load
+            });
+        } catch {
+          // Invalid data, remove it
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      // localStorage not available
+    }
+  }, []); // Run once on mount
 
   // Stream content from a response
   const streamResponse = useCallback(async (
@@ -116,6 +165,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     // After fade out, update content and fade in
     setTimeout(() => {
       setStreamingContent(newContent);
+      setStreamCompleted(true); // Mark stream as successfully completed
       setSearchResult({
         query,
         content: newContent,
@@ -165,15 +215,43 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         setTimeout(() => reject(new Error(message)), ms)
       );
 
-    // Helper to finalize credits (fire-and-forget)
+    // Helper to finalize credits with localStorage retry
     const finalizeCredits = (reservationId: string | undefined, actualCredits: number) => {
       if (!reservationId) return;
-      // Fire-and-forget: don't await, just log errors
+
+      const storageKey = `pending_finalize_${reservationId}`;
+
+      // Store pending finalization in localStorage for retry
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({
+          reservationId,
+          actualCredits,
+          timestamp: Date.now()
+        }));
+      } catch {
+        // localStorage not available, proceed without backup
+      }
+
+      // Attempt finalization
       fetch('/api/finalize-credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reservationId, actualCredits })
-      }).catch(err => console.error('Failed to finalize credits:', err));
+      })
+        .then(res => {
+          if (res.ok) {
+            // Success - remove from localStorage
+            try {
+              localStorage.removeItem(storageKey);
+            } catch {
+              // Ignore localStorage errors
+            }
+          }
+        })
+        .catch(err => {
+          console.error('Failed to finalize credits, will retry on next page load:', err);
+          // Keep in localStorage for retry
+        });
     };
 
     // Helper to cancel reservation (fire-and-forget)
@@ -190,7 +268,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const performResearch = async () => {
       setLoadingStage('planning');
       setError(null);
+      setErrorType(null);
       setIsCreditError(false);
+      setStreamCompleted(false);
       setSearchResult(null);
       setStreamingContent('');
       contentRef.current = '';
@@ -230,7 +310,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         if (!limitCheck.allowed) {
-          setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          const errType: ErrorType = limitCheck.isCreditsError ? 'credits_insufficient' : 'rate_limited';
+          setError(limitCheck.reason || errorMessages[errType].message);
+          setErrorType(errType);
           setIsCreditError(limitCheck.isCreditsError === true);
           setLoadingStage('complete');
           return;
@@ -819,7 +901,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Cancel reservation on error (full refund)
         cancelReservation(reservationId);
         console.error('Research error:', err);
-        setError('An error occurred while processing your research');
+        const errType = detectErrorType(err);
+        setErrorType(errType);
+        setError(errorMessages[errType].message);
         setLoadingStage('complete');
       }
     };
@@ -828,7 +912,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const performBrainstorm = async () => {
       setLoadingStage('reframing');
       setError(null);
+      setErrorType(null);
       setIsCreditError(false);
+      setStreamCompleted(false);
       setSearchResult(null);
       setStreamingContent('');
       contentRef.current = '';
@@ -863,7 +949,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         if (!limitCheck.allowed) {
-          setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          const errType: ErrorType = limitCheck.isCreditsError ? 'credits_insufficient' : 'rate_limited';
+          setError(limitCheck.reason || errorMessages[errType].message);
+          setErrorType(errType);
           setIsCreditError(limitCheck.isCreditsError === true);
           setLoadingStage('complete');
           return;
@@ -1071,7 +1159,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Cancel reservation on error (full refund)
         cancelReservation(reservationId);
         console.error('Brainstorm error:', err);
-        setError('An error occurred while brainstorming ideas');
+        const errType = detectErrorType(err);
+        setErrorType(errType);
+        setError(errorMessages[errType].message);
         setLoadingStage('complete');
       }
     };
@@ -1080,7 +1170,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const performSearch = async () => {
       setLoadingStage('refining');
       setError(null);
+      setErrorType(null);
       setIsCreditError(false);
+      setStreamCompleted(false);
       setSearchResult(null);
       setStreamingContent('');
       contentRef.current = '';
@@ -1115,7 +1207,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         if (!limitCheck.allowed) {
-          setError(limitCheck.reason || 'Search limit reached. Please try again later.');
+          const errType: ErrorType = limitCheck.isCreditsError ? 'credits_insufficient' : 'rate_limited';
+          setError(limitCheck.reason || errorMessages[errType].message);
+          setErrorType(errType);
           setIsCreditError(limitCheck.isCreditsError === true);
           setLoadingStage('complete');
           return;
@@ -1245,6 +1339,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Finalize credits - 0 if cached, 1 if fresh Tavily query
         finalizeCredits(reservationId, searchData.cached ? 0 : 1);
 
+        setStreamCompleted(true); // Mark stream as successfully completed
         setSearchResult({
           query,
           content: cleanedContent,
@@ -1277,7 +1372,9 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Cancel reservation on error (full refund)
         cancelReservation(reservationId);
         console.error('Search error:', err);
-        setError('An error occurred while processing your search');
+        const errType = detectErrorType(err);
+        setErrorType(errType);
+        setError(errorMessages[errType].message);
         setLoadingStage('complete');
       }
     };
@@ -1312,22 +1409,63 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   }, [historyEntryId]);
 
   if (error) {
+    // Get error info from type or fallback to defaults
+    const errorInfo = errorType ? errorMessages[errorType] : errorMessages.unknown;
+    const canRetry = errorInfo.canRetry;
+
+    // Icon based on error type
+    const getErrorIcon = () => {
+      if (errorType === 'credits_insufficient') {
+        return (
+          <svg className="w-12 h-12 mx-auto text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+          </svg>
+        );
+      }
+      if (errorType === 'network_error') {
+        return (
+          <svg className="w-12 h-12 mx-auto text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
+          </svg>
+        );
+      }
+      if (errorType === 'timeout') {
+        return (
+          <svg className="w-12 h-12 mx-auto text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      }
+      if (errorType === 'rate_limited') {
+        return (
+          <svg className="w-12 h-12 mx-auto text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+        );
+      }
+      if (errorType === 'provider_unavailable') {
+        return (
+          <svg className="w-12 h-12 mx-auto text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z" />
+          </svg>
+        );
+      }
+      // Default error icon
+      return (
+        <svg className="w-12 h-12 mx-auto text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+      );
+    };
+
     return (
       <div className="max-w-4xl mx-auto p-6">
         <Card className="p-8 text-center">
           <div className="mb-4">
-            {isCreditError ? (
-              <svg className="w-12 h-12 mx-auto text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
-              </svg>
-            ) : (
-              <svg className="w-12 h-12 mx-auto text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
-              </svg>
-            )}
+            {getErrorIcon()}
           </div>
           <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-2">
-            {isCreditError ? 'Insufficient Credits' : 'Something went wrong'}
+            {errorInfo.title}
           </h2>
           <p className="text-[var(--text-muted)] mb-6">{error}</p>
           {isCreditError ? (
@@ -1337,6 +1475,15 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               </Button>
               <Button variant="outline" onClick={() => router.push('/')}>
                 Back to Search
+              </Button>
+            </div>
+          ) : canRetry ? (
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={() => window.location.reload()}>
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => router.push('/')}>
+                New Search
               </Button>
             </div>
           ) : (
@@ -1420,6 +1567,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       brainstormAngles={brainstormAngles}
       searchIntent={searchIntent}
       refinedQuery={refinedQuery}
+      streamCompleted={streamCompleted}
     />
   );
 }

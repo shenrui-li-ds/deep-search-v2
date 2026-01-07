@@ -434,6 +434,61 @@ Client-side text cleanup utilities.
 - Fix header spacing
 - Normalize whitespace
 
+### `error-types.ts` - Standardized Error Handling
+
+Categorized error types for consistent user-facing error messages.
+
+**Error Types:**
+
+| Type | Title | Retryable | Description |
+|------|-------|-----------|-------------|
+| `credits_insufficient` | Insufficient Credits | No | User lacks credits for operation |
+| `rate_limited` | Too Many Requests | Yes | Rate limit exceeded |
+| `provider_unavailable` | Service Temporarily Unavailable | Yes | LLM/search provider down |
+| `search_failed` | Search Failed | Yes | Search API failure |
+| `synthesis_failed` | Response Generation Failed | Yes | LLM synthesis error |
+| `network_error` | Connection Issue | Yes | Network/fetch failure |
+| `timeout` | Request Timed Out | Yes | Operation timed out |
+| `invalid_query` | Invalid Query | No | Empty or malformed query |
+| `no_results` | No Results Found | No | Search returned nothing |
+| `auth_required` | Login Required | No | User not authenticated |
+| `unknown` | Something Went Wrong | Yes | Unclassified error |
+
+**Key Exports:**
+
+| Export | Description |
+|--------|-------------|
+| `ErrorType` | Union type of all error categories |
+| `errorMessages` | Record mapping ErrorType to { title, message, canRetry } |
+| `detectErrorType(error)` | Auto-detect error type from Error object |
+| `createApiError(type, message?, details?, retryAfter?)` | Create standardized API error response |
+| `ApiError` | Interface for API error responses |
+
+**Usage:**
+```typescript
+import { ErrorType, errorMessages, detectErrorType, createApiError } from '@/lib/error-types';
+
+// Detect error type automatically
+try {
+  await fetch(...);
+} catch (err) {
+  const errType = detectErrorType(err);
+  const { title, message, canRetry } = errorMessages[errType];
+}
+
+// Create API error response
+return NextResponse.json(
+  createApiError('rate_limited', undefined, undefined, 60),
+  { status: 429 }
+);
+```
+
+**Client-Side Usage:**
+The search-client uses error types to show contextual UI:
+- Different icons per error type (wifi, clock, card, etc.)
+- "Try Again" button only shown for retryable errors
+- Credit errors redirect to purchase page
+
 ### `utils.ts` - General Utilities
 
 Shared utility functions (e.g., `cn()` for className merging).

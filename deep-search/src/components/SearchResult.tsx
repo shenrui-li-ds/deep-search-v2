@@ -104,9 +104,11 @@ interface SearchResultProps {
   // Web search thinking state
   searchIntent?: string | null;
   refinedQuery?: string | null;
+  // Stream completion state
+  streamCompleted?: boolean;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null, streamCompleted = false }) => {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [followUpQuery, setFollowUpQuery] = useState('');
   const [followUpMode, setFollowUpMode] = useState<SearchMode>(mode as SearchMode);
@@ -265,6 +267,25 @@ ${sourcesText}
                isSearching ? 'Searching the web...' :
                isPolishing ? 'Polishing response...' : 'Generating response...'}
             </span>
+          </div>
+        )}
+
+        {/* Incomplete Stream Warning - shows when content exists but stream didn't complete */}
+        {loadingStage === 'complete' && result.content && !streamCompleted && !isStreaming && !isPolishing && (
+          <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center gap-3">
+            <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Response may be incomplete</p>
+              <p className="text-xs text-amber-600/80 dark:text-amber-400/80">The connection was interrupted. Try refreshing or searching again.</p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-md transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )}
 
