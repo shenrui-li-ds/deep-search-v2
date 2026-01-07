@@ -760,6 +760,90 @@ export interface UsageStats {
   last30Days: { date: string; count: number }[];
 }
 
+export interface ProviderUsageSummary {
+  provider: string;
+  total_requests: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface ApiUsageWithCosts {
+  totalCostUsd: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  totalTokens: number;
+  byProvider: ProviderUsageSummary[];
+}
+
+/**
+ * Get API usage with estimated costs by provider.
+ * Uses the get_usage_summary RPC function which calculates costs based on provider pricing.
+ * @param days - Number of days to look back (default 30)
+ */
+export async function getApiUsageWithCosts(days = 30): Promise<ApiUsageWithCosts | null> {
+  const supabase = createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase.rpc('get_usage_summary', {
+    p_user_id: user.id,
+    p_days: days,
+  });
+
+  if (error) {
+    // Function might not exist yet
+    if (error.code === '42883') {
+      console.log('[ApiUsage] get_usage_summary function not available');
+      return null;
+    }
+    console.error('Error fetching API usage with costs:', error);
+    return null;
+  }
+
+  if (!data || !Array.isArray(data)) {
+    return {
+      totalCostUsd: 0,
+      totalPromptTokens: 0,
+      totalCompletionTokens: 0,
+      totalTokens: 0,
+      byProvider: [],
+    };
+  }
+
+  // Aggregate totals from all providers
+  let totalCostUsd = 0;
+  let totalPromptTokens = 0;
+  let totalCompletionTokens = 0;
+  let totalTokens = 0;
+
+  const byProvider: ProviderUsageSummary[] = data.map((row: ProviderUsageSummary) => {
+    totalCostUsd += Number(row.estimated_cost_usd) || 0;
+    totalPromptTokens += Number(row.total_prompt_tokens) || 0;
+    totalCompletionTokens += Number(row.total_completion_tokens) || 0;
+    totalTokens += Number(row.total_tokens) || 0;
+
+    return {
+      provider: row.provider,
+      total_requests: Number(row.total_requests) || 0,
+      total_prompt_tokens: Number(row.total_prompt_tokens) || 0,
+      total_completion_tokens: Number(row.total_completion_tokens) || 0,
+      total_tokens: Number(row.total_tokens) || 0,
+      estimated_cost_usd: Number(row.estimated_cost_usd) || 0,
+    };
+  });
+
+  return {
+    totalCostUsd,
+    totalPromptTokens,
+    totalCompletionTokens,
+    totalTokens,
+    byProvider,
+  };
+}
+
 /**
  * Get usage statistics for visualization
  * @param days - Number of days to look back (default 30)

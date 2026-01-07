@@ -6,7 +6,7 @@ import MainLayout from '@/components/MainLayout';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { createClient } from '@/lib/supabase/client';
 import { useTranslations } from 'next-intl';
-import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, MAX_CREDITS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats } from '@/lib/supabase/database';
+import { getUserPreferences, updateUserPreferences, getUserLimits, getUserCredits, getPurchaseHistory, getUsageStats, getApiUsageWithCosts, MAX_CREDITS, type UserPreferences, type UserLimits, type UserCredits, type CreditPurchase, type UsageStats, type ApiUsageWithCosts } from '@/lib/supabase/database';
 
 // Tab types
 type TabId = 'profile' | 'preferences' | 'billing' | 'usage';
@@ -1514,6 +1514,7 @@ function ActivityChart({ data }: { data: { date: string; count: number }[] }) {
 function UsageTab() {
   const [limits, setLimits] = useState<UserLimits | null>(null);
   const [stats, setStats] = useState<UsageStats | null>(null);
+  const [apiCosts, setApiCosts] = useState<ApiUsageWithCosts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const t = useTranslations('account');
   const tSearch = useTranslations('search');
@@ -1522,12 +1523,14 @@ function UsageTab() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [userLimits, usageStats] = await Promise.all([
+        const [userLimits, usageStats, usageCosts] = await Promise.all([
           getUserLimits(),
           getUsageStats(30),
+          getApiUsageWithCosts(30),
         ]);
         setLimits(userLimits);
         setStats(usageStats);
+        setApiCosts(usageCosts);
       } catch (error) {
         console.error('Failed to load usage data:', error);
       } finally {
@@ -1575,6 +1578,14 @@ function UsageTab() {
     return tProviders(providerKeys[provider] || provider);
   };
 
+  // Format currency (USD)
+  const formatCurrency = (amount: number) => {
+    if (amount < 0.01 && amount > 0) {
+      return '<$0.01';
+    }
+    return `$${amount.toFixed(2)}`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Summary Stats */}
@@ -1596,11 +1607,11 @@ function UsageTab() {
           </p>
         </div>
         <div className="p-4 rounded-lg bg-[var(--card)] border border-[var(--border)]">
-          <p className="text-xs text-[var(--text-muted)] mb-1">{t('monthlyTokens')}</p>
+          <p className="text-xs text-[var(--text-muted)] mb-1">{t('estimatedApiCost')}</p>
           <p className="text-2xl font-bold text-[var(--text-primary)]">
-            {formatNumber(limits?.monthly_tokens_used || 0)}
-            <span className="text-sm font-normal text-[var(--text-muted)]"> / {formatNumber(limits?.monthly_token_limit || 500000)}</span>
+            {formatCurrency(apiCosts?.totalCostUsd || 0)}
           </p>
+          <p className="text-xs text-[var(--text-muted)]">{t('last30Days')}</p>
         </div>
       </div>
 
@@ -1638,6 +1649,33 @@ function UsageTab() {
           />
         </div>
       </div>
+
+      {/* API Cost Breakdown by Provider */}
+      {apiCosts && apiCosts.byProvider.length > 0 && (
+        <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
+          <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-4">{t('costBreakdown')}</h3>
+          <div className="space-y-3">
+            {apiCosts.byProvider.map((provider) => (
+              <div key={provider.provider} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-b-0">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{getProviderLabel(provider.provider)}</p>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    {formatNumber(provider.total_prompt_tokens)} {t('inputTokens')} + {formatNumber(provider.total_completion_tokens)} {t('outputTokens')}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{formatCurrency(provider.estimated_cost_usd)}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{provider.total_requests} {t('requests')}</p>
+                </div>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+              <p className="text-sm font-medium text-[var(--text-primary)]">{t('totalCost')}</p>
+              <p className="text-lg font-bold text-[var(--text-primary)]">{formatCurrency(apiCosts.totalCostUsd)}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Token Usage Bars */}
       <div>
