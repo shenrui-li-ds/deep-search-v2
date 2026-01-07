@@ -845,12 +845,12 @@ function ProfileTab({
             <div className="flex justify-between">
               <span className="text-[var(--text-muted)]">{t('emailVerified')}</span>
               <span className={user?.email_confirmed_at ? 'text-green-500' : 'text-yellow-500'}>
-                {user?.email_confirmed_at ? t('yes') : t('pending')}
+                {user?.email_confirmed_at ? t('verified') : t('pending')}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--text-muted)]">{t('userId')}</span>
-              <span className="text-[var(--text-primary)] font-mono text-xs">{user?.id?.slice(0, 8)}...</span>
+              <span className="text-[var(--text-primary)] font-mono text-xs">{user?.id?.slice(0, 4)}••••{user?.id?.slice(-4)}</span>
             </div>
           </div>
         </div>

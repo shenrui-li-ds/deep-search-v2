@@ -31,7 +31,7 @@
     "language": "Lang"
   },
   "search": {
-    "placeholder": "Ask anything...",
+    "placeholder": "Ask anything",
     "placeholderLarge": "What do you want to know?",
     "selectModel": "Select Model",
     "searchMode": "Search Mode",
@@ -175,8 +175,9 @@
     "billing": "Billing",
     "usage": "Usage",
     "email": "Email",
-    "emailVerified": "Email verified",
+    "emailVerified": "Email verification",
     "yes": "Yes",
+    "verified": "Verified",
     "pending": "Pending",
     "userId": "User ID",
     "memberSince": "Member since",

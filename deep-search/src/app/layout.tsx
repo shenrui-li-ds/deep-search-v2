@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/lib/supabase/auth-context";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/react";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { type Locale } from '@/i18n/config';
@@ -74,6 +75,7 @@ export default async function RootLayout({
           </ThemeProvider>
         </NextIntlClientProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Athenius",
+    "appName": "思达搜索",
     "loading": "加载中...",
     "error": "出错了",
     "retry": "重试",
@@ -31,7 +31,7 @@
     "language": "语言"
   },
   "search": {
-    "placeholder": "问我任何问题...",
+    "placeholder": "问我任何问题",
     "placeholderLarge": "你想了解什么？",
     "selectModel": "选择模型",
     "searchMode": "搜索模式",
@@ -177,6 +177,7 @@
     "email": "邮箱",
     "emailVerified": "邮箱验证",
     "yes": "是",
+    "verified": "已验证",
     "pending": "待验证",
     "userId": "用户 ID",
     "memberSince": "注册时间",

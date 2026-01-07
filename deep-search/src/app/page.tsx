@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { useTranslations, useLocale } from 'next-intl';
 import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 import MobileSidebar from '../components/MobileSidebar';
@@ -13,6 +14,8 @@ export default function Home() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [defaultProvider, setDefaultProvider] = useState<UserModelId>('gemini');
   const [defaultMode, setDefaultMode] = useState<SearchMode>('web');
+  const t = useTranslations('common');
+  const locale = useLocale();
 
   // Load user preferences on mount
   useEffect(() => {
@@ -61,8 +64,14 @@ export default function Home() {
               height={48}
               className="w-12 h-12"
             />
-            <h1 className="text-4xl md:text-5xl font-medium text-[var(--text-secondary)] tracking-tight" style={{ fontFamily: '"Atkinson Hyperlegible Mono", monospace' }}>
-              Athenius
+            <h1
+              className="text-4xl md:text-5xl font-medium text-[var(--text-secondary)] tracking-tight"
+              style={{
+                fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+                letterSpacing: locale === 'zh' ? '0.15em' : undefined
+              }}
+            >
+              {t('appName')}
             </h1>
           </div>
 
