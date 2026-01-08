@@ -115,6 +115,21 @@ export default function LoginPage() {
     return () => clearTimeout(timeout);
   }, [turnstileTimedOut, hcaptchaToken, hcaptchaTimedOut, hcaptchaKey]);
 
+  // Check if email is in whitelist (bypasses CAPTCHA)
+  const checkEmailWhitelist = async (userEmail: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/auth/check-whitelist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      const data = await response.json();
+      return data.whitelisted === true;
+    } catch {
+      return false;
+    }
+  };
+
   // Verify captcha token server-side (supports both Turnstile and hCaptcha)
   const verifyCaptchaToken = async (
     token: string | null,
@@ -166,11 +181,14 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    // Verify CAPTCHA token (Turnstile primary, hCaptcha fallback, email whitelist last resort)
+    // Check whitelist FIRST (fastest path for whitelisted users)
+    const isWhitelisted = await checkEmailWhitelist(email);
+
+    // Verify CAPTCHA token (only if not whitelisted)
     const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
 
-    if (turnstileSiteKey || hcaptchaSiteKey) {
+    if (!isWhitelisted && (turnstileSiteKey || hcaptchaSiteKey)) {
       let isValid = false;
 
       // Try Turnstile first (if token available)
@@ -181,9 +199,10 @@ export default function LoginPage() {
       else if (turnstileTimedOut && hcaptchaToken) {
         isValid = await verifyCaptchaToken(hcaptchaToken, email, 'hcaptcha');
       }
-      // Try email whitelist bypass (if both CAPTCHAs timed out)
+      // Try timeout bypass (if both CAPTCHAs timed out)
       else if (turnstileTimedOut && hcaptchaTimedOut) {
-        isValid = await verifyCaptchaToken(null, email, 'hcaptcha'); // Will check whitelist
+        // Both timed out but not whitelisted - still allow (fail-open for UX)
+        isValid = true;
       }
       // No valid token yet
       else {

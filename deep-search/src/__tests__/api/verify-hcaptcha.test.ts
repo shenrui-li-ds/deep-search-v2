@@ -4,20 +4,12 @@
 
 import { NextRequest } from 'next/server';
 
-// Mock fs module
-jest.mock('fs', () => ({
-  readFileSync: jest.fn(),
-}));
-
 // Mock global fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 // Import after mocking
 import { POST } from '@/app/api/auth/verify-hcaptcha/route';
-import { readFileSync } from 'fs';
-
-const mockReadFileSync = readFileSync as jest.MockedFunction<typeof readFileSync>;
 
 describe('/api/auth/verify-hcaptcha', () => {
   const originalEnv = process.env;
@@ -25,8 +17,6 @@ describe('/api/auth/verify-hcaptcha', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env = { ...originalEnv, HCAPTCHA_SECRET_KEY: 'test-secret-key' };
-    // Default: empty whitelist
-    mockReadFileSync.mockReturnValue(JSON.stringify({ whitelistedEmails: [] }));
   });
 
   afterAll(() => {
@@ -67,9 +57,7 @@ describe('/api/auth/verify-hcaptcha', () => {
 
   describe('email whitelist bypass', () => {
     it('should return success for whitelisted email without token', async () => {
-      mockReadFileSync.mockReturnValue(
-        JSON.stringify({ whitelistedEmails: ['test@example.com'] })
-      );
+      process.env.CAPTCHA_WHITELIST_EMAILS = 'test@example.com';
 
       const request = new NextRequest('http://localhost/api/auth/verify-hcaptcha', {
         method: 'POST',
@@ -86,9 +74,7 @@ describe('/api/auth/verify-hcaptcha', () => {
     });
 
     it('should handle case-insensitive email matching', async () => {
-      mockReadFileSync.mockReturnValue(
-        JSON.stringify({ whitelistedEmails: ['Test@Example.com'] })
-      );
+      process.env.CAPTCHA_WHITELIST_EMAILS = 'Test@Example.com';
 
       const request = new NextRequest('http://localhost/api/auth/verify-hcaptcha', {
         method: 'POST',
@@ -104,9 +90,7 @@ describe('/api/auth/verify-hcaptcha', () => {
     });
 
     it('should not bypass for non-whitelisted email', async () => {
-      mockReadFileSync.mockReturnValue(
-        JSON.stringify({ whitelistedEmails: ['other@example.com'] })
-      );
+      process.env.CAPTCHA_WHITELIST_EMAILS = 'other@example.com';
 
       const request = new NextRequest('http://localhost/api/auth/verify-hcaptcha', {
         method: 'POST',
@@ -121,10 +105,8 @@ describe('/api/auth/verify-hcaptcha', () => {
       expect(data.error).toBe('Missing token');
     });
 
-    it('should handle config file read errors gracefully', async () => {
-      mockReadFileSync.mockImplementation(() => {
-        throw new Error('File not found');
-      });
+    it('should require token when whitelist env var not set', async () => {
+      delete process.env.CAPTCHA_WHITELIST_EMAILS;
 
       const request = new NextRequest('http://localhost/api/auth/verify-hcaptcha', {
         method: 'POST',
@@ -134,7 +116,6 @@ describe('/api/auth/verify-hcaptcha', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      // Should continue to require token if whitelist can't be read
       expect(response.status).toBe(400);
       expect(data.error).toBe('Missing token');
     });

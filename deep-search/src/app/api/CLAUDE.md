@@ -625,6 +625,36 @@ Finalizes a credit reservation after search completes. Charges actual credits an
 - **Full refund on cancel**: Used when search fails or is aborted
 - **Automatic expiry**: Unfinalised reservations expire after 5 minutes (credits refunded)
 
+### `/api/auth/check-whitelist` - Email Whitelist Check
+Checks if an email is in the CAPTCHA bypass whitelist. Called first on form submit for fast path.
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response (whitelisted):**
+```json
+{
+  "whitelisted": true
+}
+```
+
+**Response (not whitelisted):**
+```json
+{
+  "whitelisted": false
+}
+```
+
+**Features:**
+- Lightweight check (reads from env var, no external API calls)
+- Case-insensitive email matching
+- Returns false if env var not set (fail-safe)
+- Reads from `CAPTCHA_WHITELIST_EMAILS` env var (comma-separated)
+
 ### `/api/auth/verify-turnstile` - Turnstile Token Verification
 Validates Cloudflare Turnstile CAPTCHA tokens server-side.
 
@@ -706,12 +736,9 @@ Validates hCaptcha tokens server-side (fallback for regions where Cloudflare is 
 - Used as fallback when Turnstile times out (blocked in China)
 
 **Email Whitelist:**
-Both verify-turnstile and verify-hcaptcha read from `config/turnstile-whitelist.json`:
-```json
-{
-  "description": "Emails that can bypass CAPTCHA verification",
-  "whitelistedEmails": ["trusted@example.com"]
-}
+All CAPTCHA endpoints read from `CAPTCHA_WHITELIST_EMAILS` env var (comma-separated):
+```bash
+CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
 
 ## Provider Handling

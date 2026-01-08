@@ -437,12 +437,9 @@ Turnstile (15s timeout) → hCaptcha (15s timeout) → Email Whitelist Bypass
 - Amber warning box: "Security check unavailable in your region" when whitelist bypass active
 
 **Email Whitelist Config:**
-Config file: `config/turnstile-whitelist.json`
-```json
-{
-  "description": "Emails that can bypass CAPTCHA verification",
-  "whitelistedEmails": ["trusted@example.com"]
-}
+Environment variable: `CAPTCHA_WHITELIST_EMAILS` (comma-separated)
+```bash
+CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
 
 ## Styling Patterns

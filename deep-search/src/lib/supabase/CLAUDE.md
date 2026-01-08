@@ -504,26 +504,25 @@ HCAPTCHA_SECRET_KEY=your_hcaptcha_secret_key
 - `src/app/api/auth/verify-hcaptcha/route.ts` - hCaptcha token validation
 - `config/turnstile-whitelist.json` - Email whitelist for bypass
 
-**Fallback Chain:**
+**Flow (Whitelist-First):**
 ```
-Turnstile (15s timeout) → hCaptcha (15s timeout) → Email Whitelist Bypass
+Submit → Check Whitelist → (if not whitelisted) → Turnstile/hCaptcha → Auth
 ```
 
-**Flow:**
-1. User fills form, Turnstile widget attempts to generate token
-2. If Turnstile verifies within 15s → token passed to verify-turnstile API
-3. If Turnstile times out → hCaptcha widget shown as fallback
-4. If hCaptcha verifies within 15s → token passed to verify-hcaptcha API
-5. If both CAPTCHA providers time out → check email whitelist for bypass
-6. If valid token or whitelisted → proceed with Supabase auth call
+1. User fills form, CAPTCHA widgets load in background
+2. User clicks submit
+3. **First**: Call `/api/auth/check-whitelist` with email
+4. If whitelisted → skip CAPTCHA, proceed directly to auth
+5. If not whitelisted → validate CAPTCHA token:
+   - Turnstile token (if available)
+   - hCaptcha token (if Turnstile timed out)
+   - Fail-open bypass (if both timed out - for UX)
+6. Proceed with Supabase auth call
 
 **Email Whitelist Config:**
-File: `config/turnstile-whitelist.json`
-```json
-{
-  "description": "Emails that can bypass CAPTCHA verification",
-  "whitelistedEmails": ["trusted@example.com"]
-}
+Environment variable: `CAPTCHA_WHITELIST_EMAILS` (comma-separated)
+```bash
+CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
 
 **Visual Feedback:**

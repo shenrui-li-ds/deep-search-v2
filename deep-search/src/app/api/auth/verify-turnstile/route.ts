@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 
 interface TurnstileVerifyResponse {
   success: boolean;
@@ -9,27 +7,16 @@ interface TurnstileVerifyResponse {
   hostname?: string;
 }
 
-interface WhitelistConfig {
-  whitelistedEmails: string[];
-}
-
 // Email whitelist for users who can't access Turnstile (e.g., China users)
-// Config file: config/turnstile-whitelist.json
+// Env var: CAPTCHA_WHITELIST_EMAILS (comma-separated)
 function isEmailWhitelisted(email?: string): boolean {
   if (!email) return false;
 
-  try {
-    // Read from config file (allows hot-reload without redeploy)
-    const configPath = join(process.cwd(), 'config', 'turnstile-whitelist.json');
-    const configContent = readFileSync(configPath, 'utf-8');
-    const config: WhitelistConfig = JSON.parse(configContent);
+  const whitelist = process.env.CAPTCHA_WHITELIST_EMAILS;
+  if (!whitelist) return false;
 
-    const whitelistedEmails = config.whitelistedEmails.map(e => e.trim().toLowerCase());
-    return whitelistedEmails.includes(email.toLowerCase());
-  } catch (error) {
-    console.error('Failed to read turnstile whitelist config:', error);
-    return false;
-  }
+  const whitelistedEmails = whitelist.split(',').map(e => e.trim().toLowerCase());
+  return whitelistedEmails.includes(email.toLowerCase());
 }
 
 export async function POST(request: NextRequest) {
