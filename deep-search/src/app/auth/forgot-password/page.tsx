@@ -24,6 +24,8 @@ export default function ForgotPasswordPage() {
   const [hcaptchaToken, setHcaptchaToken] = useState<string | null>(null);
   const [hcaptchaKey, setHcaptchaKey] = useState(0);
   const [hcaptchaTimedOut, setHcaptchaTimedOut] = useState(false);
+  const [isWhitelisted, setIsWhitelisted] = useState(false);
+  const [checkingWhitelist, setCheckingWhitelist] = useState(false);
   const t = useTranslations('auth');
   const tCommon = useTranslations('common');
 
@@ -96,6 +98,34 @@ export default function ForgotPasswordPage() {
 
     return () => clearTimeout(timeout);
   }, [turnstileTimedOut, hcaptchaToken, hcaptchaTimedOut, hcaptchaKey]);
+
+  // Proactively check whitelist when email changes (debounced)
+  useEffect(() => {
+    // Reset whitelist status when email changes
+    setIsWhitelisted(false);
+
+    // Only check if email looks valid
+    if (!email || !email.includes('@') || !email.includes('.')) return;
+
+    setCheckingWhitelist(true);
+    const debounceTimer = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/auth/check-whitelist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await response.json();
+        setIsWhitelisted(data.whitelisted === true);
+      } catch {
+        setIsWhitelisted(false);
+      } finally {
+        setCheckingWhitelist(false);
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(debounceTimer);
+  }, [email]);
 
   // Check if email is in whitelist (bypasses CAPTCHA)
   const checkEmailWhitelist = async (userEmail: string): Promise<boolean> => {
@@ -323,10 +353,19 @@ export default function ForgotPasswordPage() {
               className="w-full px-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
               placeholder={t('emailPlaceholder')}
             />
+            {/* Whitelist indicator - shows when email is verified as whitelisted */}
+            {isWhitelisted && !checkingWhitelist && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-emerald-500 text-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span>{t('whitelistedEmail')}</span>
+              </div>
+            )}
           </div>
 
-          {/* CAPTCHA Bot Protection - Turnstile primary, hCaptcha fallback */}
-          {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileTimedOut && (
+          {/* CAPTCHA Bot Protection - Turnstile primary, hCaptcha fallback (hidden if whitelisted) */}
+          {!isWhitelisted && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileTimedOut && (
             <div className="flex justify-center">
               <Turnstile
                 key={turnstileKey}
@@ -339,10 +378,10 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
-          {/* hCaptcha Fallback - shown when Turnstile times out but before hCaptcha times out */}
-          {turnstileTimedOut && process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !hcaptchaToken && !hcaptchaTimedOut && (
+          {/* hCaptcha Fallback - shown when Turnstile times out but before hCaptcha times out (hidden if whitelisted) */}
+          {!isWhitelisted && turnstileTimedOut && process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !hcaptchaToken && !hcaptchaTimedOut && (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-[var(--text-muted)]">{t('errors.tryingAlternative') || 'Trying alternative verification...'}</p>
+              <p className="text-xs text-[var(--text-muted)]">{t('errors.tryingAlternative')}</p>
               <HCaptcha
                 key={hcaptchaKey}
                 siteKey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
@@ -354,13 +393,13 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
-          {/* Whitelist bypass indicator - shown when both CAPTCHAs timed out */}
-          {turnstileTimedOut && hcaptchaTimedOut && !turnstileToken && !hcaptchaToken && (
+          {/* Whitelist bypass indicator - shown when both CAPTCHAs timed out (hidden if already whitelisted) */}
+          {!isWhitelisted && turnstileTimedOut && hcaptchaTimedOut && !turnstileToken && !hcaptchaToken && (
             <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
-              <span>{t('errors.captchaUnavailable') || 'Security check unavailable in your region'}</span>
+              <span>{t('errors.captchaUnavailable')}</span>
             </div>
           )}
 
@@ -369,12 +408,13 @@ export default function ForgotPasswordPage() {
             disabled={
               loading ||
               cooldownRemaining > 0 ||
-              // Require CAPTCHA verification: Turnstile token, OR hCaptcha token, OR both timed out (whitelist bypass)
+              // Require CAPTCHA verification unless whitelisted: Turnstile token, OR hCaptcha token, OR both timed out, OR whitelisted
               (
                 (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !!process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY) &&
                 !turnstileToken &&
                 !hcaptchaToken &&
-                !(turnstileTimedOut && hcaptchaTimedOut)
+                !(turnstileTimedOut && hcaptchaTimedOut) &&
+                !isWhitelisted
               )
             }
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"

@@ -381,6 +381,7 @@
       "uppercase": "At least one uppercase letter",
       "number": "At least one number"
     },
+    "whitelistedEmail": "Verification not required for this email",
     "errors": {
       "invalidEmail": "Please enter a valid email",
       "invalidPassword": "Password does not meet requirements",

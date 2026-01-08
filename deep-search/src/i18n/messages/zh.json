@@ -381,6 +381,7 @@
       "uppercase": "至少一个大写字母",
       "number": "至少一个数字"
     },
+    "whitelistedEmail": "此邮箱无需安全验证",
     "errors": {
       "invalidEmail": "请输入有效的邮箱地址",
       "invalidPassword": "密码不符合要求",
