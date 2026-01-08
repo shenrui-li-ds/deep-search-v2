@@ -36,6 +36,7 @@
     "selectModel": "Select Model",
     "searchMode": "Search Mode",
     "deepMode": {
+      "label": "Deep",
       "title": "Deep Research",
       "description": "Multi-round research with gap analysis for comprehensive coverage (8 credits)"
     },
@@ -48,6 +49,17 @@
       "web": "Quick answers from the web",
       "pro": "In-depth research with multiple sources",
       "brainstorm": "Creative ideas and inspiration"
+    },
+    "quickActions": {
+      "hint": "Not sure where to start? Try one of these",
+      "iphoneVsAndroid": "iPhone vs Android",
+      "iphoneVsAndroidQuery": "Compare iPhone and Android phones for everyday use in 2026",
+      "aiExplained": "AI Explained",
+      "aiExplainedQuery": "Explain how large language models work in simple terms",
+      "startupIdeas": "Startup Ideas",
+      "startupIdeasQuery": "What are the most promising AI startup ideas for 2026?",
+      "learnInvesting": "Learn Investing",
+      "learnInvestingQuery": "How should a beginner start investing in index funds?"
     },
     "status": {
       "refining": "Refining query...",

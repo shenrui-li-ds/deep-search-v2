@@ -36,6 +36,7 @@
     "selectModel": "选择模型",
     "searchMode": "搜索模式",
     "deepMode": {
+      "label": "深度",
       "title": "深度研究",
       "description": "多轮研究与深度分析，全面覆盖主题（8积分）"
     },
@@ -48,6 +49,17 @@
       "web": "快速获取日常问题的答案",
       "pro": "多角度智能深度研究",
       "brainstorm": "获取创意灵感与想法"
+    },
+    "quickActions": {
+      "hint": "不知道问什么？先试试这些",
+      "iphoneVsAndroid": "苹果对比安卓哪个更好",
+      "iphoneVsAndroidQuery": "2026年日常使用选iPhone还是安卓手机",
+      "aiExplained": "AI科普",
+      "aiExplainedQuery": "用简单的语言解释大语言模型的工作原理",
+      "startupIdeas": "创业灵感",
+      "startupIdeasQuery": "2026年最有前景的AI创业方向有哪些",
+      "learnInvesting": "投资入门",
+      "learnInvestingQuery": "新手如何开始投资指数基金"
     },
     "status": {
       "refining": "优化搜索词...",
@@ -221,9 +233,9 @@
     "webSearchName": "网页搜索",
     "webSearchDesc": "快速网页搜索配合 AI 摘要",
     "researchName": "深度研究",
-    "researchDesc": "多角度综合研究",
+    "researchDesc": "多角度智能深度研究",
     "brainstormName": "头脑风暴",
-    "brainstormDesc": "创意探索与灵感",
+    "brainstormDesc": "获取创意灵感与想法",
     "saved": "已保存！",
     "saving": "保存中...",
     "usageStats": "使用统计",

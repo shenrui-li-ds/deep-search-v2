@@ -78,11 +78,12 @@ const modelTranslationKeys: Record<ModelId, string> = {
   'vercel-gateway': 'vercelGateway',
 };
 
-const quickActions = [
-  { icon: '⚖️', label: 'iPhone vs Android', query: 'Compare iPhone and Android phones for everyday use in 2025' },
-  { icon: '🧠', label: 'AI Explained', query: 'Explain how large language models work in simple terms' },
-  { icon: '🚀', label: 'Startup Ideas', query: 'What are the most promising AI startup ideas for 2025?' },
-  { icon: '📈', label: 'Learn Investing', query: 'How should a beginner start investing in index funds?' },
+// Quick action keys for translation lookup
+const quickActionKeys = [
+  { icon: '⚖️', labelKey: 'iphoneVsAndroid', queryKey: 'iphoneVsAndroidQuery' },
+  { icon: '🧠', labelKey: 'aiExplained', queryKey: 'aiExplainedQuery' },
+  { icon: '🚀', labelKey: 'startupIdeas', queryKey: 'startupIdeasQuery' },
+  { icon: '📈', labelKey: 'learnInvesting', queryKey: 'learnInvestingQuery' },
 ];
 
 const SearchBox: React.FC<SearchBoxProps> = ({
@@ -257,7 +258,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                       <span className={`text-xs font-medium transition-colors ${
                         deepMode ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'
                       }`}>
-                        Deep
+                        {t('deepMode.label')}
                       </span>
                       {/* Toggle switch */}
                       <div className={`w-8 h-5 rounded-full p-0.5 transition-colors ${
@@ -412,17 +413,17 @@ const SearchBox: React.FC<SearchBoxProps> = ({
         {large && (
           <div className="mt-8">
             <p className="text-center text-sm text-[var(--text-muted)] mb-3">
-              ✨ Not sure where to start? Try one of these
+              ✨ {t('quickActions.hint')}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              {quickActions.map((action) => (
+              {quickActionKeys.map((action) => (
                 <a
-                  key={action.label}
-                  href={buildSearchUrl(action.query)}
+                  key={action.labelKey}
+                  href={buildSearchUrl(t(`quickActions.${action.queryKey}`))}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--background)] border border-[var(--border)] rounded-full text-sm text-[var(--text-secondary)] hover:bg-[var(--card)] hover:border-[var(--accent)] hover:scale-105 transition-all cursor-pointer"
                 >
                   <span>{action.icon}</span>
-                  <span>{action.label}</span>
+                  <span>{t(`quickActions.${action.labelKey}`)}</span>
                 </a>
               ))}
             </div>
