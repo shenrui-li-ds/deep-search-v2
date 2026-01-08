@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 interface TurnstileVerifyResponse {
   success: boolean;
@@ -7,9 +9,38 @@ interface TurnstileVerifyResponse {
   hostname?: string;
 }
 
+interface WhitelistConfig {
+  whitelistedEmails: string[];
+}
+
+// Email whitelist for users who can't access Turnstile (e.g., China users)
+// Config file: config/turnstile-whitelist.json
+function isEmailWhitelisted(email?: string): boolean {
+  if (!email) return false;
+
+  try {
+    // Read from config file (allows hot-reload without redeploy)
+    const configPath = join(process.cwd(), 'config', 'turnstile-whitelist.json');
+    const configContent = readFileSync(configPath, 'utf-8');
+    const config: WhitelistConfig = JSON.parse(configContent);
+
+    const whitelistedEmails = config.whitelistedEmails.map(e => e.trim().toLowerCase());
+    return whitelistedEmails.includes(email.toLowerCase());
+  } catch (error) {
+    console.error('Failed to read turnstile whitelist config:', error);
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { token } = await request.json();
+    const { token, email } = await request.json();
+
+    // Check email whitelist first (for China users who can't access Turnstile)
+    if (isEmailWhitelisted(email)) {
+      console.log(`Turnstile bypassed for whitelisted email: ${email}`);
+      return NextResponse.json({ success: true, bypassed: true });
+    }
 
     if (!token) {
       return NextResponse.json(

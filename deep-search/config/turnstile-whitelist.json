@@ -1,0 +1,6 @@
+{
+  "description": "Emails in this list can bypass Turnstile verification (for users in regions where Cloudflare is blocked, e.g., China)",
+  "whitelistedEmails": [
+    "947359668@qq.com"
+  ]
+}

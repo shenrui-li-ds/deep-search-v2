@@ -19,6 +19,7 @@ export default function ForgotPasswordPage() {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
+  const [turnstileTimedOut, setTurnstileTimedOut] = useState(false);
   const t = useTranslations('auth');
   const tCommon = useTranslations('common');
 
@@ -38,16 +39,30 @@ export default function ForgotPasswordPage() {
 
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
+    setTurnstileTimedOut(false);
     setTurnstileKey((prev) => prev + 1);
   }, []);
 
-  // Verify turnstile token server-side
-  const verifyTurnstileToken = async (token: string): Promise<boolean> => {
+  // Timeout for Turnstile - if stuck for 15s (e.g., blocked in China), allow form submission
+  useEffect(() => {
+    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    if (!siteKey || turnstileToken || turnstileTimedOut) return;
+
+    const timeout = setTimeout(() => {
+      setTurnstileTimedOut(true);
+      console.log('Turnstile verification timed out - allowing email-based bypass');
+    }, 15000); // 15 seconds
+
+    return () => clearTimeout(timeout);
+  }, [turnstileToken, turnstileTimedOut, turnstileKey]);
+
+  // Verify turnstile token server-side (also supports email whitelist bypass)
+  const verifyTurnstileToken = async (token: string | null, userEmail: string): Promise<boolean> => {
     try {
       const response = await fetch('/api/auth/verify-turnstile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
+        body: JSON.stringify({ token, email: userEmail }),
       });
       const data = await response.json();
       return data.success === true;
@@ -86,15 +101,17 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     // Verify turnstile token (if configured)
+    // Supports email whitelist bypass for users in regions where Turnstile is blocked (e.g., China)
     const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     if (siteKey) {
-      if (!turnstileToken) {
+      // If Turnstile timed out, try email whitelist bypass
+      if (!turnstileToken && !turnstileTimedOut) {
         setError(t('errors.completeVerification'));
         setLoading(false);
         return;
       }
 
-      const isValid = await verifyTurnstileToken(turnstileToken);
+      const isValid = await verifyTurnstileToken(turnstileToken, email);
       if (!isValid) {
         setError(t('errors.securityFailed'));
         resetTurnstile();
@@ -243,7 +260,7 @@ export default function ForgotPasswordPage() {
 
           <button
             type="submit"
-            disabled={loading || cooldownRemaining > 0 || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken)}
+            disabled={loading || cooldownRemaining > 0 || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken && !turnstileTimedOut)}
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? t('sending') : cooldownRemaining > 0 ? t('waitSeconds', { seconds: cooldownRemaining }) : t('sendResetLink')}
