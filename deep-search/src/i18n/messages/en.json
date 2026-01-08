@@ -396,7 +396,9 @@
       "passwordLength": "Password must be at least 10 characters",
       "passwordLowercase": "Password must contain at least one lowercase letter",
       "passwordUppercase": "Password must contain at least one uppercase letter",
-      "passwordDigit": "Password must contain at least one digit"
+      "passwordDigit": "Password must contain at least one digit",
+      "tryingAlternative": "Trying alternative verification...",
+      "captchaUnavailable": "Security check unavailable in your region"
     }
   },
   "errors": {

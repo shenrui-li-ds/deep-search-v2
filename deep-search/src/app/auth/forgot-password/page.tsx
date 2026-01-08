@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile from '@/components/Turnstile';
+import HCaptcha from '@/components/HCaptcha';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
 
@@ -20,6 +21,9 @@ export default function ForgotPasswordPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0);
   const [turnstileTimedOut, setTurnstileTimedOut] = useState(false);
+  const [hcaptchaToken, setHcaptchaToken] = useState<string | null>(null);
+  const [hcaptchaKey, setHcaptchaKey] = useState(0);
+  const [hcaptchaTimedOut, setHcaptchaTimedOut] = useState(false);
   const t = useTranslations('auth');
   const tCommon = useTranslations('common');
 
@@ -43,23 +47,67 @@ export default function ForgotPasswordPage() {
     setTurnstileKey((prev) => prev + 1);
   }, []);
 
-  // Timeout for Turnstile - if stuck for 15s (e.g., blocked in China), allow form submission
+  // hCaptcha callbacks (fallback for China users)
+  const handleHCaptchaVerify = useCallback((token: string) => {
+    setHcaptchaToken(token);
+  }, []);
+
+  const handleHCaptchaError = useCallback(() => {
+    setHcaptchaToken(null);
+  }, []);
+
+  const handleHCaptchaExpire = useCallback(() => {
+    setHcaptchaToken(null);
+  }, []);
+
+  const resetHCaptcha = useCallback(() => {
+    setHcaptchaToken(null);
+    setHcaptchaTimedOut(false);
+    setHcaptchaKey((prev) => prev + 1);
+  }, []);
+
+  const resetAllCaptcha = useCallback(() => {
+    resetTurnstile();
+    resetHCaptcha();
+  }, [resetTurnstile, resetHCaptcha]);
+
+  // Timeout for Turnstile - if stuck for 15s (e.g., blocked in China), show hCaptcha fallback
   useEffect(() => {
     const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
     if (!siteKey || turnstileToken || turnstileTimedOut) return;
 
     const timeout = setTimeout(() => {
       setTurnstileTimedOut(true);
-      console.log('Turnstile verification timed out - allowing email-based bypass');
+      console.log('Turnstile verification timed out - showing hCaptcha fallback');
     }, 15000); // 15 seconds
 
     return () => clearTimeout(timeout);
   }, [turnstileToken, turnstileTimedOut, turnstileKey]);
 
-  // Verify turnstile token server-side (also supports email whitelist bypass)
-  const verifyTurnstileToken = async (token: string | null, userEmail: string): Promise<boolean> => {
+  // Timeout for hCaptcha - if also stuck for 15s, allow email whitelist bypass
+  useEffect(() => {
+    const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
+    if (!hcaptchaSiteKey || !turnstileTimedOut || hcaptchaToken || hcaptchaTimedOut) return;
+
+    const timeout = setTimeout(() => {
+      setHcaptchaTimedOut(true);
+      console.log('hCaptcha verification timed out - allowing email whitelist bypass');
+    }, 15000); // 15 seconds
+
+    return () => clearTimeout(timeout);
+  }, [turnstileTimedOut, hcaptchaToken, hcaptchaTimedOut, hcaptchaKey]);
+
+  // Verify captcha token server-side (supports both Turnstile and hCaptcha)
+  const verifyCaptchaToken = async (
+    token: string | null,
+    userEmail: string,
+    provider: 'turnstile' | 'hcaptcha'
+  ): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/verify-turnstile', {
+      const endpoint = provider === 'turnstile'
+        ? '/api/auth/verify-turnstile'
+        : '/api/auth/verify-hcaptcha';
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, email: userEmail }),
@@ -67,7 +115,7 @@ export default function ForgotPasswordPage() {
       const data = await response.json();
       return data.success === true;
     } catch {
-      console.error('Turnstile verification request failed');
+      console.error(`${provider} verification request failed`);
       return false;
     }
   };
@@ -100,21 +148,35 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
 
-    // Verify turnstile token (if configured)
-    // Supports email whitelist bypass for users in regions where Turnstile is blocked (e.g., China)
-    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-    if (siteKey) {
-      // If Turnstile timed out, try email whitelist bypass
-      if (!turnstileToken && !turnstileTimedOut) {
+    // Verify CAPTCHA token (Turnstile primary, hCaptcha fallback, email whitelist last resort)
+    const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
+
+    if (turnstileSiteKey || hcaptchaSiteKey) {
+      let isValid = false;
+
+      // Try Turnstile first (if token available)
+      if (turnstileToken) {
+        isValid = await verifyCaptchaToken(turnstileToken, email, 'turnstile');
+      }
+      // Try hCaptcha fallback (if Turnstile timed out and hCaptcha token available)
+      else if (turnstileTimedOut && hcaptchaToken) {
+        isValid = await verifyCaptchaToken(hcaptchaToken, email, 'hcaptcha');
+      }
+      // Try email whitelist bypass (if both CAPTCHAs timed out)
+      else if (turnstileTimedOut && hcaptchaTimedOut) {
+        isValid = await verifyCaptchaToken(null, email, 'hcaptcha'); // Will check whitelist
+      }
+      // No valid token yet
+      else {
         setError(t('errors.completeVerification'));
         setLoading(false);
         return;
       }
 
-      const isValid = await verifyTurnstileToken(turnstileToken, email);
       if (!isValid) {
         setError(t('errors.securityFailed'));
-        resetTurnstile();
+        resetAllCaptcha();
         setLoading(false);
         return;
       }
@@ -128,7 +190,7 @@ export default function ForgotPasswordPage() {
 
     if (error) {
       setError(error.message);
-      resetTurnstile();
+      resetAllCaptcha();
       setLoading(false);
       return;
     }
@@ -137,8 +199,8 @@ export default function ForgotPasswordPage() {
     sessionStorage.setItem('forgot_password_last_request', Date.now().toString());
     setCooldownRemaining(COOLDOWN_SECONDS);
 
-    // Reset turnstile for next attempt
-    resetTurnstile();
+    // Reset CAPTCHA for next attempt
+    resetAllCaptcha();
 
     setSuccess(true);
     setLoading(false);
@@ -244,8 +306,8 @@ export default function ForgotPasswordPage() {
             />
           </div>
 
-          {/* Turnstile Bot Protection */}
-          {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && (
+          {/* CAPTCHA Bot Protection - Turnstile primary, hCaptcha fallback */}
+          {process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileTimedOut && (
             <div className="flex justify-center">
               <Turnstile
                 key={turnstileKey}
@@ -258,9 +320,44 @@ export default function ForgotPasswordPage() {
             </div>
           )}
 
+          {/* hCaptcha Fallback - shown when Turnstile times out but before hCaptcha times out */}
+          {turnstileTimedOut && process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !hcaptchaToken && !hcaptchaTimedOut && (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-xs text-[var(--text-muted)]">{t('errors.tryingAlternative') || 'Trying alternative verification...'}</p>
+              <HCaptcha
+                key={hcaptchaKey}
+                siteKey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
+                onVerify={handleHCaptchaVerify}
+                onError={handleHCaptchaError}
+                onExpire={handleHCaptchaExpire}
+                theme="light"
+              />
+            </div>
+          )}
+
+          {/* Whitelist bypass indicator - shown when both CAPTCHAs timed out */}
+          {turnstileTimedOut && hcaptchaTimedOut && !turnstileToken && !hcaptchaToken && (
+            <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{t('errors.captchaUnavailable') || 'Security check unavailable in your region'}</span>
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={loading || cooldownRemaining > 0 || (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileToken && !turnstileTimedOut)}
+            disabled={
+              loading ||
+              cooldownRemaining > 0 ||
+              // Require CAPTCHA verification: Turnstile token, OR hCaptcha token, OR both timed out (whitelist bypass)
+              (
+                (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !!process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY) &&
+                !turnstileToken &&
+                !hcaptchaToken &&
+                !(turnstileTimedOut && hcaptchaTimedOut)
+              )
+            }
             className="w-full py-3 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? t('sending') : cooldownRemaining > 0 ? t('waitSeconds', { seconds: cooldownRemaining }) : t('sendResetLink')}

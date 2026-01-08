@@ -625,6 +625,95 @@ Finalizes a credit reservation after search completes. Charges actual credits an
 - **Full refund on cancel**: Used when search fails or is aborted
 - **Automatic expiry**: Unfinalised reservations expire after 5 minutes (credits refunded)
 
+### `/api/auth/verify-turnstile` - Turnstile Token Verification
+Validates Cloudflare Turnstile CAPTCHA tokens server-side.
+
+**Request:**
+```json
+{
+  "token": "turnstile-token",
+  "email": "user@example.com"  // Optional, for whitelist check
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true
+}
+```
+
+**Response (whitelisted bypass):**
+```json
+{
+  "success": true,
+  "bypassed": true
+}
+```
+
+**Response (failure):**
+```json
+{
+  "success": false,
+  "error": "Verification failed"
+}
+```
+
+**Features:**
+- Validates token with Cloudflare's siteverify API
+- Checks email whitelist before token validation
+- Forwards client IP for enhanced validation
+- Returns 400 for invalid tokens, 500 for server errors
+
+### `/api/auth/verify-hcaptcha` - hCaptcha Token Verification
+Validates hCaptcha tokens server-side (fallback for regions where Cloudflare is blocked).
+
+**Request:**
+```json
+{
+  "token": "hcaptcha-token",
+  "email": "user@example.com"  // Optional, for whitelist check
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true
+}
+```
+
+**Response (whitelisted bypass):**
+```json
+{
+  "success": true,
+  "bypassed": true
+}
+```
+
+**Response (failure):**
+```json
+{
+  "success": false,
+  "error": "Verification failed"
+}
+```
+
+**Features:**
+- Validates token with hCaptcha's siteverify API
+- Checks email whitelist before token validation (same config as Turnstile)
+- Forwards client IP for enhanced validation
+- Used as fallback when Turnstile times out (blocked in China)
+
+**Email Whitelist:**
+Both verify-turnstile and verify-hcaptcha read from `config/turnstile-whitelist.json`:
+```json
+{
+  "description": "Emails that can bypass CAPTCHA verification",
+  "whitelistedEmails": ["trusted@example.com"]
+}
+```
+
 ## Provider Handling
 
 All LLM-powered routes accept a `provider` parameter:

@@ -326,7 +326,7 @@ Modal dialog for uploading or removing profile photos.
 ## Auth Components
 
 ### `Turnstile.tsx`
-Cloudflare Turnstile bot protection widget for auth forms.
+Cloudflare Turnstile bot protection widget for auth forms (primary CAPTCHA).
 
 **Props:**
 ```typescript
@@ -374,6 +374,76 @@ import Turnstile from '@/components/Turnstile';
 - `/auth/login` - Login form
 - `/auth/signup` - Signup form
 - `/auth/forgot-password` - Password reset request form
+
+### `HCaptcha.tsx`
+hCaptcha bot protection widget (fallback for regions where Turnstile is blocked, e.g., China).
+
+**Props:**
+```typescript
+{
+  siteKey: string;              // hCaptcha site key
+  onVerify: (token: string) => void;  // Called when verification succeeds
+  onError?: () => void;         // Called when verification fails
+  onExpire?: () => void;        // Called when token expires
+  theme?: 'light' | 'dark';     // Widget theme (default: 'light')
+  className?: string;           // Additional CSS classes
+}
+```
+
+**Usage:**
+```tsx
+import HCaptcha from '@/components/HCaptcha';
+
+<HCaptcha
+  siteKey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
+  onVerify={(token) => setHcaptchaToken(token)}
+  onError={() => setHcaptchaToken(null)}
+  onExpire={() => setHcaptchaToken(null)}
+  theme="light"
+/>
+```
+
+**Features:**
+- Dynamically loads hCaptcha script
+- Used as fallback when Turnstile times out (15s)
+- Cleans up widget on unmount
+- Supports light/dark themes
+
+**Environment Variables Required:**
+- `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` - Public site key (client-side)
+- `HCAPTCHA_SECRET_KEY` - Secret key (server-side only)
+
+**Used in:**
+- `/auth/login` - Login form (fallback)
+- `/auth/signup` - Signup form (fallback)
+- `/auth/forgot-password` - Password reset form (fallback)
+
+### Dual CAPTCHA System (Auth Pages)
+
+Auth pages implement a fallback CAPTCHA system for users in regions where Cloudflare is blocked:
+
+**Fallback Chain:**
+```
+Turnstile (15s timeout) → hCaptcha (15s timeout) → Email Whitelist Bypass
+```
+
+**Implementation Details:**
+1. **Turnstile (Primary)**: Shown first, waits 15s for verification
+2. **hCaptcha (Fallback)**: Shown if Turnstile times out, waits another 15s
+3. **Email Whitelist**: If both CAPTCHA providers time out, allows bypass for whitelisted emails
+
+**Visual Feedback:**
+- "Trying alternative verification..." message when switching to hCaptcha
+- Amber warning box: "Security check unavailable in your region" when whitelist bypass active
+
+**Email Whitelist Config:**
+Config file: `config/turnstile-whitelist.json`
+```json
+{
+  "description": "Emails that can bypass CAPTCHA verification",
+  "whitelistedEmails": ["trusted@example.com"]
+}
+```
 
 ## Styling Patterns
 

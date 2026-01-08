@@ -482,38 +482,72 @@ This is especially important for `SECURITY DEFINER` functions.
 
 Enable in Supabase → Authentication → Settings to check passwords against HaveIBeenPwned database.
 
-### Cloudflare Turnstile (Bot Protection)
+### Bot Protection (Dual CAPTCHA System)
 
-All auth forms (login, signup, forgot-password) are protected by Cloudflare Turnstile.
+All auth forms (login, signup, forgot-password) are protected by a dual CAPTCHA system with fallback for regions where Cloudflare is blocked (e.g., China).
 
 **Environment Variables:**
 ```
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_site_key
-TURNSTILE_SECRET_KEY=your_secret_key
+# Primary: Cloudflare Turnstile
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_turnstile_site_key
+TURNSTILE_SECRET_KEY=your_turnstile_secret_key
+
+# Fallback: hCaptcha
+NEXT_PUBLIC_HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
+HCAPTCHA_SECRET_KEY=your_hcaptcha_secret_key
 ```
 
 **Implementation Files:**
-- `src/components/Turnstile.tsx` - Reusable widget component
-- `src/app/api/auth/verify-turnstile/route.ts` - Server-side token validation
+- `src/components/Turnstile.tsx` - Primary CAPTCHA widget
+- `src/components/HCaptcha.tsx` - Fallback CAPTCHA widget
+- `src/app/api/auth/verify-turnstile/route.ts` - Turnstile token validation
+- `src/app/api/auth/verify-hcaptcha/route.ts` - hCaptcha token validation
+- `config/turnstile-whitelist.json` - Email whitelist for bypass
+
+**Fallback Chain:**
+```
+Turnstile (15s timeout) → hCaptcha (15s timeout) → Email Whitelist Bypass
+```
 
 **Flow:**
-1. User fills form, Turnstile widget generates token
-2. User submits form
-3. Frontend calls `/api/auth/verify-turnstile` to validate token
-4. If valid, proceed with Supabase auth call
-5. If invalid, show error and reset widget
+1. User fills form, Turnstile widget attempts to generate token
+2. If Turnstile verifies within 15s → token passed to verify-turnstile API
+3. If Turnstile times out → hCaptcha widget shown as fallback
+4. If hCaptcha verifies within 15s → token passed to verify-hcaptcha API
+5. If both CAPTCHA providers time out → check email whitelist for bypass
+6. If valid token or whitelisted → proceed with Supabase auth call
 
-**Setup:**
+**Email Whitelist Config:**
+File: `config/turnstile-whitelist.json`
+```json
+{
+  "description": "Emails that can bypass CAPTCHA verification",
+  "whitelistedEmails": ["trusted@example.com"]
+}
+```
+
+**Visual Feedback:**
+- "Trying alternative verification..." when switching to hCaptcha
+- Amber warning box when whitelist bypass active
+
+**Turnstile Setup:**
 1. Go to Cloudflare Dashboard → Turnstile
 2. Create a new site, select "Managed" widget mode
 3. Add domains: `localhost`, production domain
 4. Copy Site Key and Secret Key to `.env.local`
 
+**hCaptcha Setup:**
+1. Go to hCaptcha Dashboard (hcaptcha.com)
+2. Create a new site
+3. Add domains: `localhost`, production domain
+4. Copy Site Key and Secret Key to `.env.local`
+
 **Notes:**
-- Widget is only shown when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is set
-- Token validation is server-side (secret key never exposed)
-- Each token is single-use, widget resets after validation
-- Tokens expire after 300 seconds (widget auto-refreshes)
+- Widgets only shown when corresponding env vars are set
+- Token validation is server-side (secret keys never exposed)
+- Each token is single-use, widgets reset after validation
+- Turnstile tokens expire after 300s (widget auto-refreshes)
+- hCaptcha fallback designed for China users (Cloudflare blocked by GFW)
 
 ### Account Lockout (Brute Force Protection)
 

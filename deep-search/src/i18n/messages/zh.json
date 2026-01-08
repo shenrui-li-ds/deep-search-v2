@@ -396,7 +396,9 @@
       "passwordLength": "密码至少需要10个字符",
       "passwordLowercase": "密码需要包含至少一个小写字母",
       "passwordUppercase": "密码需要包含至少一个大写字母",
-      "passwordDigit": "密码需要包含至少一个数字"
+      "passwordDigit": "密码需要包含至少一个数字",
+      "tryingAlternative": "正在尝试备用验证方式...",
+      "captchaUnavailable": "您所在地区无法使用安全验证"
     }
   },
   "errors": {
