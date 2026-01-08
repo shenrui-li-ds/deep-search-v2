@@ -1006,8 +1006,11 @@ function ChangeAvatarModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[var(--background)] rounded-xl shadow-xl max-w-md w-full p-6 border border-[var(--border)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
+      {/* Modal */}
+      <div className="relative bg-[var(--background)] rounded-xl shadow-xl max-w-md w-full p-6 border border-[var(--border)]">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t('changeAvatarTitle')}</h2>
           <button
@@ -1139,7 +1142,11 @@ function ProfileTab({
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <div className="flex items-center gap-4 mb-6">
           {/* Avatar with edit button */}
-          <div className="relative group">
+          <button
+            onClick={onChangeAvatar}
+            className="relative group cursor-pointer"
+            title={t('changeAvatar')}
+          >
             {avatarUrl ? (
               <img
                 src={avatarUrl}
@@ -1153,18 +1160,21 @@ function ProfileTab({
                 </span>
               </div>
             )}
-            {/* Edit overlay */}
-            <button
-              onClick={onChangeAvatar}
-              className="absolute inset-0 w-14 h-14 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              title={t('changeAvatar')}
-            >
+            {/* Edit overlay - shown on hover (desktop) */}
+            <div className="absolute inset-0 w-14 h-14 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-            </button>
-          </div>
+            </div>
+            {/* Camera badge - Google style */}
+            <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-md border border-gray-200">
+              <svg className="w-3 h-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z" />
+              </svg>
+            </div>
+          </button>
           <div>
             <h2 className="text-lg font-medium text-[var(--text-primary)]">
               {user?.email || 'Unknown User'}
@@ -2049,14 +2059,17 @@ export default function AccountPage() {
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const t = useTranslations('account');
 
   const handleSignOut = async () => {
+    setSigningOut(true);
     await signOut();
     router.push('/auth/login');
   };
 
-  if (loading) {
+  // Show loading skeleton during initial load, sign-out, or when user becomes null
+  if (loading || signingOut || !user) {
     return (
       <MainLayout>
         <div className="max-w-4xl mx-auto px-4 py-8">

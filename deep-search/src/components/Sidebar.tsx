@@ -3,10 +3,10 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Image from 'next/image';
 import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
 import { useTranslations } from 'next-intl';
+import { useAuth } from '@/lib/supabase/auth-context';
 
 interface NavItemProps {
   href: string;
@@ -34,19 +34,25 @@ const NavItem = ({ href, icon, label, isActive }: NavItemProps) => (
 const Sidebar = () => {
   const pathname = usePathname();
   const t = useTranslations('nav');
+  const { user } = useAuth();
+  const avatarUrl = user?.user_metadata?.avatar_url;
 
   return (
     <div className="hidden md:flex w-[72px] h-screen bg-[var(--background)] border-r border-[var(--border)] flex-col items-center py-4 fixed left-0 top-0 z-50">
-      {/* Logo */}
-      <Link href="/" className="mb-4">
-        <div className="w-10 h-10 flex items-center justify-center">
-          <Image
-            src="/owl_google.svg"
-            alt="Athenius"
-            width={28}
-            height={28}
-            className="w-7 h-7"
-          />
+      {/* User Avatar - links to account */}
+      <Link href="/account" className="mb-4" title={t('account')}>
+        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[var(--accent)]/20 hover:ring-2 hover:ring-[var(--accent)]/50 transition-all">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Profile"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <span className="text-sm font-semibold text-[var(--accent)]">
+              {user?.email?.charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
         </div>
       </Link>
 
