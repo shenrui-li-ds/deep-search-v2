@@ -39,6 +39,11 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Chinese locale font - Noto Sans SC for consistent rendering */
+body.lang-zh {
+  font-family: "Noto Sans SC", var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
 /* Markdown Content Styles */
 .markdown-content {
   color: var(--foreground);

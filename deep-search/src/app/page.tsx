@@ -65,9 +65,10 @@ export default function Home() {
               className="w-12 h-12"
             />
             <h1
-              className="text-4xl md:text-5xl font-medium text-[var(--text-secondary)] tracking-tight"
+              className="text-4xl md:text-5xl text-[var(--text-secondary)] tracking-tight"
               style={{
-                fontFamily: '"Atkinson Hyperlegible Mono", monospace',
+                fontFamily: locale === 'zh' ? '"Chiron Sung HK", serif' : '"Atkinson Hyperlegible Mono", monospace',
+                fontWeight: locale === 'zh' ? 600 : 500,
                 letterSpacing: locale === 'zh' ? '0.15em' : undefined
               }}
             >

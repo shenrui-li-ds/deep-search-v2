@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTranslations, useLocale } from 'next-intl';
 
 interface MobileHeaderProps {
   onMenuClick: () => void;
@@ -10,6 +11,8 @@ interface MobileHeaderProps {
 }
 
 const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuClick, title }) => {
+  const t = useTranslations('common');
+  const locale = useLocale();
   return (
     <header className="md:hidden fixed top-0 left-0 right-0 z-40 bg-[var(--background)] border-b border-[var(--border)]">
       <div className="flex items-center justify-between h-14 px-4">
@@ -34,12 +37,20 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuClick, title }) => {
             <>
               <Image
                 src="/owl_google.svg"
-                alt="Athenius"
+                alt={t('appName')}
                 width={24}
                 height={24}
                 className="w-6 h-6"
               />
-              <span className="text-base font-semibold text-[var(--text-primary)]">Athenius</span>
+              <span
+                className="text-base text-[var(--text-primary)]"
+                style={{
+                  fontFamily: locale === 'zh' ? '"Chiron Sung HK", serif' : 'inherit',
+                  fontWeight: locale === 'zh' ? 600 : 600,
+                }}
+              >
+                {t('appName')}
+              </span>
             </>
           )}
         </Link>
