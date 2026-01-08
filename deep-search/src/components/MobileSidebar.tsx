@@ -192,7 +192,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
               alt={tCommon('appName')}
               width={28}
               height={28}
-              className="w-7 h-7"
+              className="w-7 h-7 app-icon"
             />
             <span
               className="text-lg text-[var(--text-secondary)] tracking-tight"

@@ -41,7 +41,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuClick, title }) => {
                 alt={t('appName')}
                 width={24}
                 height={24}
-                className="w-6 h-6"
+                className="w-6 h-6 app-icon"
               />
               <span
                 className="text-base text-[var(--text-primary)]"

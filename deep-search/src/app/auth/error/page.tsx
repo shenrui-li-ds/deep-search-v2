@@ -26,7 +26,7 @@ export default function AuthErrorPage() {
             alt="Athenius"
             width={48}
             height={48}
-            className="mx-auto"
+            className="mx-auto app-icon"
           />
         </Link>
 

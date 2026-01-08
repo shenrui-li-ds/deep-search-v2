@@ -273,7 +273,7 @@ export default function ForgotPasswordPage() {
                 alt="Athenius"
                 width={48}
                 height={48}
-                className="mx-auto mb-4"
+                className="mx-auto mb-4 app-icon"
               />
             </Link>
           </div>
@@ -326,7 +326,7 @@ export default function ForgotPasswordPage() {
               alt="Athenius"
               width={48}
               height={48}
-              className="mx-auto mb-4"
+              className="mx-auto mb-4 app-icon"
             />
           </Link>
           <h1 className="text-2xl font-semibold text-[var(--text-primary)]">{t('resetYourPassword')}</h1>

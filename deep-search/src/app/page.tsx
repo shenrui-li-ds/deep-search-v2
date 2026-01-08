@@ -63,7 +63,7 @@ export default function Home() {
               alt="Athenius"
               width={48}
               height={48}
-              className="w-12 h-12"
+              className="w-12 h-12 app-icon"
             />
             <h1
               className="text-4xl md:text-5xl text-[var(--text-secondary)] tracking-tight"

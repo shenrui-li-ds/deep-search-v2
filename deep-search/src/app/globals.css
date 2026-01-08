@@ -17,6 +17,7 @@ html.light {
   --text-primary: #111827;
   --text-secondary: #374151;
   --text-muted: #6b7280;
+  --app-icon-filter: brightness(0) saturate(100%) invert(21%) sepia(10%) saturate(763%) hue-rotate(182deg) brightness(95%) contrast(91%); /* gray-700 */
 }
 
 html.dark {
@@ -30,6 +31,7 @@ html.dark {
   --text-primary: #f9fafb;
   --text-secondary: #d1d5db;
   --text-muted: #9ca3af;
+  --app-icon-filter: brightness(0) saturate(100%) invert(91%) sepia(4%) saturate(398%) hue-rotate(182deg) brightness(95%) contrast(87%); /* gray-300 to match --text-secondary */
 }
 
 body {
@@ -46,6 +48,12 @@ body.lang-en {
 
 body.lang-zh {
   font-family: "Noto Sans SC", var(--font-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* App icon - theme-aware coloring */
+.app-icon {
+  filter: var(--app-icon-filter);
+  transition: filter 0.2s ease;
 }
 
 /* Markdown Content Styles */
