@@ -8,6 +8,7 @@ import Turnstile from '@/components/Turnstile';
 import HCaptcha from '@/components/HCaptcha';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
+import { APP_ICON } from '@/lib/branding';
 
 // Rate limiting: track last request time in sessionStorage
 const COOLDOWN_SECONDS = 60;
@@ -268,7 +269,7 @@ export default function ForgotPasswordPage() {
           <div className="mb-8">
             <Link href="/" className="inline-block">
               <Image
-                src="/owl_google.svg"
+                src={APP_ICON}
                 alt="Athenius"
                 width={48}
                 height={48}
@@ -321,7 +322,7 @@ export default function ForgotPasswordPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
             <Image
-              src="/owl_google.svg"
+              src={APP_ICON}
               alt="Athenius"
               width={48}
               height={48}

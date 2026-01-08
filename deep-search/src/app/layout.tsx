@@ -9,6 +9,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { type Locale } from '@/i18n/config';
+import { APP_ICON, APP_NAME } from '@/lib/branding';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,11 +23,11 @@ const geistMono = Geist_Mono({
 
 
 export const metadata: Metadata = {
-  title: "Athenius",
+  title: APP_NAME,
   description: "An advanced internet search and research tool powered by AI",
   icons: {
-    icon: '/owl_google.svg',
-    apple: '/owl_google.svg',
+    icon: APP_ICON,
+    apple: APP_ICON,
   },
 };
 

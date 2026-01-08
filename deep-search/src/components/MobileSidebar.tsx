@@ -8,6 +8,7 @@ import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
 import { useAuth } from '@/lib/supabase/auth-context';
 import { useTranslations, useLocale } from 'next-intl';
+import { APP_ICON } from '@/lib/branding';
 
 interface MobileSidebarProps {
   isOpen: boolean;
@@ -187,7 +188,7 @@ const MobileSidebar: React.FC<MobileSidebarProps> = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
           <Link href="/" onClick={() => handleClose()} className="flex items-center gap-2">
             <Image
-              src="/owl_google.svg"
+              src={APP_ICON}
               alt={tCommon('appName')}
               width={28}
               height={28}

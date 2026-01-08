@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
+import { APP_ICON } from '@/lib/branding';
 
 export default function AuthErrorPage() {
   const searchParams = useSearchParams();
@@ -21,7 +22,7 @@ export default function AuthErrorPage() {
         {/* Logo */}
         <Link href="/" className="inline-block mb-6">
           <Image
-            src="/owl_google.svg"
+            src={APP_ICON}
             alt="Athenius"
             width={48}
             height={48}

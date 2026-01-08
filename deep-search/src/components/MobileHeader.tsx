@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useTranslations, useLocale } from 'next-intl';
+import { APP_ICON } from '@/lib/branding';
 
 interface MobileHeaderProps {
   onMenuClick: () => void;
@@ -36,7 +37,7 @@ const MobileHeader: React.FC<MobileHeaderProps> = ({ onMenuClick, title }) => {
           ) : (
             <>
               <Image
-                src="/owl_google.svg"
+                src={APP_ICON}
                 alt={t('appName')}
                 width={24}
                 height={24}

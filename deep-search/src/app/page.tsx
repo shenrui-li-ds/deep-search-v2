@@ -7,6 +7,7 @@ import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 import MobileSidebar from '../components/MobileSidebar';
 import { getUserPreferences, type UserModelId } from '@/lib/supabase/database';
+import { APP_ICON } from '@/lib/branding';
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
 
@@ -58,7 +59,7 @@ export default function Home() {
           {/* Logo */}
           <div className="mb-8 flex items-center gap-3">
             <Image
-              src="/owl_google.svg"
+              src={APP_ICON}
               alt="Athenius"
               width={48}
               height={48}

@@ -8,6 +8,7 @@ import Turnstile from '@/components/Turnstile';
 import HCaptcha from '@/components/HCaptcha';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
+import { APP_ICON } from '@/lib/branding';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
@@ -317,7 +318,7 @@ export default function SignUpPage() {
         <div className="text-center mb-6">
           <Link href="/" className="inline-block">
             <Image
-              src="/owl_google.svg"
+              src={APP_ICON}
               alt="Athenius"
               width={48}
               height={48}

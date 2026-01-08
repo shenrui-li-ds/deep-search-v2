@@ -9,6 +9,7 @@ import Turnstile from '@/components/Turnstile';
 import HCaptcha from '@/components/HCaptcha';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
+import { APP_ICON } from '@/lib/branding';
 
 interface LockoutStatus {
   locked: boolean;
@@ -338,7 +339,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-block">
             <Image
-              src="/owl_google.svg"
+              src={APP_ICON}
               alt="Athenius"
               width={48}
               height={48}
