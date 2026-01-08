@@ -65,7 +65,7 @@ export default async function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased ${locale === 'zh' ? 'lang-zh' : ''}`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased lang-${locale}`}
       >
         <NextIntlClientProvider messages={messages}>
           <ThemeProvider>

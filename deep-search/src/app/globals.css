@@ -39,7 +39,11 @@ body {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Chinese locale font - Noto Sans SC for consistent rendering */
+/* Locale-specific fonts for consistent rendering across devices */
+body.lang-en {
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif; /* Geist Sans */
+}
+
 body.lang-zh {
   font-family: "Noto Sans SC", var(--font-sans), system-ui, -apple-system, sans-serif;
 }
