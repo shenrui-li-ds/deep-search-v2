@@ -12,6 +12,9 @@ import * as Sentry from '@sentry/nextjs';
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
+  // Disable Sentry in development
+  enabled: process.env.NODE_ENV === 'production',
+
   // Adjust this value in production, or use tracesSampler for greater control
   tracesSampleRate: 0.1,
 
@@ -47,6 +50,28 @@ Sentry.init({
 
     // Ignore canceled fetch requests
     if (error instanceof Error && error.name === 'AbortError') {
+      return null;
+    }
+
+    // Ignore Next.js Image component edge cases (browser internals)
+    if (
+      error instanceof Error &&
+      error.message.includes("Failed to construct 'Image'")
+    ) {
+      return null;
+    }
+
+    // Ignore HMR/Fast Refresh errors (development artifacts in production)
+    if (
+      error instanceof Error &&
+      error.name === 'ReferenceError' &&
+      event.exception?.values?.some(e =>
+        e.stacktrace?.frames?.some(f =>
+          f.function?.includes('performReactRefresh') ||
+          f.function?.includes('applyUpdate')
+        )
+      )
+    ) {
       return null;
     }
 
