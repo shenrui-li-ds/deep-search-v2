@@ -13,6 +13,7 @@ const nextConfig: NextConfig = {
       'www.techcrunch.com',
       'www.nextgov.com',
       'www.example.com',
+      'mmejhlyrwrqsvpmhasvg.supabase.co', // Supabase Storage for branding assets
     ],
   },
 };
