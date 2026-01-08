@@ -800,30 +800,370 @@ function ChangeEmailModal({
   );
 }
 
+// Change Avatar Modal Component
+function ChangeAvatarModal({
+  isOpen,
+  onClose,
+  userId,
+  currentAvatarUrl
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  userId: string;
+  currentAvatarUrl?: string;
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const t = useTranslations('account');
+
+  const MAX_FILE_SIZE = 300 * 1024; // 300KB
+  const TARGET_SIZE = 256; // 256x256 pixels
+
+  // Compress image using canvas
+  const compressImage = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      img.onload = () => {
+        // Calculate crop dimensions (center square crop)
+        const size = Math.min(img.width, img.height);
+        const sx = (img.width - size) / 2;
+        const sy = (img.height - size) / 2;
+
+        // Set canvas to target size
+        canvas.width = TARGET_SIZE;
+        canvas.height = TARGET_SIZE;
+
+        if (!ctx) {
+          reject(new Error('Could not get canvas context'));
+          return;
+        }
+
+        // Draw and resize image
+        ctx.drawImage(img, sx, sy, size, size, 0, 0, TARGET_SIZE, TARGET_SIZE);
+
+        // Try different quality levels to get under max size
+        const tryQuality = (quality: number) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Could not compress image'));
+                return;
+              }
+              if (blob.size <= MAX_FILE_SIZE || quality <= 0.1) {
+                resolve(blob);
+              } else {
+                tryQuality(quality - 0.1);
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+
+        tryQuality(0.9);
+      };
+
+      img.onerror = () => reject(new Error('Could not load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError(null);
+
+    // Validate file type
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setError(t('avatarInvalidType'));
+      return;
+    }
+
+    setSelectedFile(file);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onload = (e) => setPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !userId) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Compress the image
+      const compressedBlob = await compressImage(selectedFile);
+
+      const supabase = createClient();
+
+      // Generate filename with timestamp to bust cache
+      const filename = `${userId}/avatar_${Date.now()}.jpg`;
+
+      // Delete old avatar if exists
+      if (currentAvatarUrl) {
+        const oldPath = currentAvatarUrl.split('/avatars/')[1];
+        if (oldPath) {
+          await supabase.storage.from('avatars').remove([oldPath]);
+        }
+      }
+
+      // Upload new avatar
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filename, compressedBlob, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filename);
+
+      // Update user metadata with new avatar URL
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl }
+      });
+
+      if (updateError) throw updateError;
+
+      setSuccess(true);
+
+      // Close modal and refresh page after short delay
+      setTimeout(() => {
+        onClose();
+        window.location.reload();
+      }, 1000);
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      setError(t('avatarUploadError'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!userId) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+
+      // Delete from storage if exists
+      if (currentAvatarUrl && currentAvatarUrl.includes('/avatars/')) {
+        const oldPath = currentAvatarUrl.split('/avatars/')[1];
+        if (oldPath) {
+          await supabase.storage.from('avatars').remove([oldPath]);
+        }
+      }
+
+      // Clear avatar_url from user metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_url: null }
+      });
+
+      if (updateError) throw updateError;
+
+      setSuccess(true);
+
+      setTimeout(() => {
+        onClose();
+        window.location.reload();
+      }, 1000);
+    } catch (err) {
+      console.error('Avatar remove error:', err);
+      setError(t('avatarRemoveError'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleClose = () => {
+    if (!isLoading) {
+      setSelectedFile(null);
+      setPreview(null);
+      setError(null);
+      setSuccess(false);
+      onClose();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-[var(--background)] rounded-xl shadow-xl max-w-md w-full p-6 border border-[var(--border)]">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t('changeAvatarTitle')}</h2>
+          <button
+            onClick={handleClose}
+            disabled={isLoading}
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
+            {error}
+          </div>
+        )}
+
+        {success ? (
+          <div className="text-center py-4">
+            <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="text-[var(--text-primary)] font-medium">{t('avatarUpdated')}</p>
+          </div>
+        ) : (
+          <>
+            {/* Current/Preview Avatar */}
+            <div className="flex flex-col items-center mb-6">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-[var(--accent)]/20 mb-4">
+                {preview ? (
+                  <img src={preview} alt="Preview" className="w-full h-full object-cover" />
+                ) : currentAvatarUrl ? (
+                  <img src={currentAvatarUrl} alt="Current avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <svg className="w-10 h-10 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">{t('avatarHint')}</p>
+            </div>
+
+            {/* File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            <div className="space-y-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="w-full py-2.5 px-4 bg-[var(--card)] text-[var(--text-primary)] border border-[var(--border)] rounded-lg font-medium hover:bg-[var(--card-hover)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                </svg>
+                {t('choosePhoto')}
+              </button>
+
+              {selectedFile && (
+                <button
+                  onClick={handleUpload}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 bg-[var(--accent)] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {t('uploading')}
+                    </>
+                  ) : (
+                    t('saveAvatar')
+                  )}
+                </button>
+              )}
+
+              {currentAvatarUrl && !selectedFile && (
+                <button
+                  onClick={handleRemoveAvatar}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 text-red-500 hover:bg-red-500/10 rounded-lg font-medium transition-colors disabled:opacity-50"
+                >
+                  {t('removeAvatar')}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Profile Tab Content
 function ProfileTab({
   user,
   onChangePassword,
   onResetPassword,
   onChangeEmail,
-  onSignOut
+  onSignOut,
+  onChangeAvatar
 }: {
-  user: { email?: string; created_at?: string; email_confirmed_at?: string; id?: string } | null;
+  user: { email?: string; created_at?: string; email_confirmed_at?: string; id?: string; user_metadata?: { avatar_url?: string } } | null;
   onChangePassword: () => void;
   onResetPassword: () => void;
   onChangeEmail: () => void;
   onSignOut: () => void;
+  onChangeAvatar: () => void;
 }) {
   const t = useTranslations('account');
+  const avatarUrl = user?.user_metadata?.avatar_url;
+
   return (
     <div className="space-y-6">
       {/* User Info Card */}
       <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-14 h-14 rounded-full bg-[var(--accent)]/20 flex items-center justify-center">
-            <span className="text-xl font-semibold text-[var(--accent)]">
-              {user?.email?.charAt(0).toUpperCase() || '?'}
-            </span>
+          {/* Avatar with edit button */}
+          <div className="relative group">
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt="Profile"
+                className="w-14 h-14 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-14 h-14 rounded-full bg-[var(--accent)]/20 flex items-center justify-center">
+                <span className="text-xl font-semibold text-[var(--accent)]">
+                  {user?.email?.charAt(0).toUpperCase() || '?'}
+                </span>
+              </div>
+            )}
+            {/* Edit overlay */}
+            <button
+              onClick={onChangeAvatar}
+              className="absolute inset-0 w-14 h-14 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              title={t('changeAvatar')}
+            >
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
           </div>
           <div>
             <h2 className="text-lg font-medium text-[var(--text-primary)]">
@@ -1708,6 +2048,7 @@ export default function AccountPage() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const t = useTranslations('account');
 
   const handleSignOut = async () => {
@@ -1791,6 +2132,7 @@ export default function AccountPage() {
             onResetPassword={() => setIsResetPasswordModalOpen(true)}
             onChangeEmail={() => setIsChangeEmailModalOpen(true)}
             onSignOut={handleSignOut}
+            onChangeAvatar={() => setIsAvatarModalOpen(true)}
           />
         )}
         {activeTab === 'preferences' && <PreferencesTab />}
@@ -1817,6 +2159,14 @@ export default function AccountPage() {
         isOpen={isChangeEmailModalOpen}
         onClose={() => setIsChangeEmailModalOpen(false)}
         currentEmail={user?.email || ''}
+      />
+
+      {/* Change Avatar Modal */}
+      <ChangeAvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        userId={user?.id || ''}
+        currentAvatarUrl={user?.user_metadata?.avatar_url}
       />
     </MainLayout>
   );

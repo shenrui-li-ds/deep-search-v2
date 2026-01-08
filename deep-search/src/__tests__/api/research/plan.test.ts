@@ -10,9 +10,16 @@ jest.mock('@/lib/api-utils', () => ({
   getCurrentDate: jest.fn(() => 'Friday, December 27, 2024'),
 }));
 
+// Mock the usage-tracking module
+jest.mock('@/lib/supabase/usage-tracking', () => ({
+  trackServerApiUsage: jest.fn(() => Promise.resolve()),
+  estimateTokens: jest.fn(() => 100),
+}));
+
 // Mock the prompts module
 jest.mock('@/lib/prompts', () => ({
   researchPlannerPrompt: jest.fn(() => 'mocked planner prompt'),
+  researchRouterPrompt: jest.fn(() => 'mocked router prompt'),
 }));
 
 // Mock the cache module
@@ -50,13 +57,16 @@ describe('/api/research/plan', () => {
   });
 
   it('returns research plan on success', async () => {
-    const mockLLMResponse = JSON.stringify([
+    const mockPlan = JSON.stringify([
       { aspect: 'fundamentals', query: 'what is quantum computing explained' },
       { aspect: 'applications', query: 'quantum computing real world applications' },
       { aspect: 'comparison', query: 'quantum vs classical computing differences' },
     ]);
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    // First call: router classification
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner
+    mockCallLLM.mockResolvedValueOnce({ content: mockPlan });
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
       method: 'POST',
@@ -79,9 +89,12 @@ describe('/api/research/plan', () => {
   });
 
   it('handles LLM response with markdown code blocks', async () => {
-    const mockLLMResponse = '```json\n[{"aspect": "basics", "query": "intro to AI"}]\n```';
+    const mockPlan = '```json\n[{"aspect": "basics", "query": "intro to AI"}]\n```';
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    // First call: router classification
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner
+    mockCallLLM.mockResolvedValueOnce({ content: mockPlan });
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
       method: 'POST',
@@ -98,7 +111,10 @@ describe('/api/research/plan', () => {
   });
 
   it('falls back to original query on invalid JSON response', async () => {
-    mockCallLLM.mockResolvedValueOnce('invalid json');
+    // First call: router classification
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner (returns invalid JSON)
+    mockCallLLM.mockResolvedValueOnce({ content: 'invalid json' });
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
       method: 'POST',
@@ -115,7 +131,7 @@ describe('/api/research/plan', () => {
   });
 
   it('limits plan to 4 queries maximum', async () => {
-    const mockLLMResponse = JSON.stringify([
+    const mockPlan = JSON.stringify([
       { aspect: 'aspect1', query: 'query 1' },
       { aspect: 'aspect2', query: 'query 2' },
       { aspect: 'aspect3', query: 'query 3' },
@@ -124,7 +140,10 @@ describe('/api/research/plan', () => {
       { aspect: 'aspect6', query: 'query 6' },
     ]);
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    // First call: router classification
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner
+    mockCallLLM.mockResolvedValueOnce({ content: mockPlan });
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
       method: 'POST',
@@ -141,7 +160,7 @@ describe('/api/research/plan', () => {
   });
 
   it('filters out items without aspect or query', async () => {
-    const mockLLMResponse = JSON.stringify([
+    const mockPlan = JSON.stringify([
       { aspect: 'valid', query: 'valid query' },
       { aspect: '', query: 'missing aspect' },
       { aspect: 'missing query', query: '' },
@@ -149,7 +168,10 @@ describe('/api/research/plan', () => {
       { aspect: 'no query field' },
     ]);
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    // First call: router classification
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner
+    mockCallLLM.mockResolvedValueOnce({ content: mockPlan });
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
       method: 'POST',
@@ -167,6 +189,9 @@ describe('/api/research/plan', () => {
   });
 
   it('returns 500 on LLM error', async () => {
+    // First call: router classification (succeeds)
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner (fails)
     mockCallLLM.mockRejectedValueOnce(new Error('LLM error'));
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
@@ -184,11 +209,14 @@ describe('/api/research/plan', () => {
   });
 
   it('passes provider to callLLM', async () => {
-    const mockLLMResponse = JSON.stringify([
+    const mockPlan = JSON.stringify([
       { aspect: 'test', query: 'test query' },
     ]);
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    // First call: router classification
+    mockCallLLM.mockResolvedValueOnce({ content: '{"category": "general", "suggestedDepth": "standard"}' });
+    // Second call: planner
+    mockCallLLM.mockResolvedValueOnce({ content: mockPlan });
 
     const request = new NextRequest('http://localhost:3000/api/research/plan', {
       method: 'POST',

@@ -12,6 +12,12 @@ jest.mock('@/lib/api-utils', () => ({
   detectLanguage: jest.fn(() => 'English'),
 }));
 
+// Mock the usage-tracking module
+jest.mock('@/lib/supabase/usage-tracking', () => ({
+  trackServerApiUsage: jest.fn(() => Promise.resolve()),
+  estimateTokens: jest.fn(() => 100),
+}));
+
 // Import after mocking
 import { POST } from '@/app/api/research/extract/route';
 
@@ -66,7 +72,7 @@ describe('/api/research/extract', () => {
         keyInsight: 'Quantum computers leverage superposition for parallel computation',
       };
 
-      mockCallLLM.mockResolvedValueOnce(JSON.stringify(mockExtraction));
+      mockCallLLM.mockResolvedValueOnce({ content: JSON.stringify(mockExtraction) });
 
       const request = new NextRequest('http://localhost/api/research/extract', {
         method: 'POST',
@@ -100,7 +106,7 @@ describe('/api/research/extract', () => {
         keyInsight: 'Test insight',
       };
 
-      mockCallLLM.mockResolvedValueOnce('```json\n' + JSON.stringify(mockExtraction) + '\n```');
+      mockCallLLM.mockResolvedValueOnce({ content: '```json\n' + JSON.stringify(mockExtraction) + '\n```' });
 
       const request = new NextRequest('http://localhost/api/research/extract', {
         method: 'POST',
@@ -120,7 +126,7 @@ describe('/api/research/extract', () => {
     });
 
     it('should use low temperature for factual extraction', async () => {
-      mockCallLLM.mockResolvedValueOnce(JSON.stringify({
+      mockCallLLM.mockResolvedValueOnce({ content: JSON.stringify({
         aspect: 'fundamentals',
         claims: [],
         statistics: [],
@@ -128,7 +134,7 @@ describe('/api/research/extract', () => {
         expertOpinions: [],
         contradictions: [],
         keyInsight: 'Test',
-      }));
+      }) });
 
       const request = new NextRequest('http://localhost/api/research/extract', {
         method: 'POST',
@@ -179,7 +185,7 @@ describe('/api/research/extract', () => {
     });
 
     it('should return minimal extraction on JSON parse error', async () => {
-      mockCallLLM.mockResolvedValueOnce('invalid json response');
+      mockCallLLM.mockResolvedValueOnce({ content: 'invalid json response' });
 
       const request = new NextRequest('http://localhost/api/research/extract', {
         method: 'POST',
@@ -221,7 +227,7 @@ describe('/api/research/extract', () => {
 
   describe('source index handling', () => {
     it('should maintain global source index across extractions', async () => {
-      mockCallLLM.mockResolvedValueOnce(JSON.stringify({
+      mockCallLLM.mockResolvedValueOnce({ content: JSON.stringify({
         aspect: 'fundamentals',
         claims: [],
         statistics: [],
@@ -229,7 +235,7 @@ describe('/api/research/extract', () => {
         expertOpinions: [],
         contradictions: [],
         keyInsight: 'Test',
-      }));
+      }) });
 
       const request = new NextRequest('http://localhost/api/research/extract', {
         method: 'POST',

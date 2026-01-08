@@ -280,6 +280,49 @@ shadcn/ui components. Do not modify directly - regenerate using shadcn CLI if ne
 - `tooltip.tsx` - Hover tooltips
 - `dropdown-menu.tsx` - Dropdown menus
 
+## Account Components
+
+### Profile Avatar (in `/account` page)
+User profile photo display and upload system.
+
+**Avatar Display:**
+- Shows GitHub avatar from `user.user_metadata.avatar_url` if available (OAuth users)
+- Shows custom uploaded avatar from Supabase Storage if set
+- Falls back to letter initial (first letter of email, uppercase)
+- Avatar has edit overlay button on hover/tap
+
+**ChangeAvatarModal:**
+Modal dialog for uploading or removing profile photos.
+
+**Features:**
+- Client-side image compression using Canvas API
+- Crops to square (center crop)
+- Resizes to 256x256 pixels
+- Compresses to JPEG with adaptive quality (targets under 300KB)
+- Supports JPEG, PNG, WebP, GIF uploads
+- Uploads to Supabase Storage `avatars` bucket
+- Path format: `avatars/{user_id}/{timestamp}.jpg`
+- Remove button to delete custom avatar
+
+**Props (internal state):**
+```typescript
+{
+  isOpen: boolean;
+  onClose: () => void;
+  currentAvatar: string | null;
+  onAvatarChange: (url: string | null) => void;
+}
+```
+
+**Flow:**
+1. User clicks edit overlay on avatar
+2. Modal opens showing current avatar or placeholder
+3. User clicks "Choose Photo" → file picker opens
+4. Image is compressed and previewed
+5. User clicks "Save Photo" → uploads to Supabase Storage
+6. User metadata updated with new avatar URL
+7. Or user clicks "Remove Photo" → deletes from storage
+
 ## Auth Components
 
 ### `Turnstile.tsx`

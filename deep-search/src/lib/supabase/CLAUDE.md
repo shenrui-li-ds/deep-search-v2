@@ -555,21 +555,61 @@ Change Email modal requires password verification before sending email change re
 3. Only then `updateUser({ email })` is called
 4. Verification email sent to new address
 
+## Avatar Storage
+
+User profile photos are stored in Supabase Storage.
+
+**Bucket Configuration:**
+- Bucket name: `avatars`
+- Public: Yes (allows direct URL access without auth)
+- File size limit: 300KB (307,200 bytes)
+- Allowed MIME types: `image/jpeg`, `image/png`, `image/webp`, `image/gif`
+
+**File Path Format:**
+```
+avatars/{user_id}/{timestamp}.jpg
+```
+
+**RLS Policies:**
+| Policy | Operation | Rule |
+|--------|-----------|------|
+| Avatar upload | INSERT | `auth.uid()::text = (storage.foldername(name))[1]` |
+| Avatar update | UPDATE | `auth.uid()::text = (storage.foldername(name))[1]` |
+| Avatar delete | DELETE | `auth.uid()::text = (storage.foldername(name))[1]` |
+| Public read | SELECT | `true` (public bucket) |
+
+Users can only upload/modify/delete files in their own folder (matched by user ID).
+
+**Migration File:** `supabase/add-avatar-storage.sql`
+
+**Avatar Priority:**
+1. Custom uploaded avatar (from Supabase Storage)
+2. OAuth provider avatar (from `user.user_metadata.avatar_url`, e.g., GitHub)
+3. Letter initial fallback (first letter of email)
+
+**Client-Side Compression:**
+Before upload, images are processed client-side:
+- Cropped to square (center crop)
+- Resized to 256x256 pixels
+- Compressed to JPEG with adaptive quality
+- Target size: under 300KB
+
 ## Setup
 
 1. Create Supabase project at supabase.com
 2. Run `supabase/schema.sql` in SQL Editor
 3. Run `supabase/add-login-lockout.sql` for brute force protection
 4. Run `supabase/add-soft-delete.sql` for soft delete support
-5. Add to `.env.local`:
+5. Run `supabase/add-avatar-storage.sql` for avatar storage bucket
+6. Add to `.env.local`:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
-6. Configure URL settings in Authentication → URL Configuration:
+7. Configure URL settings in Authentication → URL Configuration:
    - Site URL: `https://your-domain.com`
    - Redirect URLs: `http://localhost:3000/auth/callback`, `https://your-domain.com/auth/callback`
-7. (Optional) Apply email templates from `supabase/email-templates/`
-8. (Optional) Configure OAuth providers in Authentication → Providers
-9. (Optional) Enable leaked password protection in Authentication → Settings
-10. Fix function search paths (see Security Settings above)
+8. (Optional) Apply email templates from `supabase/email-templates/`
+9. (Optional) Configure OAuth providers in Authentication → Providers
+10. (Optional) Enable leaked password protection in Authentication → Settings
+11. Fix function search paths (see Security Settings above)
