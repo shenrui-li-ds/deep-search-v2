@@ -265,9 +265,11 @@ npm run test:coverage       # With coverage report
    ```
 3. Copy Client ID and Client Secret to Supabase → Authentication → Providers → GitHub
 
-### Cloudflare Turnstile (Bot Protection)
+### Bot Protection (CAPTCHA)
 
-Protect auth pages from bots with [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/):
+Protect auth pages from bots with a dual CAPTCHA system. Primary uses [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/), with optional [hCaptcha](https://www.hcaptcha.com/) fallback for regions where Cloudflare is blocked (e.g., China).
+
+#### Cloudflare Turnstile (Primary)
 
 1. **Create Widget** at Cloudflare Dashboard → Turnstile
    - Click "Add site"
@@ -283,9 +285,29 @@ Protect auth pages from bots with [Cloudflare Turnstile](https://www.cloudflare.
    TURNSTILE_SECRET_KEY=your_secret_key
    ```
 
-3. **Add to Vercel** (for production)
-   - Go to Vercel → Project → Settings → Environment Variables
-   - Add both keys for Production/Preview environments
+#### hCaptcha (Optional Fallback)
+
+For users in China where Cloudflare is blocked by the Great Firewall:
+
+1. **Create Site** at [hCaptcha Dashboard](https://dashboard.hcaptcha.com/)
+   - Add a new site
+   - Add hostnames: `localhost`, `your-domain.com`
+   - Copy Site Key and Secret Key
+
+2. **Add Environment Variables**
+   ```env
+   NEXT_PUBLIC_HCAPTCHA_SITE_KEY=your_site_key
+   HCAPTCHA_SECRET_KEY=your_secret_key
+   ```
+
+#### Fallback Behavior
+
+| Scenario | Result |
+|----------|--------|
+| Turnstile loads successfully | User completes Turnstile challenge |
+| Turnstile blocked (15s timeout), hCaptcha configured | hCaptcha shown as fallback |
+| Turnstile blocked, no hCaptcha configured | Form enabled (fail-open for UX) |
+| Both CAPTCHAs blocked (30s total) | Form enabled (fail-open for UX) |
 
 The widget automatically appears on login, signup, and forgot-password pages when keys are configured.
 

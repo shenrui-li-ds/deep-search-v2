@@ -230,9 +230,9 @@ export default function LoginPage() {
       else if (turnstileTimedOut && hcaptchaToken) {
         isValid = await verifyCaptchaToken(hcaptchaToken, email, 'hcaptcha');
       }
-      // Try timeout bypass (if both CAPTCHAs timed out)
-      else if (turnstileTimedOut && hcaptchaTimedOut) {
-        // Both timed out but not whitelisted - still allow (fail-open for UX)
+      // Try timeout bypass (if all available CAPTCHAs timed out)
+      else if (turnstileTimedOut && (hcaptchaTimedOut || !hcaptchaSiteKey)) {
+        // All available CAPTCHAs timed out but not whitelisted - still allow (fail-open for UX)
         isValid = true;
       }
       // No valid token yet
@@ -466,12 +466,13 @@ export default function LoginPage() {
               loading ||
               oauthLoading ||
               lockoutSeconds > 0 ||
-              // Require CAPTCHA verification unless whitelisted: Turnstile token, OR hCaptcha token, OR both timed out, OR whitelisted
+              // Require CAPTCHA verification unless whitelisted: Turnstile token, OR hCaptcha token, OR all available CAPTCHAs timed out, OR whitelisted
               (
                 (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !!process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY) &&
                 !turnstileToken &&
                 !hcaptchaToken &&
-                !(turnstileTimedOut && hcaptchaTimedOut) &&
+                // Allow if: both timed out, OR turnstile timed out and no hCaptcha configured
+                !(turnstileTimedOut && (hcaptchaTimedOut || !process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY)) &&
                 !isWhitelisted
               )
             }

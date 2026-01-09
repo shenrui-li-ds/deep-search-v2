@@ -492,9 +492,12 @@ All auth forms (login, signup, forgot-password) are protected by a dual CAPTCHA 
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_turnstile_site_key
 TURNSTILE_SECRET_KEY=your_turnstile_secret_key
 
-# Fallback: hCaptcha
+# Fallback: hCaptcha (optional, for China users)
 NEXT_PUBLIC_HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
 HCAPTCHA_SECRET_KEY=your_hcaptcha_secret_key
+
+# Email whitelist (optional, bypasses CAPTCHA)
+CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
 
 **Implementation Files:**
@@ -502,32 +505,55 @@ HCAPTCHA_SECRET_KEY=your_hcaptcha_secret_key
 - `src/components/HCaptcha.tsx` - Fallback CAPTCHA widget
 - `src/app/api/auth/verify-turnstile/route.ts` - Turnstile token validation
 - `src/app/api/auth/verify-hcaptcha/route.ts` - hCaptcha token validation
-- `config/turnstile-whitelist.json` - Email whitelist for bypass
+- `src/app/api/auth/check-whitelist/route.ts` - Email whitelist check
+- `src/__tests__/app/auth/captcha-fallback.test.ts` - Integration tests for fallback logic
 
-**Flow (Whitelist-First):**
+**CAPTCHA Fallback Flow:**
 ```
-Submit → Check Whitelist → (if not whitelisted) → Turnstile/hCaptcha → Auth
+Page Load
+    ↓
+Show Turnstile widget
+    ↓ (15s timeout if blocked)
+Show hCaptcha fallback (if configured)
+    ↓ (15s timeout if also blocked)
+Enable form submission (fail-open for UX)
 ```
 
-1. User fills form, CAPTCHA widgets load in background
-2. User clicks submit
-3. **First**: Call `/api/auth/check-whitelist` with email
-4. If whitelisted → skip CAPTCHA, proceed directly to auth
-5. If not whitelisted → validate CAPTCHA token:
-   - Turnstile token (if available)
-   - hCaptcha token (if Turnstile timed out)
-   - Fail-open bypass (if both timed out - for UX)
-6. Proceed with Supabase auth call
+**Button Disabled Logic:**
+| Scenario | Button State |
+|----------|--------------|
+| Waiting for Turnstile | Disabled |
+| Turnstile token received | Enabled |
+| Turnstile timed out, hCaptcha configured | Disabled (waiting for hCaptcha) |
+| Turnstile timed out, no hCaptcha configured | Enabled (timeout bypass) |
+| Both CAPTCHAs timed out | Enabled (timeout bypass) |
+| hCaptcha token received | Enabled |
+| Whitelisted email | Enabled (immediate) |
 
-**Email Whitelist Config:**
-Environment variable: `CAPTCHA_WHITELIST_EMAILS` (comma-separated)
-```bash
-CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
+**Form Submission Validation:**
 ```
+Submit Clicked
+    ↓
+Check Whitelist → (if whitelisted) → Skip CAPTCHA → Auth
+    ↓ (not whitelisted)
+Check Turnstile token → (if valid) → Auth
+    ↓ (no token, timed out)
+Check hCaptcha token → (if valid) → Auth
+    ↓ (no token, both timed out or no hCaptcha configured)
+Timeout bypass (fail-open) → Auth
+```
+
+**China User Scenario:**
+When only Turnstile is configured and blocked by GFW:
+1. Turnstile widget fails to load (blocked by firewall)
+2. After 15s timeout, button is enabled (fail-open)
+3. User can submit form without CAPTCHA
+4. If hCaptcha is also configured, it's shown as fallback before fail-open
 
 **Visual Feedback:**
 - "Trying alternative verification..." when switching to hCaptcha
-- Amber warning box when whitelist bypass active
+- Amber warning box when fail-open bypass active
+- Green shield icon when email is whitelisted
 
 **Turnstile Setup:**
 1. Go to Cloudflare Dashboard → Turnstile
@@ -547,6 +573,8 @@ CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 - Each token is single-use, widgets reset after validation
 - Turnstile tokens expire after 300s (widget auto-refreshes)
 - hCaptcha fallback designed for China users (Cloudflare blocked by GFW)
+- Fail-open behavior prioritizes UX over strict bot protection
+- Integration tests in `src/__tests__/app/auth/captcha-fallback.test.ts` cover all scenarios
 
 ### Account Lockout (Brute Force Protection)
 
