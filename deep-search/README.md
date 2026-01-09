@@ -17,7 +17,7 @@ An AI-powered search application that provides a Perplexity-like search experien
 - **Streaming Responses**: Real-time content generation with smooth UI updates
 - **Two-Tier Caching**: In-memory LRU + Supabase persistent cache for cost reduction
 - **User Authentication**: Supabase Auth with email/password and GitHub OAuth
-- **Credit System**: 1000 free credits/month with optional credit purchases
+- **Credit System**: 500 free credits/month with optional credit purchases
 - **Usage Tracking**: Search mode and provider breakdowns with visual charts
 - **Copy & Share**: Copy answers, share formatted text, export to PDF
 - **Dark/Light Theme**: System-aware theme support
@@ -172,7 +172,7 @@ Cached endpoints: `/api/search`, `/api/refine`, `/api/related-searches`, `/api/r
 
 ### Credit System
 
-Users get 1000 free credits per month. 1 credit = 1 Tavily search query. You're charged only for actual queries made:
+Users get 500 free credits per month. 1 credit = 1 Tavily search query. You're charged only for actual queries made:
 
 | Search Mode | Credits (Actual Usage) |
 |-------------|------------------------|
@@ -188,7 +188,7 @@ The system uses a reserve→finalize approach for fair billing:
 **User Tiers:**
 | Tier | Monthly Free Credits |
 |------|---------------------|
-| free | 1,000 |
+| free | 500 |
 | pro | 2,000 |
 | admin | 10,000 |
 

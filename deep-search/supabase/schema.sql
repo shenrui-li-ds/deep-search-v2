@@ -79,7 +79,7 @@ CREATE POLICY "Users can insert their own API usage"
 CREATE TABLE IF NOT EXISTS user_limits (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   -- Credit system
-  monthly_free_credits INTEGER DEFAULT 1000,
+  monthly_free_credits INTEGER DEFAULT 500,
   free_credits_used INTEGER DEFAULT 0,
   purchased_credits INTEGER DEFAULT 0,
   lifetime_credits_purchased INTEGER DEFAULT 0,
@@ -583,7 +583,7 @@ BEGIN
   END IF;
 
   -- Calculate available free credits
-  v_free_available := COALESCE(v_monthly_free, 1000) - COALESCE(v_free_used, 0);
+  v_free_available := COALESCE(v_monthly_free, 500) - COALESCE(v_free_used, 0);
 
   -- Check if we have enough credits
   IF v_free_available >= p_credits_needed THEN

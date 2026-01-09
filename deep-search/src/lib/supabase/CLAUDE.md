@@ -132,7 +132,7 @@ Client-side database operations for search history and usage limits.
 **User Tiers (monthly free credits):**
 | Tier | Credits |
 |------|---------|
-| free | 1,000 |
+| free | 500 |
 | pro | 2,000 |
 | admin | 10,000 |
 
@@ -202,7 +202,7 @@ interface UserPreferences {
 }
 
 interface UserCredits {
-  monthly_free_credits: number;     // Default: 1000
+  monthly_free_credits: number;     // Default: 500
   free_credits_used: number;
   free_credits_remaining: number;
   purchased_credits: number;

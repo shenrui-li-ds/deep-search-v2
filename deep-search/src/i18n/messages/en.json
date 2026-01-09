@@ -399,6 +399,7 @@
       "passwordUppercase": "Password must contain at least one uppercase letter",
       "passwordDigit": "Password must contain at least one digit",
       "tryingAlternative": "Trying alternative verification...",
+      "verifyingIdentity": "Verifying your identity...",
       "captchaUnavailable": "Security check unavailable in your region"
     }
   },

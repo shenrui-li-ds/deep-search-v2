@@ -399,6 +399,7 @@
       "passwordUppercase": "密码需要包含至少一个大写字母",
       "passwordDigit": "密码需要包含至少一个数字",
       "tryingAlternative": "正在尝试备用验证方式...",
+      "verifyingIdentity": "正在验证身份...",
       "captchaUnavailable": "您所在地区无法使用安全验证"
     }
   },

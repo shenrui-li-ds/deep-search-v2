@@ -435,7 +435,7 @@ Uses Supabase Auth with email/password and GitHub OAuth. See `src/lib/supabase/C
 
 ### Credit System (Billing)
 
-Users get 1000 free credits per month. 1 credit = 1 Tavily search query. Uses reserve→finalize for fair billing:
+Users get 500 free credits per month. 1 credit = 1 Tavily search query. Uses reserve→finalize for fair billing:
 
 | Mode | Max Credits | Actual Usage |
 |------|-------------|--------------|
@@ -456,8 +456,8 @@ Users get 1000 free credits per month. 1 credit = 1 Tavily search query. Uses re
 **User Tiers:**
 | Tier | Monthly Free Credits |
 |------|---------------------|
-| free | 1,000 |
-| vip | 2,000 |
+| free | 500 |
+| pro | 2,000 |
 | admin | 10,000 |
 
 **Database:**

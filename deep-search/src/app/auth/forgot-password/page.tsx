@@ -25,6 +25,7 @@ export default function ForgotPasswordPage() {
   const [hcaptchaToken, setHcaptchaToken] = useState<string | null>(null);
   const [hcaptchaKey, setHcaptchaKey] = useState(0);
   const [hcaptchaTimedOut, setHcaptchaTimedOut] = useState(false);
+  const [captchaElapsedSeconds, setCaptchaElapsedSeconds] = useState(0);
   const [isWhitelisted, setIsWhitelisted] = useState(false);
   const [checkingWhitelist, setCheckingWhitelist] = useState(false);
   const t = useTranslations('auth');
@@ -99,6 +100,40 @@ export default function ForgotPasswordPage() {
 
     return () => clearTimeout(timeout);
   }, [turnstileTimedOut, hcaptchaToken, hcaptchaTimedOut, hcaptchaKey]);
+
+  // Visual progress indicator - tracks elapsed time during CAPTCHA verification
+  // Also enforces forced 30s maximum timeout as safety net
+  const CAPTCHA_MAX_TIMEOUT = 30; // Forced maximum: 30 seconds total
+  useEffect(() => {
+    const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+    const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
+
+    // Only run timer if CAPTCHA is configured and we don't have a token yet
+    const captchaConfigured = !!(turnstileSiteKey || hcaptchaSiteKey);
+    const hasToken = !!(turnstileToken || hcaptchaToken);
+    const allTimedOut = turnstileTimedOut && (hcaptchaTimedOut || !hcaptchaSiteKey);
+
+    if (!captchaConfigured || hasToken || isWhitelisted || allTimedOut) {
+      setCaptchaElapsedSeconds(0);
+      return;
+    }
+
+    // Start/continue the elapsed time counter
+    const interval = setInterval(() => {
+      setCaptchaElapsedSeconds((prev) => {
+        const next = prev + 1;
+        // Forced 30s maximum timeout - if we hit this, force both CAPTCHAs to timeout
+        if (next >= CAPTCHA_MAX_TIMEOUT) {
+          console.log('CAPTCHA forced timeout (30s max) - enabling form submission');
+          setTurnstileTimedOut(true);
+          setHcaptchaTimedOut(true);
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [turnstileToken, hcaptchaToken, turnstileTimedOut, hcaptchaTimedOut, isWhitelisted, turnstileKey, hcaptchaKey]);
 
   // Proactively check whitelist when email changes (debounced)
   useEffect(() => {
@@ -382,7 +417,9 @@ export default function ForgotPasswordPage() {
           {/* hCaptcha Fallback - shown when Turnstile times out but before hCaptcha times out (hidden if whitelisted) */}
           {!isWhitelisted && turnstileTimedOut && process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !hcaptchaToken && !hcaptchaTimedOut && (
             <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-[var(--text-muted)]">{t('errors.tryingAlternative')}</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                {t('errors.tryingAlternative')} ({CAPTCHA_MAX_TIMEOUT - captchaElapsedSeconds}s)
+              </p>
               <HCaptcha
                 key={hcaptchaKey}
                 siteKey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
@@ -392,6 +429,13 @@ export default function ForgotPasswordPage() {
                 theme="light"
               />
             </div>
+          )}
+
+          {/* Progress indicator during Turnstile loading (only Turnstile configured, no hCaptcha) */}
+          {!isWhitelisted && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !turnstileToken && !turnstileTimedOut && captchaElapsedSeconds > 3 && (
+            <p className="text-xs text-center text-[var(--text-muted)]">
+              {t('errors.verifyingIdentity')} ({CAPTCHA_MAX_TIMEOUT - captchaElapsedSeconds}s)
+            </p>
           )}
 
           {/* Whitelist bypass indicator - shown when both CAPTCHAs timed out (hidden if already whitelisted) */}

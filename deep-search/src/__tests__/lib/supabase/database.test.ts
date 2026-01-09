@@ -609,8 +609,8 @@ describe('Supabase Database Functions', () => {
 
     it('should return allowed false if not enough credits for web mode', async () => {
       const mockCredits = {
-        monthly_free_credits: 1000,
-        free_credits_used: 1000,
+        monthly_free_credits: 500,
+        free_credits_used: 500,
         free_credits_remaining: 0,
         purchased_credits: 0,
         total_available: 0,
@@ -630,8 +630,8 @@ describe('Supabase Database Functions', () => {
 
     it('should return allowed false if not enough credits for pro mode', async () => {
       const mockCredits = {
-        monthly_free_credits: 1000,
-        free_credits_used: 998,
+        monthly_free_credits: 500,
+        free_credits_used: 498,
         free_credits_remaining: 2,
         purchased_credits: 0,
         total_available: 2, // Pro mode needs 4
@@ -651,7 +651,7 @@ describe('Supabase Database Functions', () => {
 
     it('should return allowed true if enough credits available', async () => {
       const mockCredits = {
-        monthly_free_credits: 1000,
+        monthly_free_credits: 500,
         free_credits_used: 100,
         free_credits_remaining: 900,
         purchased_credits: 0,
@@ -836,7 +836,7 @@ describe('Supabase Database Functions', () => {
   describe('getUserCredits', () => {
     it('should return user credits from RPC', async () => {
       const mockCredits = {
-        monthly_free_credits: 1000,
+        monthly_free_credits: 500,
         free_credits_used: 100,
         free_credits_remaining: 900,
         purchased_credits: 500,
@@ -972,7 +972,7 @@ describe('Supabase Database Functions', () => {
   describe('hasEnoughCredits', () => {
     it('should return true if user has enough credits', async () => {
       const mockCredits = {
-        monthly_free_credits: 1000,
+        monthly_free_credits: 500,
         free_credits_used: 100,
         free_credits_remaining: 900,
         purchased_credits: 0,
@@ -994,8 +994,8 @@ describe('Supabase Database Functions', () => {
 
     it('should return false if user does not have enough credits', async () => {
       const mockCredits = {
-        monthly_free_credits: 1000,
-        free_credits_used: 1000,
+        monthly_free_credits: 500,
+        free_credits_used: 500,
         free_credits_remaining: 0,
         purchased_credits: 1,
         total_available: 1,
