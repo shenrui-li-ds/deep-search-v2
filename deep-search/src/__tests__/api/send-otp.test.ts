@@ -4,17 +4,17 @@
 
 import { NextRequest } from 'next/server';
 
-// Mock Supabase client
-const mockRpc = jest.fn();
+// Must be declared before jest.mock since jest.mock is hoisted
+let mockRpc: jest.Mock;
+
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    rpc: mockRpc,
+    rpc: (...args: unknown[]) => mockRpc(...args),
   }),
 }));
 
 // Mock global fetch for Resend API
-const mockFetch = jest.fn();
-global.fetch = mockFetch;
+let mockFetch: jest.Mock;
 
 // Import after mocking
 import { POST } from '@/app/api/auth/send-otp/route';
@@ -23,6 +23,9 @@ describe('/api/auth/send-otp', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
+    mockRpc = jest.fn();
+    mockFetch = jest.fn();
+    global.fetch = mockFetch;
     jest.clearAllMocks();
     process.env = {
       ...originalEnv,
@@ -244,6 +247,62 @@ describe('/api/auth/send-otp', () => {
       expect(data.success).toBe(true);
       expect(data.expires_in).toBe(600);
       expect(data.message).toBe('Verification code sent');
+    });
+  });
+
+  describe('rate limiting', () => {
+    /**
+     * Rate limits (per generate_email_otp database function):
+     * - 3 requests per email PER PURPOSE per 10 minutes
+     *   (so 3 signup + 3 login + 3 reset = 9 total possible)
+     * - 10 requests per IP per hour
+     * - 5 verification attempts per code before invalidation
+     */
+    it('should return 429 with retry_after when email rate limited', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: {
+          success: false,
+          error: 'Too many verification requests. Please wait 10 minutes.',
+          retry_after: 600,
+        },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/auth/send-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'test@example.com', purpose: 'signup' }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(429);
+      expect(data.success).toBe(false);
+      expect(data.retry_after).toBe(600);
+    });
+
+    it('should return 429 with retry_after when IP rate limited', async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: {
+          success: false,
+          error: 'Too many requests from your location. Please try again later.',
+          retry_after: 3600,
+        },
+        error: null,
+      });
+
+      const request = new NextRequest('http://localhost/api/auth/send-otp', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'test@example.com', purpose: 'login' }),
+        headers: { 'x-forwarded-for': '192.168.1.1' },
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(429);
+      expect(data.success).toBe(false);
+      expect(data.retry_after).toBe(3600);
     });
   });
 

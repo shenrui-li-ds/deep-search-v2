@@ -42,7 +42,7 @@ DECLARE
   v_recent_count INTEGER;
   v_otp_id UUID;
 BEGIN
-  -- Rate limiting: max 3 OTP requests per email per 10 minutes
+  -- Rate limiting: max 3 OTP requests per email per purpose in 10 minutes
   SELECT COUNT(*) INTO v_recent_count
   FROM email_verification_codes
   WHERE email = LOWER(p_email)

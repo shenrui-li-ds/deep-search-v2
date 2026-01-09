@@ -42,6 +42,10 @@ Handles session refresh and route protection.
 - `/auth/error`
 - `/auth/forgot-password`
 - `/auth/reset-password`
+- `/api/auth/verify-turnstile`
+- `/api/auth/check-whitelist`
+- `/api/auth/send-otp`
+- `/api/auth/verify-otp`
 
 All other routes require authentication. Unauthenticated users are redirected to `/auth/login`.
 
@@ -482,9 +486,9 @@ This is especially important for `SECURITY DEFINER` functions.
 
 Enable in Supabase → Authentication → Settings to check passwords against HaveIBeenPwned database.
 
-### Bot Protection (Dual CAPTCHA System)
+### Bot Protection (Turnstile + Email OTP Fallback)
 
-All auth forms (login, signup, forgot-password) are protected by a dual CAPTCHA system with fallback for regions where Cloudflare is blocked (e.g., China).
+All auth forms (login, signup, forgot-password) are protected by Cloudflare Turnstile with Email OTP as fallback for regions where Turnstile is blocked (e.g., China).
 
 **Environment Variables:**
 ```
@@ -492,31 +496,34 @@ All auth forms (login, signup, forgot-password) are protected by a dual CAPTCHA 
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_turnstile_site_key
 TURNSTILE_SECRET_KEY=your_turnstile_secret_key
 
-# Fallback: hCaptcha (optional, for China users)
-NEXT_PUBLIC_HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
-HCAPTCHA_SECRET_KEY=your_hcaptcha_secret_key
+# Fallback: Email OTP (requires Resend)
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL=noreply@yourdomain.com  # Optional, defaults to noreply@athenius.io
 
-# Email whitelist (optional, bypasses CAPTCHA)
+# Email whitelist (optional, bypasses all verification)
 CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
 
 **Implementation Files:**
 - `src/components/Turnstile.tsx` - Primary CAPTCHA widget
-- `src/components/HCaptcha.tsx` - Fallback CAPTCHA widget
+- `src/components/EmailOTPFallback.tsx` - Email OTP verification component
 - `src/app/api/auth/verify-turnstile/route.ts` - Turnstile token validation
-- `src/app/api/auth/verify-hcaptcha/route.ts` - hCaptcha token validation
+- `src/app/api/auth/send-otp/route.ts` - Send OTP code via email
+- `src/app/api/auth/verify-otp/route.ts` - Verify OTP code
 - `src/app/api/auth/check-whitelist/route.ts` - Email whitelist check
 - `src/__tests__/app/auth/captcha-fallback.test.ts` - Integration tests for fallback logic
 
-**CAPTCHA Fallback Flow:**
+**Verification Flow:**
 ```
 Page Load
     ↓
 Show Turnstile widget
     ↓ (15s timeout if blocked)
-Show hCaptcha fallback (if configured)
-    ↓ (15s timeout if also blocked)
-Enable form submission (fail-open for UX)
+Show Email OTP fallback
+    ↓ (user clicks "Send verification code")
+6-digit code sent to email via Resend
+    ↓ (user enters code)
+Code verified → Button enabled
 ```
 
 **Button Disabled Logic:**
@@ -524,35 +531,45 @@ Enable form submission (fail-open for UX)
 |----------|--------------|
 | Waiting for Turnstile | Disabled |
 | Turnstile token received | Enabled |
-| Turnstile timed out, hCaptcha configured | Disabled (waiting for hCaptcha) |
-| Turnstile timed out, no hCaptcha configured | Enabled (timeout bypass) |
-| Both CAPTCHAs timed out | Enabled (timeout bypass) |
-| hCaptcha token received | Enabled |
+| Turnstile timed out, waiting for OTP | Disabled |
+| Email OTP verified | Enabled |
 | Whitelisted email | Enabled (immediate) |
+| No Turnstile configured | Enabled (no verification needed) |
 
 **Form Submission Validation:**
 ```
 Submit Clicked
     ↓
-Check Whitelist → (if whitelisted) → Skip CAPTCHA → Auth
+Check Whitelist → (if whitelisted) → Skip verification → Auth
     ↓ (not whitelisted)
 Check Turnstile token → (if valid) → Auth
-    ↓ (no token, timed out)
-Check hCaptcha token → (if valid) → Auth
-    ↓ (no token, both timed out or no hCaptcha configured)
-Timeout bypass (fail-open) → Auth
+    ↓ (no token)
+Check Email OTP verified → (if verified) → Auth
+    ↓ (not verified)
+Show error: "Please complete security verification"
 ```
 
-**China User Scenario:**
-When only Turnstile is configured and blocked by GFW:
-1. Turnstile widget fails to load (blocked by firewall)
-2. After 15s timeout, button is enabled (fail-open)
-3. User can submit form without CAPTCHA
-4. If hCaptcha is also configured, it's shown as fallback before fail-open
+**Email OTP Rate Limits:**
+| Limit | Value | Window |
+|-------|-------|--------|
+| Per email + purpose | 3 requests | 10 minutes |
+| Per IP | 10 requests | 1 hour |
+| Verification attempts | 5 per code | Until invalidated |
+
+Note: Rate limits are per-purpose (signup, login, reset), so a user can request up to 9 OTPs total (3×3) in 10 minutes across different auth actions.
+
+**China User Flow:**
+1. User visits auth page
+2. Turnstile attempts to load (blocked by GFW)
+3. After 15s timeout, Email OTP component appears
+4. User clicks "Send verification code"
+5. 6-digit code sent via Resend API
+6. User enters code → verified → can proceed with auth
 
 **Visual Feedback:**
-- "Trying alternative verification..." when switching to hCaptcha
-- Amber warning box when fail-open bypass active
+- Progress indicator: "Verifying your identity... (Xs)" during Turnstile loading
+- Amber warning: "Security check unavailable. Verify via email instead."
+- Green checkmark when OTP verified
 - Green shield icon when email is whitelisted
 
 **Turnstile Setup:**
@@ -561,19 +578,21 @@ When only Turnstile is configured and blocked by GFW:
 3. Add domains: `localhost`, production domain
 4. Copy Site Key and Secret Key to `.env.local`
 
-**hCaptcha Setup:**
-1. Go to hCaptcha Dashboard (hcaptcha.com)
-2. Create a new site
-3. Add domains: `localhost`, production domain
-4. Copy Site Key and Secret Key to `.env.local`
+**Database Setup (Required for OTP):**
+Run `supabase/migrations/add-email-otp-verification.sql` in Supabase SQL Editor.
+
+Creates:
+- `email_verification_codes` table
+- `generate_email_otp()` function (handles rate limiting)
+- `verify_email_otp()` function (handles attempt limiting)
+- `cleanup_expired_otp_codes()` function (for scheduled cleanup)
 
 **Notes:**
-- Widgets only shown when corresponding env vars are set
+- No fail-open: User must complete verification (Turnstile OR Email OTP)
+- Email OTP works reliably in China (email always works)
 - Token validation is server-side (secret keys never exposed)
-- Each token is single-use, widgets reset after validation
 - Turnstile tokens expire after 300s (widget auto-refreshes)
-- hCaptcha fallback designed for China users (Cloudflare blocked by GFW)
-- Fail-open behavior prioritizes UX over strict bot protection
+- OTP codes expire after 10 minutes
 - Integration tests in `src/__tests__/app/auth/captcha-fallback.test.ts` cover all scenarios
 
 ### Account Lockout (Brute Force Protection)

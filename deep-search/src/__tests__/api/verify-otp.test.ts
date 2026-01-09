@@ -4,11 +4,12 @@
 
 import { NextRequest } from 'next/server';
 
-// Mock Supabase client
-const mockRpc = jest.fn();
+// Must be declared before jest.mock since jest.mock is hoisted
+let mockRpc: jest.Mock;
+
 jest.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
-    rpc: mockRpc,
+    rpc: (...args: unknown[]) => mockRpc(...args),
   }),
 }));
 
@@ -19,6 +20,7 @@ describe('/api/auth/verify-otp', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
+    mockRpc = jest.fn();
     jest.clearAllMocks();
     process.env = {
       ...originalEnv,
