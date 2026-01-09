@@ -695,45 +695,85 @@ Validates Cloudflare Turnstile CAPTCHA tokens server-side.
 - Forwards client IP for enhanced validation
 - Returns 400 for invalid tokens, 500 for server errors
 
-### `/api/auth/verify-hcaptcha` - hCaptcha Token Verification
-Validates hCaptcha tokens server-side (fallback for regions where Cloudflare is blocked).
+### `/api/auth/verify-hcaptcha` - hCaptcha Token Verification (Legacy)
+Validates hCaptcha tokens server-side. **No longer used by auth pages** - replaced by Email OTP.
+Kept for backward compatibility.
+
+### `/api/auth/send-otp` - Send Email OTP
+Generates and sends a 6-digit OTP code via email for verification.
 
 **Request:**
 ```json
 {
-  "token": "hcaptcha-token",
-  "email": "user@example.com"  // Optional, for whitelist check
+  "email": "user@example.com",
+  "purpose": "signup" | "login" | "reset"
 }
 ```
 
 **Response (success):**
 ```json
 {
-  "success": true
-}
-```
-
-**Response (whitelisted bypass):**
-```json
-{
   "success": true,
-  "bypassed": true
+  "message": "Verification code sent",
+  "expires_in": 600
 }
 ```
 
-**Response (failure):**
+**Response (rate limited):**
 ```json
 {
   "success": false,
-  "error": "Verification failed"
+  "error": "Rate limited",
+  "retry_after": 300
 }
 ```
 
 **Features:**
-- Validates token with hCaptcha's siteverify API
-- Checks email whitelist before token validation (same config as Turnstile)
-- Forwards client IP for enhanced validation
-- Used as fallback when Turnstile times out (blocked in China)
+- Generates 6-digit numeric code via `generate_email_otp` database function
+- Sends code via Resend API with branded HTML template
+- Rate limiting: 3 requests per email per 10 min, 10 per IP per hour
+- Code expires in 10 minutes
+- Lowercases email for consistent lookup
+
+**Environment Variables Required:**
+- `RESEND_API_KEY` - Resend API key for sending emails
+- `RESEND_FROM_EMAIL` - From email (default: `noreply@athenius.io`)
+
+### `/api/auth/verify-otp` - Verify Email OTP
+Validates a 6-digit OTP code entered by the user.
+
+**Request:**
+```json
+{
+  "email": "user@example.com",
+  "code": "123456",
+  "purpose": "signup" | "login" | "reset"
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "verified_at": "2024-01-15T10:30:00Z"
+}
+```
+
+**Response (invalid code):**
+```json
+{
+  "success": false,
+  "error": "Invalid or expired code",
+  "attempts_remaining": 4
+}
+```
+
+**Features:**
+- Validates code via `verify_email_otp` database function
+- Maximum 5 attempts per code before invalidation
+- Returns attempts remaining on failure
+- Lowercases email for consistent lookup
+- Returns 400 for invalid format (must be 6 digits)
 
 **Email Whitelist:**
 All CAPTCHA endpoints read from `CAPTCHA_WHITELIST_EMAILS` env var (comma-separated):

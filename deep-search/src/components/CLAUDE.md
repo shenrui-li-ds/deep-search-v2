@@ -375,72 +375,87 @@ import Turnstile from '@/components/Turnstile';
 - `/auth/signup` - Signup form
 - `/auth/forgot-password` - Password reset request form
 
-### `HCaptcha.tsx`
-hCaptcha bot protection widget (fallback for regions where Turnstile is blocked, e.g., China).
+### `EmailOTPFallback.tsx`
+Email OTP verification component (fallback for regions where Turnstile is blocked, e.g., China).
 
 **Props:**
 ```typescript
 {
-  siteKey: string;              // hCaptcha site key
-  onVerify: (token: string) => void;  // Called when verification succeeds
-  onError?: () => void;         // Called when verification fails
-  onExpire?: () => void;        // Called when token expires
-  theme?: 'light' | 'dark';     // Widget theme (default: 'light')
-  className?: string;           // Additional CSS classes
+  email: string;                      // User's email address
+  purpose: 'signup' | 'login' | 'reset';  // OTP purpose
+  onVerified: () => void;             // Called when verification succeeds
+  className?: string;                 // Additional CSS classes
 }
 ```
 
 **Usage:**
 ```tsx
-import HCaptcha from '@/components/HCaptcha';
+import EmailOTPFallback from '@/components/EmailOTPFallback';
 
-<HCaptcha
-  siteKey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
-  onVerify={(token) => setHcaptchaToken(token)}
-  onError={() => setHcaptchaToken(null)}
-  onExpire={() => setHcaptchaToken(null)}
-  theme="light"
+<EmailOTPFallback
+  email={email}
+  purpose="login"
+  onVerified={() => setEmailOtpVerified(true)}
 />
 ```
 
 **Features:**
-- Dynamically loads hCaptcha script
-- Used as fallback when Turnstile times out (15s)
-- Cleans up widget on unmount
-- Supports light/dark themes
+- Three-step flow: initial → code-sent → verified
+- 6-digit input with auto-advance and paste support
+- Countdown timers for resend (60s) and expiry (10min)
+- Rate limiting: 3 requests per email per 10 min
+- Works reliably in China (email always works)
 
-**Environment Variables Required:**
-- `NEXT_PUBLIC_HCAPTCHA_SITE_KEY` - Public site key (client-side)
-- `HCAPTCHA_SECRET_KEY` - Secret key (server-side only)
+**API Endpoints Used:**
+- `POST /api/auth/send-otp` - Send verification code
+- `POST /api/auth/verify-otp` - Verify entered code
 
 **Used in:**
 - `/auth/login` - Login form (fallback)
 - `/auth/signup` - Signup form (fallback)
 - `/auth/forgot-password` - Password reset form (fallback)
 
-### Dual CAPTCHA System (Auth Pages)
+### `HCaptcha.tsx` (Legacy)
+hCaptcha bot protection widget. **No longer used in auth pages** - replaced by Email OTP fallback.
+Kept for backward compatibility if needed for other use cases.
 
-Auth pages implement a fallback CAPTCHA system for users in regions where Cloudflare is blocked:
+### CAPTCHA + Email OTP System (Auth Pages)
+
+Auth pages implement a fallback system for users in regions where Cloudflare Turnstile is blocked:
 
 **Fallback Chain:**
 ```
-Turnstile (15s timeout) → hCaptcha (15s timeout) → Email Whitelist Bypass
+Turnstile (15s timeout) → Email OTP Verification
 ```
 
 **Implementation Details:**
 1. **Turnstile (Primary)**: Shown first, waits 15s for verification
-2. **hCaptcha (Fallback)**: Shown if Turnstile times out, waits another 15s
-3. **Email Whitelist**: If both CAPTCHA providers time out, allows bypass for whitelisted emails
+2. **Email OTP (Fallback)**: If Turnstile times out, shows email verification option
+3. **Email Whitelist**: Whitelisted emails bypass all verification
+
+**User Flow (China):**
+1. User visits auth page
+2. Turnstile attempts to load (blocked by GFW)
+3. After 15s timeout, Email OTP component appears
+4. User clicks "Send verification code"
+5. 6-digit code sent to user's email via Resend
+6. User enters code → verified → can proceed with auth
 
 **Visual Feedback:**
-- "Trying alternative verification..." message when switching to hCaptcha
-- Amber warning box: "Security check unavailable in your region" when whitelist bypass active
+- Progress indicator: "Verifying your identity... (Xs)" during Turnstile loading
+- Email OTP UI with code input and resend button
 
 **Email Whitelist Config:**
 Environment variable: `CAPTCHA_WHITELIST_EMAILS` (comma-separated)
 ```bash
 CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
+
+**Environment Variables Required:**
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` - Turnstile public site key
+- `TURNSTILE_SECRET_KEY` - Turnstile secret key
+- `RESEND_API_KEY` - Resend API key for sending OTP emails
+- `RESEND_FROM_EMAIL` - From email (default: `noreply@athenius.io`)
 
 ## Styling Patterns
 

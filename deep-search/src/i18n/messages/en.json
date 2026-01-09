@@ -382,6 +382,16 @@
       "number": "At least one number"
     },
     "whitelistedEmail": "Verification not required for this email",
+    "otp": {
+      "verified": "Email verified successfully",
+      "sending": "Sending code...",
+      "sendCode": "Send verification code",
+      "codeSentTo": "Code sent to",
+      "expiresIn": "Code expires in {time}",
+      "resendIn": "Resend in {time}",
+      "resendCode": "Resend code",
+      "captchaUnavailable": "Security check unavailable. Verify via email instead."
+    },
     "errors": {
       "invalidEmail": "Please enter a valid email",
       "invalidPassword": "Password does not meet requirements",
@@ -400,7 +410,10 @@
       "passwordDigit": "Password must contain at least one digit",
       "tryingAlternative": "Trying alternative verification...",
       "verifyingIdentity": "Verifying your identity...",
-      "captchaUnavailable": "Security check unavailable in your region"
+      "captchaUnavailable": "Security check unavailable in your region",
+      "otpSendFailed": "Failed to send verification code",
+      "otpVerifyFailed": "Invalid or expired code",
+      "otpRateLimited": "Too many requests. Please wait before trying again."
     }
   },
   "errors": {

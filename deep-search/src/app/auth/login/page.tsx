@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 import Turnstile from '@/components/Turnstile';
-import HCaptcha from '@/components/HCaptcha';
+import EmailOTPFallback from '@/components/EmailOTPFallback';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
 import { APP_ICON } from '@/lib/branding';
@@ -27,9 +27,7 @@ export default function LoginPage() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileKey, setTurnstileKey] = useState(0); // For resetting widget
   const [turnstileTimedOut, setTurnstileTimedOut] = useState(false);
-  const [hcaptchaToken, setHcaptchaToken] = useState<string | null>(null);
-  const [hcaptchaKey, setHcaptchaKey] = useState(0);
-  const [hcaptchaTimedOut, setHcaptchaTimedOut] = useState(false);
+  const [emailOtpVerified, setEmailOtpVerified] = useState(false);
   const [captchaElapsedSeconds, setCaptchaElapsedSeconds] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [isWhitelisted, setIsWhitelisted] = useState(false);
@@ -66,92 +64,43 @@ export default function LoginPage() {
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
     setTurnstileTimedOut(false);
+    setEmailOtpVerified(false);
     setTurnstileKey((prev) => prev + 1);
   }, []);
 
-  // hCaptcha callbacks (fallback for China users)
-  const handleHCaptchaVerify = useCallback((token: string) => {
-    setHcaptchaToken(token);
-  }, []);
-
-  const handleHCaptchaError = useCallback(() => {
-    setHcaptchaToken(null);
-  }, []);
-
-  const handleHCaptchaExpire = useCallback(() => {
-    setHcaptchaToken(null);
-  }, []);
-
-  const resetHCaptcha = useCallback(() => {
-    setHcaptchaToken(null);
-    setHcaptchaTimedOut(false);
-    setHcaptchaKey((prev) => prev + 1);
-  }, []);
-
-  const resetAllCaptcha = useCallback(() => {
-    resetTurnstile();
-    resetHCaptcha();
-  }, [resetTurnstile, resetHCaptcha]);
-
-  // Timeout for Turnstile - if stuck for 15s (e.g., blocked in China), show hCaptcha fallback
+  // Timeout for Turnstile - if stuck for 15s (e.g., blocked in China), show email OTP fallback
+  const CAPTCHA_MAX_TIMEOUT = 15; // Show email OTP fallback after 15 seconds
   useEffect(() => {
     const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-    if (!siteKey || turnstileToken || turnstileTimedOut) return;
+    if (!siteKey || turnstileToken || turnstileTimedOut || emailOtpVerified) return;
 
     const timeout = setTimeout(() => {
       setTurnstileTimedOut(true);
-      console.log('Turnstile verification timed out - showing hCaptcha fallback');
+      console.log('Turnstile verification timed out - showing email OTP fallback');
     }, 15000); // 15 seconds
 
     return () => clearTimeout(timeout);
-  }, [turnstileToken, turnstileTimedOut, turnstileKey]);
+  }, [turnstileToken, turnstileTimedOut, emailOtpVerified, turnstileKey]);
 
-  // Timeout for hCaptcha - if also stuck for 15s, allow email whitelist bypass
-  useEffect(() => {
-    const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
-    if (!hcaptchaSiteKey || !turnstileTimedOut || hcaptchaToken || hcaptchaTimedOut) return;
-
-    const timeout = setTimeout(() => {
-      setHcaptchaTimedOut(true);
-      console.log('hCaptcha verification timed out - allowing email whitelist bypass');
-    }, 15000); // 15 seconds
-
-    return () => clearTimeout(timeout);
-  }, [turnstileTimedOut, hcaptchaToken, hcaptchaTimedOut, hcaptchaKey]);
-
-  // Visual progress indicator - tracks elapsed time during CAPTCHA verification
-  // Also enforces forced 30s maximum timeout as safety net
-  const CAPTCHA_MAX_TIMEOUT = 30; // Forced maximum: 30 seconds total
+  // Visual progress indicator - tracks elapsed time during Turnstile loading
   useEffect(() => {
     const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-    const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
 
-    // Only run timer if CAPTCHA is configured and we don't have a token yet
-    const captchaConfigured = !!(turnstileSiteKey || hcaptchaSiteKey);
-    const hasToken = !!(turnstileToken || hcaptchaToken);
-    const allTimedOut = turnstileTimedOut && (hcaptchaTimedOut || !hcaptchaSiteKey);
+    // Only run timer if Turnstile is configured and we don't have verification yet
+    const isVerified = !!(turnstileToken || emailOtpVerified);
 
-    if (!captchaConfigured || hasToken || isWhitelisted || allTimedOut) {
+    if (!turnstileSiteKey || isVerified || isWhitelisted || turnstileTimedOut) {
       setCaptchaElapsedSeconds(0);
       return;
     }
 
     // Start/continue the elapsed time counter
     const interval = setInterval(() => {
-      setCaptchaElapsedSeconds((prev) => {
-        const next = prev + 1;
-        // Forced 30s maximum timeout - if we hit this, force both CAPTCHAs to timeout
-        if (next >= CAPTCHA_MAX_TIMEOUT) {
-          console.log('CAPTCHA forced timeout (30s max) - enabling form submission');
-          setTurnstileTimedOut(true);
-          setHcaptchaTimedOut(true);
-        }
-        return next;
-      });
+      setCaptchaElapsedSeconds((prev) => prev + 1);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [turnstileToken, hcaptchaToken, turnstileTimedOut, hcaptchaTimedOut, isWhitelisted, turnstileKey, hcaptchaKey]);
+  }, [turnstileToken, emailOtpVerified, turnstileTimedOut, isWhitelisted, turnstileKey]);
 
   // Proactively check whitelist when email changes (debounced)
   useEffect(() => {
@@ -196,29 +145,25 @@ export default function LoginPage() {
     }
   };
 
-  // Verify captcha token server-side (supports both Turnstile and hCaptcha)
-  const verifyCaptchaToken = async (
+  // Verify Turnstile token server-side
+  const verifyTurnstileToken = async (
     token: string | null,
-    userEmail: string,
-    provider: 'turnstile' | 'hcaptcha'
+    userEmail: string
   ): Promise<boolean> => {
     try {
-      const endpoint = provider === 'turnstile'
-        ? '/api/auth/verify-turnstile'
-        : '/api/auth/verify-hcaptcha';
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/auth/verify-turnstile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, email: userEmail }),
       });
       if (!response.ok) {
-        console.error(`${provider} verification failed:`, response.status, response.statusText);
+        console.error('Turnstile verification failed:', response.status, response.statusText);
         return false;
       }
       const data = await response.json();
       return data.success === true;
     } catch (error) {
-      console.error(`${provider} verification request failed:`, error);
+      console.error('Turnstile verification request failed:', error);
       return false;
     }
   };
@@ -250,27 +195,21 @@ export default function LoginPage() {
     // Check whitelist FIRST (fastest path for whitelisted users)
     const isWhitelisted = await checkEmailWhitelist(email);
 
-    // Verify CAPTCHA token (only if not whitelisted)
+    // Verify CAPTCHA/OTP (only if not whitelisted)
     const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
-    const hcaptchaSiteKey = process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY;
 
-    if (!isWhitelisted && (turnstileSiteKey || hcaptchaSiteKey)) {
+    if (!isWhitelisted && turnstileSiteKey) {
       let isValid = false;
 
       // Try Turnstile first (if token available)
       if (turnstileToken) {
-        isValid = await verifyCaptchaToken(turnstileToken, email, 'turnstile');
+        isValid = await verifyTurnstileToken(turnstileToken, email);
       }
-      // Try hCaptcha fallback (if Turnstile timed out and hCaptcha token available)
-      else if (turnstileTimedOut && hcaptchaToken) {
-        isValid = await verifyCaptchaToken(hcaptchaToken, email, 'hcaptcha');
-      }
-      // Try timeout bypass (if all available CAPTCHAs timed out)
-      else if (turnstileTimedOut && (hcaptchaTimedOut || !hcaptchaSiteKey)) {
-        // All available CAPTCHAs timed out but not whitelisted - still allow (fail-open for UX)
+      // Email OTP verified (fallback for China users)
+      else if (emailOtpVerified) {
         isValid = true;
       }
-      // No valid token yet
+      // No valid verification yet
       else {
         setError(t('errors.completeVerification'));
         setLoading(false);
@@ -279,7 +218,7 @@ export default function LoginPage() {
 
       if (!isValid) {
         setError(t('errors.securityFailed'));
-        resetAllCaptcha();
+        resetTurnstile();
         setLoading(false);
         return;
       }
@@ -329,7 +268,7 @@ export default function LoginPage() {
       }
 
       setError(error.message);
-      resetAllCaptcha();
+      resetTurnstile();
       setLoading(false);
       return;
     }
@@ -456,9 +395,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* CAPTCHA Bot Protection - Turnstile primary, hCaptcha fallback (hidden if whitelisted) */}
-          {!isWhitelisted && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileTimedOut && (
-            <div className="flex justify-center">
+          {/* CAPTCHA Bot Protection - Turnstile primary, Email OTP fallback (hidden if whitelisted) */}
+          {!isWhitelisted && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !turnstileTimedOut && !emailOtpVerified && (
+            <div className="flex flex-col items-center gap-2">
               <Turnstile
                 key={turnstileKey}
                 siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
@@ -467,41 +406,22 @@ export default function LoginPage() {
                 onExpire={handleTurnstileExpire}
                 theme="auto"
               />
+              {/* Progress indicator during Turnstile loading */}
+              {captchaElapsedSeconds > 3 && (
+                <p className="text-xs text-center text-[var(--text-muted)]">
+                  {t('errors.verifyingIdentity')} ({CAPTCHA_MAX_TIMEOUT - captchaElapsedSeconds}s)
+                </p>
+              )}
             </div>
           )}
 
-          {/* hCaptcha Fallback - shown when Turnstile times out but before hCaptcha times out (hidden if whitelisted) */}
-          {!isWhitelisted && turnstileTimedOut && process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !hcaptchaToken && !hcaptchaTimedOut && (
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-xs text-[var(--text-muted)]">
-                {t('errors.tryingAlternative')} ({CAPTCHA_MAX_TIMEOUT - captchaElapsedSeconds}s)
-              </p>
-              <HCaptcha
-                key={hcaptchaKey}
-                siteKey={process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY}
-                onVerify={handleHCaptchaVerify}
-                onError={handleHCaptchaError}
-                onExpire={handleHCaptchaExpire}
-                theme="light"
-              />
-            </div>
-          )}
-
-          {/* Progress indicator during Turnstile loading (only Turnstile configured, no hCaptcha) */}
-          {!isWhitelisted && process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && !process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY && !turnstileToken && !turnstileTimedOut && captchaElapsedSeconds > 3 && (
-            <p className="text-xs text-center text-[var(--text-muted)]">
-              {t('errors.verifyingIdentity')} ({CAPTCHA_MAX_TIMEOUT - captchaElapsedSeconds}s)
-            </p>
-          )}
-
-          {/* Whitelist bypass indicator - shown when both CAPTCHAs timed out (hidden if already whitelisted) */}
-          {!isWhitelisted && turnstileTimedOut && hcaptchaTimedOut && !turnstileToken && !hcaptchaToken && (
-            <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span>{t('errors.captchaUnavailable')}</span>
-            </div>
+          {/* Email OTP Fallback - shown when Turnstile times out (hidden if whitelisted or already verified) */}
+          {!isWhitelisted && turnstileTimedOut && !emailOtpVerified && email && (
+            <EmailOTPFallback
+              email={email}
+              purpose="login"
+              onVerified={() => setEmailOtpVerified(true)}
+            />
           )}
 
           <button
@@ -510,13 +430,11 @@ export default function LoginPage() {
               loading ||
               oauthLoading ||
               lockoutSeconds > 0 ||
-              // Require CAPTCHA verification unless whitelisted: Turnstile token, OR hCaptcha token, OR all available CAPTCHAs timed out, OR whitelisted
+              // Require verification unless whitelisted: Turnstile token, OR email OTP verified, OR whitelisted
               (
-                (!!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || !!process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY) &&
+                !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY &&
                 !turnstileToken &&
-                !hcaptchaToken &&
-                // Allow if: both timed out, OR turnstile timed out and no hCaptcha configured
-                !(turnstileTimedOut && (hcaptchaTimedOut || !process.env.NEXT_PUBLIC_HCAPTCHA_SITE_KEY)) &&
+                !emailOtpVerified &&
                 !isWhitelisted
               )
             }
