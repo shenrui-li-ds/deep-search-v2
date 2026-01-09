@@ -2,6 +2,22 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import MainLayout from '@/components/MainLayout';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { LanguageProvider } from '@/context/LanguageContext';
+
+// Mock next-intl to avoid ESM import issues
+jest.mock('next-intl', () => ({
+  useTranslations: () => (key: string) => {
+    const translations: Record<string, string> = {
+      'nav.home': 'Home',
+      'nav.library': 'Library',
+      'nav.account': 'Account',
+      'nav.theme': 'Theme',
+      'common.appName': 'Athenius',
+    };
+    return translations[key] || key;
+  },
+  useLocale: () => 'en',
+}));
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -37,10 +53,12 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-const renderWithThemeProvider = (component: React.ReactElement) => {
+const renderWithProviders = (component: React.ReactElement) => {
   return render(
     <ThemeProvider>
-      {component}
+      <LanguageProvider>
+        {component}
+      </LanguageProvider>
     </ThemeProvider>
   );
 };
@@ -52,7 +70,7 @@ describe('MainLayout', () => {
 
   describe('Rendering', () => {
     it('renders children correctly', () => {
-      renderWithThemeProvider(
+      renderWithProviders(
         <MainLayout>
           <div data-testid="child-content">Test Content</div>
         </MainLayout>
@@ -63,18 +81,19 @@ describe('MainLayout', () => {
     });
 
     it('renders the Sidebar component', () => {
-      renderWithThemeProvider(
+      renderWithProviders(
         <MainLayout>
           <div>Content</div>
         </MainLayout>
       );
 
       // Sidebar should render navigation items with text labels
-      expect(screen.getByText('Home')).toBeInTheDocument();
+      // The mock returns the key as-is, so look for lowercase 'home'
+      expect(screen.getByText('home')).toBeInTheDocument();
     });
 
     it('renders main content area', () => {
-      const { container } = renderWithThemeProvider(
+      const { container } = renderWithProviders(
         <MainLayout>
           <div>Content</div>
         </MainLayout>
@@ -87,7 +106,7 @@ describe('MainLayout', () => {
 
   describe('Layout Structure', () => {
     it('has minimum full screen height', () => {
-      const { container } = renderWithThemeProvider(
+      const { container } = renderWithProviders(
         <MainLayout>
           <div>Content</div>
         </MainLayout>
@@ -98,7 +117,7 @@ describe('MainLayout', () => {
     });
 
     it('main content area has left margin for sidebar on desktop', () => {
-      const { container } = renderWithThemeProvider(
+      const { container } = renderWithProviders(
         <MainLayout>
           <div>Content</div>
         </MainLayout>
@@ -110,7 +129,7 @@ describe('MainLayout', () => {
     });
 
     it('main content area has full screen height', () => {
-      const { container } = renderWithThemeProvider(
+      const { container } = renderWithProviders(
         <MainLayout>
           <div>Content</div>
         </MainLayout>
@@ -123,7 +142,7 @@ describe('MainLayout', () => {
 
   describe('Multiple Children', () => {
     it('renders multiple children correctly', () => {
-      renderWithThemeProvider(
+      renderWithProviders(
         <MainLayout>
           <header data-testid="header">Header</header>
           <section data-testid="section">Section</section>

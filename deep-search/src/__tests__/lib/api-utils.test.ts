@@ -118,7 +118,8 @@ describe('API Utils', () => {
 
       const result = await callOpenAI(mockMessages);
 
-      expect(result).toBe('Test response');
+      // Non-streaming returns LLMResponse object with content and usage
+      expect(result).toEqual({ content: 'Test response', usage: undefined });
     });
 
     it('returns raw response for streaming requests', async () => {

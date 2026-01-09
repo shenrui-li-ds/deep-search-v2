@@ -55,7 +55,7 @@ describe('/api/related-searches', () => {
       { query: 'Related query 3' },
     ]);
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    mockCallLLM.mockResolvedValueOnce({ content: mockLLMResponse, usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/related-searches', {
       method: 'POST',
@@ -80,7 +80,7 @@ describe('/api/related-searches', () => {
   it('handles LLM response with markdown code blocks', async () => {
     const mockLLMResponse = '```json\n[{"query": "Query 1"}, {"query": "Query 2"}]\n```';
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    mockCallLLM.mockResolvedValueOnce({ content: mockLLMResponse, usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/related-searches', {
       method: 'POST',
@@ -97,7 +97,7 @@ describe('/api/related-searches', () => {
   });
 
   it('returns empty array on invalid JSON response', async () => {
-    mockCallLLM.mockResolvedValueOnce('invalid json');
+    mockCallLLM.mockResolvedValueOnce({ content: 'invalid json', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/related-searches', {
       method: 'POST',
@@ -125,7 +125,7 @@ describe('/api/related-searches', () => {
       { query: 'Query 8' },
     ]);
 
-    mockCallLLM.mockResolvedValueOnce(mockLLMResponse);
+    mockCallLLM.mockResolvedValueOnce({ content: mockLLMResponse, usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/related-searches', {
       method: 'POST',

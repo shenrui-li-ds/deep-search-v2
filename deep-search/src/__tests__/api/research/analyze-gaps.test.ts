@@ -86,7 +86,7 @@ describe('/api/research/analyze-gaps', () => {
         importance: 'medium',
       },
     ];
-    mockCallLLM.mockResolvedValueOnce(JSON.stringify(mockGaps));
+    mockCallLLM.mockResolvedValueOnce({ content: JSON.stringify(mockGaps), usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',
@@ -109,7 +109,7 @@ describe('/api/research/analyze-gaps', () => {
   });
 
   it('returns hasGaps: false when no gaps found', async () => {
-    mockCallLLM.mockResolvedValueOnce('[]');
+    mockCallLLM.mockResolvedValueOnce({ content: '[]', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',
@@ -135,7 +135,7 @@ describe('/api/research/analyze-gaps', () => {
       { type: 'missing_expert', gap: 'Gap 4', query: 'query 4', importance: 'medium' },
       { type: 'missing_perspective', gap: 'Gap 5', query: 'query 5', importance: 'medium' },
     ];
-    mockCallLLM.mockResolvedValueOnce(JSON.stringify(mockGaps));
+    mockCallLLM.mockResolvedValueOnce({ content: JSON.stringify(mockGaps), usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',
@@ -156,7 +156,7 @@ describe('/api/research/analyze-gaps', () => {
     const mockGaps = [
       { type: 'missing_practical', gap: 'Gap 1', query: 'query 1', importance: 'high' },
     ];
-    mockCallLLM.mockResolvedValueOnce('```json\n' + JSON.stringify(mockGaps) + '\n```');
+    mockCallLLM.mockResolvedValueOnce({ content: '```json\n' + JSON.stringify(mockGaps) + '\n```', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',
@@ -175,7 +175,7 @@ describe('/api/research/analyze-gaps', () => {
   });
 
   it('returns empty gaps on parse error (fail-safe)', async () => {
-    mockCallLLM.mockResolvedValueOnce('invalid json {not valid}');
+    mockCallLLM.mockResolvedValueOnce({ content: 'invalid json {not valid}', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',
@@ -199,7 +199,7 @@ describe('/api/research/analyze-gaps', () => {
       { type: 'invalid', gap: 'Missing importance' }, // Invalid - missing importance and query
       { gap: 'Missing type', query: 'query', importance: 'high' }, // Invalid - missing type
     ];
-    mockCallLLM.mockResolvedValueOnce(JSON.stringify(mockGaps));
+    mockCallLLM.mockResolvedValueOnce({ content: JSON.stringify(mockGaps), usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',
@@ -238,7 +238,7 @@ describe('/api/research/analyze-gaps', () => {
   });
 
   it('uses low temperature for analytical task', async () => {
-    mockCallLLM.mockResolvedValueOnce('[]');
+    mockCallLLM.mockResolvedValueOnce({ content: '[]', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/analyze-gaps', {
       method: 'POST',

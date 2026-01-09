@@ -129,7 +129,7 @@ describe('cache', () => {
         ],
       });
 
-      expect(key).toMatch(/^research-synth:[a-f0-9]{32}:[a-f0-9]{32}:deepseek$/);
+      expect(key).toMatch(/^research-synth:[a-f0-9]{32}:[a-f0-9]{32}:deepseek:standard$/);
     });
 
     it('generates consistent research-synthesis key regardless of URL order within aspect', () => {

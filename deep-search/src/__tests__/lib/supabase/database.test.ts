@@ -104,6 +104,7 @@ describe('Supabase Database Functions', () => {
         p_mode: entry.mode,
         p_sources_count: entry.sources_count,
         p_refined_query: entry.refined_query,
+        p_deep: false,
       });
       expect(result).toEqual(mockResult);
     });
@@ -130,6 +131,7 @@ describe('Supabase Database Functions', () => {
         p_mode: entry.mode,
         p_sources_count: entry.sources_count,
         p_refined_query: null,
+        p_deep: false,
       });
     });
 
@@ -676,6 +678,7 @@ describe('Supabase Database Functions', () => {
         user_id: mockUser.id,
         default_provider: 'claude',
         default_mode: 'pro',
+        language: 'zh',
         created_at: '2024-01-15T00:00:00Z',
         updated_at: '2024-01-15T00:00:00Z',
       };
@@ -711,6 +714,7 @@ describe('Supabase Database Functions', () => {
         user_id: mockUser.id,
         default_provider: 'gemini',
         default_mode: 'web',
+        language: 'en',
       });
     });
 
@@ -748,6 +752,7 @@ describe('Supabase Database Functions', () => {
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_user_preferences', {
         p_default_provider: 'grok',
         p_default_mode: 'brainstorm',
+        p_language: null,
       });
       expect(result).toEqual(mockResult);
     });
@@ -771,6 +776,7 @@ describe('Supabase Database Functions', () => {
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_user_preferences', {
         p_default_provider: 'openai',
         p_default_mode: null,
+        p_language: null,
       });
       expect(result).toEqual(mockResult);
     });
@@ -794,6 +800,7 @@ describe('Supabase Database Functions', () => {
       expect(mockSupabaseClient.rpc).toHaveBeenCalledWith('upsert_user_preferences', {
         p_default_provider: null,
         p_default_mode: 'pro',
+        p_language: null,
       });
       expect(result).toEqual(mockResult);
     });

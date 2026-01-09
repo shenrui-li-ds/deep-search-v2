@@ -209,9 +209,9 @@ describe('Prompts', () => {
 
     it('includes synthesis requirements', () => {
       const prompt = researchSynthesizerPrompt('test', 'date');
-      expect(prompt).toContain('Integrate information from ALL');
-      expect(prompt).toContain('Cross-reference');
-      expect(prompt).toContain('consensus views');
+      expect(prompt).toContain('Connect related claims across different aspects');
+      expect(prompt).toContain('full picture');
+      expect(prompt).toContain('keyInsights');
     });
 
     it('specifies target word count', () => {
@@ -425,7 +425,7 @@ describe('Prompts', () => {
       const prompt = brainstormSynthesizerPrompt('test', 'date');
       expect(prompt).toContain('idea cards');
       expect(prompt).toContain('Unexpected Connections');
-      expect(prompt).toContain('Experiments to Try');
+      expect(prompt).toContain('experiments');
     });
 
     it('has proper XML structure', () => {

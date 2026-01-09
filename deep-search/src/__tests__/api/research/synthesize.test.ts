@@ -16,13 +16,15 @@ jest.mock('@/lib/api-utils', () => ({
 }));
 
 // Mock the prompts module
-const mockResearchSynthesizerPrompt = jest.fn(() => 'mocked synthesizer prompt');
-const mockDeepResearchSynthesizerPrompt = jest.fn(() => 'mocked deep synthesizer prompt');
-
 jest.mock('@/lib/prompts', () => ({
-  researchSynthesizerPrompt: mockResearchSynthesizerPrompt,
-  deepResearchSynthesizerPrompt: mockDeepResearchSynthesizerPrompt,
+  researchSynthesizerPrompt: jest.fn(() => 'mocked synthesizer prompt'),
+  deepResearchSynthesizerPrompt: jest.fn(() => 'mocked deep synthesizer prompt'),
 }));
+
+// Import prompts module to get references to the mocks
+import { researchSynthesizerPrompt, deepResearchSynthesizerPrompt } from '@/lib/prompts';
+const mockResearchSynthesizerPrompt = researchSynthesizerPrompt as jest.MockedFunction<typeof researchSynthesizerPrompt>;
+const mockDeepResearchSynthesizerPrompt = deepResearchSynthesizerPrompt as jest.MockedFunction<typeof deepResearchSynthesizerPrompt>;
 
 // Mock the cache module
 jest.mock('@/lib/cache', () => ({
@@ -115,7 +117,7 @@ describe('/api/research/synthesize', () => {
 
   it('returns synthesis on success (non-streaming)', async () => {
     const mockSynthesis = '## Research Summary\n\nQuantum computing is a revolutionary technology...';
-    mockCallLLM.mockResolvedValueOnce(mockSynthesis);
+    mockCallLLM.mockResolvedValueOnce({ content: mockSynthesis, usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
       method: 'POST',
@@ -159,7 +161,7 @@ describe('/api/research/synthesize', () => {
   });
 
   it('passes provider to callLLM', async () => {
-    mockCallLLM.mockResolvedValueOnce('Synthesis result');
+    mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis result', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
       method: 'POST',
@@ -201,7 +203,7 @@ describe('/api/research/synthesize', () => {
   });
 
   it('includes aspect information in formatted results', async () => {
-    mockCallLLM.mockResolvedValueOnce('Synthesis result');
+    mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis result', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
       method: 'POST',
@@ -225,7 +227,7 @@ describe('/api/research/synthesize', () => {
   });
 
   it('assigns consistent global source indices', async () => {
-    mockCallLLM.mockResolvedValueOnce('Synthesis result');
+    mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis result', usage: undefined });
 
     const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
       method: 'POST',
@@ -316,7 +318,7 @@ describe('/api/research/synthesize', () => {
 
     it('calls LLM on cache miss', async () => {
       mockGetFromCache.mockResolvedValueOnce({ data: null, source: 'miss' });
-      mockCallLLM.mockResolvedValueOnce('Fresh synthesis result');
+      mockCallLLM.mockResolvedValueOnce({ content: 'Fresh synthesis result', usage: undefined });
 
       const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
         method: 'POST',
@@ -358,7 +360,7 @@ describe('/api/research/synthesize', () => {
     ];
 
     it('uses deep synthesizer prompt when deep=true', async () => {
-      mockCallLLM.mockResolvedValueOnce('Deep synthesis result');
+      mockCallLLM.mockResolvedValueOnce({ content: 'Deep synthesis result', usage: undefined });
 
       const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
         method: 'POST',
@@ -382,7 +384,7 @@ describe('/api/research/synthesize', () => {
     });
 
     it('includes gap descriptions in deep mode', async () => {
-      mockCallLLM.mockResolvedValueOnce('Deep synthesis result');
+      mockCallLLM.mockResolvedValueOnce({ content: 'Deep synthesis result', usage: undefined });
 
       const gapDescriptions = [
         'Missing practical implementation examples',
@@ -411,7 +413,7 @@ describe('/api/research/synthesize', () => {
     });
 
     it('uses standard synthesizer when deep=false', async () => {
-      mockCallLLM.mockResolvedValueOnce('Standard synthesis result');
+      mockCallLLM.mockResolvedValueOnce({ content: 'Standard synthesis result', usage: undefined });
 
       const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
         method: 'POST',
@@ -429,7 +431,7 @@ describe('/api/research/synthesize', () => {
     });
 
     it('handles extractedData with gap aspects', async () => {
-      mockCallLLM.mockResolvedValueOnce('Synthesis with gaps');
+      mockCallLLM.mockResolvedValueOnce({ content: 'Synthesis with gaps', usage: undefined });
 
       const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
         method: 'POST',
@@ -457,7 +459,7 @@ describe('/api/research/synthesize', () => {
     });
 
     it('uses different target length for deep mode', async () => {
-      mockCallLLM.mockResolvedValueOnce('Deep synthesis result');
+      mockCallLLM.mockResolvedValueOnce({ content: 'Deep synthesis result', usage: undefined });
 
       const request = new NextRequest('http://localhost:3000/api/research/synthesize', {
         method: 'POST',
