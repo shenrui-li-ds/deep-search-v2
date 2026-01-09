@@ -390,7 +390,8 @@
       "expiresIn": "验证码将在 {time} 后过期",
       "resendIn": "{time} 后可重新发送",
       "resendCode": "重新发送",
-      "captchaUnavailable": "安全验证不可用，请通过邮箱验证"
+      "captchaUnavailable": "安全验证不可用，请通过邮箱验证",
+      "enterEmailFirst": "请在上方输入邮箱以接收验证码"
     },
     "errors": {
       "invalidEmail": "请输入有效的邮箱地址",
@@ -413,7 +414,8 @@
       "captchaUnavailable": "您所在地区无法使用安全验证",
       "otpSendFailed": "验证码发送失败",
       "otpVerifyFailed": "验证码无效或已过期",
-      "otpRateLimited": "请求过于频繁，请稍后再试"
+      "otpRateLimited": "请求过于频繁，请稍后再试",
+      "requestTimeout": "请求超时，请重试"
     }
   },
   "errors": {

@@ -18,6 +18,7 @@ jest.mock('next-intl', () => ({
       'errors.otpSendFailed': 'Failed to send verification code',
       'errors.otpVerifyFailed': 'Invalid or expired code',
       'errors.networkError': 'Network error. Please try again.',
+      'errors.requestTimeout': 'Request timed out. Please try again.',
     };
     return translations[key] || key;
   },
@@ -26,6 +27,14 @@ jest.mock('next-intl', () => ({
 // Mock fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
+
+// Mock AbortController
+const mockAbort = jest.fn();
+class MockAbortController {
+  signal = { aborted: false };
+  abort = mockAbort;
+}
+global.AbortController = MockAbortController as unknown as typeof AbortController;
 
 describe('EmailOTPFallback', () => {
   const defaultProps = {
@@ -341,6 +350,91 @@ describe('EmailOTPFallback', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: 'test@example.com', purpose: 'reset' }),
+      });
+    });
+  });
+
+  describe('Timeout Handling', () => {
+    it('shows timeout error when verification request is aborted', async () => {
+      // Send code first
+      mockFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, expires_in: 600 }),
+      });
+
+      // Verify request throws AbortError (timeout)
+      const abortError = new Error('The operation was aborted');
+      abortError.name = 'AbortError';
+      mockFetch.mockRejectedValueOnce(abortError);
+
+      render(<EmailOTPFallback {...defaultProps} />);
+
+      // Send the code
+      const sendButton = screen.getByRole('button', { name: /send verification code/i });
+      await act(async () => {
+        fireEvent.click(sendButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('textbox')).toHaveLength(6);
+      });
+
+      // Enter all 6 digits to trigger verification
+      const inputs = screen.getAllByRole('textbox');
+      for (let i = 0; i < 6; i++) {
+        await act(async () => {
+          fireEvent.change(inputs[i], { target: { value: String(i + 1) } });
+        });
+      }
+
+      // Should show timeout error message
+      await waitFor(() => {
+        expect(screen.getByText('Request timed out. Please try again.')).toBeInTheDocument();
+      });
+
+      // Inputs should be cleared for retry
+      inputs.forEach((input) => {
+        expect(input).toHaveValue('');
+      });
+    });
+
+    it('passes abort signal to verify fetch', async () => {
+      // Send code
+      mockFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, expires_in: 600 }),
+      });
+
+      // Verify code - successful
+      mockFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve({ success: true, verified_at: new Date().toISOString() }),
+      });
+
+      render(<EmailOTPFallback {...defaultProps} />);
+
+      // Send the code
+      const sendButton = screen.getByRole('button', { name: /send verification code/i });
+      await act(async () => {
+        fireEvent.click(sendButton);
+      });
+
+      await waitFor(() => {
+        expect(screen.getAllByRole('textbox')).toHaveLength(6);
+      });
+
+      // Enter all 6 digits
+      const inputs = screen.getAllByRole('textbox');
+      for (let i = 0; i < 6; i++) {
+        await act(async () => {
+          fireEvent.change(inputs[i], { target: { value: String(i + 1) } });
+        });
+      }
+
+      // Verify that fetch was called with signal option
+      await waitFor(() => {
+        const verifyCall = mockFetch.mock.calls.find(
+          (call) => call[0] === '/api/auth/verify-otp'
+        );
+        expect(verifyCall).toBeDefined();
+        expect(verifyCall![1]).toHaveProperty('signal');
       });
     });
   });

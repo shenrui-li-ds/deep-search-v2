@@ -43,12 +43,23 @@ export default function ForgotPasswordPage() {
     setTurnstileToken(null);
   }, []);
 
-  const resetTurnstile = useCallback(() => {
+  // Reset only Turnstile state - preserve email OTP verification to avoid losing user progress
+  const resetTurnstile = useCallback((preserveOtpVerification = true) => {
     setTurnstileToken(null);
     setTurnstileTimedOut(false);
-    setEmailOtpVerified(false);
+    if (!preserveOtpVerification) {
+      setEmailOtpVerified(false);
+    }
     setTurnstileKey((prev) => prev + 1);
   }, []);
+
+  // Helper: wrap async call with timeout to prevent infinite loading
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, errorMsg: string): Promise<T> => {
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(errorMsg)), ms)
+    );
+    return Promise.race([promise, timeout]);
+  };
 
   // Timeout for Turnstile - if stuck for 15s (e.g., blocked in China), show email OTP fallback
   const CAPTCHA_MAX_TIMEOUT = 15; // Show email OTP fallback after 15 seconds
@@ -208,13 +219,27 @@ export default function ForgotPasswordPage() {
 
     const supabase = createClient();
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    });
+    // Reset password with 30s timeout to prevent infinite loading
+    let resetResult: { error: Error | null };
+    try {
+      resetResult = await withTimeout(
+        supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        }),
+        30000,
+        t('errors.requestTimeout')
+      );
+    } catch (timeoutErr) {
+      setError((timeoutErr as Error).message);
+      setLoading(false);
+      return;
+    }
+
+    const { error } = resetResult;
 
     if (error) {
       setError(error.message);
-      resetTurnstile();
+      resetTurnstile(); // Preserves OTP verification by default
       setLoading(false);
       return;
     }
@@ -223,8 +248,8 @@ export default function ForgotPasswordPage() {
     sessionStorage.setItem('forgot_password_last_request', Date.now().toString());
     setCooldownRemaining(COOLDOWN_SECONDS);
 
-    // Reset CAPTCHA for next attempt
-    resetTurnstile();
+    // Reset CAPTCHA for next attempt (clear OTP verification since successful)
+    resetTurnstile(false);
 
     setSuccess(true);
     setLoading(false);
@@ -365,6 +390,16 @@ export default function ForgotPasswordPage() {
               purpose="reset"
               onVerified={() => setEmailOtpVerified(true)}
             />
+          )}
+
+          {/* Prompt to enter email when Turnstile times out but email is empty */}
+          {!isWhitelisted && turnstileTimedOut && !emailOtpVerified && !email && (
+            <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{t('otp.enterEmailFirst')}</span>
+            </div>
           )}
 
           <button

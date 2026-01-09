@@ -443,6 +443,86 @@ describe('CAPTCHA Fallback Logic (Turnstile → Email OTP)', () => {
     });
   });
 
+  describe('Enter Email First Prompt', () => {
+    /**
+     * When Turnstile times out but user hasn't entered email yet,
+     * we should show a prompt to enter email first instead of
+     * showing the OTP fallback with no email.
+     */
+    const env: EnvConfig = { turnstileSiteKey: 'turnstile-key' };
+
+    it('should NOT show Email OTP when Turnstile times out but email is empty', () => {
+      const state: CaptchaState = {
+        turnstileToken: null,
+        turnstileTimedOut: true,
+        emailOtpVerified: false,
+        isWhitelisted: false,
+      };
+
+      // Email is empty - should show "enter email first" prompt, not OTP
+      expect(shouldShowEmailOTPFallback(state, env, '')).toBe(false);
+    });
+
+    it('should show Email OTP when Turnstile times out AND email is entered', () => {
+      const state: CaptchaState = {
+        turnstileToken: null,
+        turnstileTimedOut: true,
+        emailOtpVerified: false,
+        isWhitelisted: false,
+      };
+
+      // Email is provided - should show OTP fallback
+      expect(shouldShowEmailOTPFallback(state, env, 'user@example.com')).toBe(true);
+    });
+  });
+
+  describe('Preserve OTP Verification on Turnstile Reset', () => {
+    /**
+     * When user verifies via Email OTP and then Turnstile is reset
+     * (e.g., on form error retry), the OTP verification should be preserved.
+     * This prevents users from having to re-verify via email on every retry.
+     */
+    const env: EnvConfig = { turnstileSiteKey: 'turnstile-key' };
+
+    it('should keep button enabled when Turnstile is reset but OTP was verified', () => {
+      // User verified via OTP, then form had error, Turnstile reset
+      const stateAfterReset: CaptchaState = {
+        turnstileToken: null, // Turnstile token cleared on reset
+        turnstileTimedOut: false, // Reset clears timeout state
+        emailOtpVerified: true, // OTP verification PRESERVED
+        isWhitelisted: false,
+      };
+
+      // Button should remain enabled due to preserved OTP verification
+      expect(isButtonDisabled(stateAfterReset, env)).toBe(false);
+    });
+
+    it('should allow submission with preserved OTP verification', () => {
+      const stateAfterReset: CaptchaState = {
+        turnstileToken: null,
+        turnstileTimedOut: false,
+        emailOtpVerified: true,
+        isWhitelisted: false,
+      };
+
+      const result = validateCaptchaForSubmission(stateAfterReset, env);
+      expect(result.canSubmit).toBe(true);
+      expect(result.bypassType).toBe('email-otp-verified');
+    });
+
+    it('should NOT show OTP fallback when already verified (after reset)', () => {
+      const stateAfterReset: CaptchaState = {
+        turnstileToken: null,
+        turnstileTimedOut: true, // Even if timeout happens again
+        emailOtpVerified: true, // Already verified
+        isWhitelisted: false,
+      };
+
+      // Should not show OTP UI since already verified
+      expect(shouldShowEmailOTPFallback(stateAfterReset, env, 'user@example.com')).toBe(false);
+    });
+  });
+
   describe('Comparison: Old hCaptcha vs New Email OTP Fallback', () => {
     /**
      * Old system (hCaptcha fallback):

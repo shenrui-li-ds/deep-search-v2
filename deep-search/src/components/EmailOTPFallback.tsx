@@ -84,12 +84,19 @@ export default function EmailOTPFallback({
     setLoading(true);
     setError(null);
 
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
     try {
       const response = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: fullCode, purpose }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -103,8 +110,16 @@ export default function EmailOTPFallback({
 
       setStep('verified');
       onVerified();
-    } catch {
-      setError(t('errors.networkError'));
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError(t('errors.requestTimeout'));
+      } else {
+        setError(t('errors.networkError'));
+      }
+      // Clear code on error for retry
+      setCode(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
     }

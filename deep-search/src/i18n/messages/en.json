@@ -390,7 +390,8 @@
       "expiresIn": "Code expires in {time}",
       "resendIn": "Resend in {time}",
       "resendCode": "Resend code",
-      "captchaUnavailable": "Security check unavailable. Verify via email instead."
+      "captchaUnavailable": "Security check unavailable. Verify via email instead.",
+      "enterEmailFirst": "Enter your email above to receive a verification code."
     },
     "errors": {
       "invalidEmail": "Please enter a valid email",
@@ -413,7 +414,8 @@
       "captchaUnavailable": "Security check unavailable in your region",
       "otpSendFailed": "Failed to send verification code",
       "otpVerifyFailed": "Invalid or expired code",
-      "otpRateLimited": "Too many requests. Please wait before trying again."
+      "otpRateLimited": "Too many requests. Please wait before trying again.",
+      "requestTimeout": "Request timed out. Please try again."
     }
   },
   "errors": {
