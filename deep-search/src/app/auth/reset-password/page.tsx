@@ -92,9 +92,11 @@ export default function ResetPasswordPage() {
     setSuccess(true);
     setLoading(false);
 
-    // Redirect to home after a short delay
-    setTimeout(() => {
-      router.push('/');
+    // Sign out and redirect to login page
+    // This ensures the user gets a fresh session with proper security cooldown
+    setTimeout(async () => {
+      await supabase.auth.signOut();
+      router.push('/auth/login?password_reset=success');
     }, 2000);
   };
 
@@ -302,6 +304,20 @@ export default function ResetPasswordPage() {
                 )}
               </button>
             </div>
+            {confirmPassword && (
+              <p className={`text-xs mt-1.5 flex items-center gap-1 ${password === confirmPassword ? 'text-green-500' : 'text-rose-500'}`}>
+                {password === confirmPassword ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    {t('passwordsMatch')}
+                  </>
+                ) : (
+                  t('errors.passwordMismatch')
+                )}
+              </p>
+            )}
           </div>
 
           <button

@@ -361,7 +361,7 @@
     "linkExpiredMessage": "This password reset link is invalid or has expired. Please request a new one.",
     "requestNewLink": "Request new link",
     "passwordUpdated": "Password updated!",
-    "passwordResetSuccess": "Your password has been successfully reset. Redirecting you to the home page...",
+    "passwordResetSuccess": "Your password has been reset. Please sign in with your new password.",
     "passwordHint": "At least 10 characters with lowercase, uppercase, and a number",
     "passwordsMatch": "Passwords match",
     "redirecting": "Redirecting...",
