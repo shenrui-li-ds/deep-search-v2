@@ -1,6 +1,33 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+/**
+ * Validates that a redirect path is safe (relative, no protocol, no encoded tricks)
+ * Prevents open redirect attacks like:
+ * - //evil.com (protocol-relative URL)
+ * - /\evil.com (backslash trick)
+ * - /%2Fevil.com (encoded slashes)
+ */
+function isValidRedirectPath(path: string): boolean {
+  // Must start with single forward slash
+  if (!path.startsWith('/')) return false;
+
+  // Must not start with // (protocol-relative URL)
+  if (path.startsWith('//')) return false;
+
+  // Must not contain backslash (some browsers interpret as forward slash)
+  if (path.includes('\\')) return false;
+
+  // Must not contain encoded slashes that could bypass checks
+  const decoded = decodeURIComponent(path);
+  if (decoded.startsWith('//') || decoded.includes('\\')) return false;
+
+  // Must not contain protocol
+  if (/^\/[a-z]+:/i.test(path)) return false;
+
+  return true;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -54,7 +81,11 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/auth/login';
-    url.searchParams.set('redirectTo', request.nextUrl.pathname);
+    // Only set redirectTo if the path is valid (prevents open redirect attacks)
+    const redirectPath = request.nextUrl.pathname;
+    if (isValidRedirectPath(redirectPath)) {
+      url.searchParams.set('redirectTo', redirectPath);
+    }
     return NextResponse.redirect(url);
   }
 

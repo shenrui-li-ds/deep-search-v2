@@ -2064,6 +2064,10 @@ export default function AccountPage() {
 
   const handleSignOut = async () => {
     setSigningOut(true);
+    // Clear session_start_time to prevent security cooldown bypass on next login
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('session_start_time');
+    }
     await signOut();
     router.push('/auth/login');
   };
