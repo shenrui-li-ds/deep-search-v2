@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS search_history (
   deep BOOLEAN DEFAULT false,
   sources_count INTEGER DEFAULT 0,
   bookmarked BOOLEAN DEFAULT false,
+  deleted_at TIMESTAMPTZ DEFAULT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -25,6 +26,10 @@ CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON search_history(user_id)
 CREATE INDEX IF NOT EXISTS idx_search_history_created_at ON search_history(created_at DESC);
 -- Index for fast queries on bookmarked searches
 CREATE INDEX IF NOT EXISTS idx_search_history_bookmarked ON search_history(user_id, bookmarked) WHERE bookmarked = true;
+-- Index for efficient filtering of non-deleted records
+CREATE INDEX IF NOT EXISTS idx_search_history_deleted_at ON search_history(deleted_at) WHERE deleted_at IS NULL;
+-- Index for efficient querying of deleted records
+CREATE INDEX IF NOT EXISTS idx_search_history_deleted_at_not_null ON search_history(user_id, deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- Row Level Security (RLS) - Users can only see their own history
 ALTER TABLE search_history ENABLE ROW LEVEL SECURITY;
@@ -78,6 +83,8 @@ CREATE POLICY "Users can insert their own API usage"
 -- ============================================
 CREATE TABLE IF NOT EXISTS user_limits (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  -- User tier (free, pro, admin)
+  user_tier TEXT DEFAULT 'free' CHECK (user_tier IN ('free', 'pro', 'admin')),
   -- Credit system
   monthly_free_credits INTEGER DEFAULT 500,
   free_credits_used INTEGER DEFAULT 0,
@@ -99,6 +106,9 @@ CREATE TABLE IF NOT EXISTS user_limits (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Index for tier lookups
+CREATE INDEX IF NOT EXISTS idx_user_limits_tier ON user_limits(user_tier) WHERE user_tier != 'free';
 
 -- RLS for user limits
 ALTER TABLE user_limits ENABLE ROW LEVEL SECURITY;
@@ -164,6 +174,131 @@ CREATE INDEX IF NOT EXISTS idx_credit_purchases_stripe_session ON credit_purchas
 -- ============================================
 -- FUNCTIONS
 -- ============================================
+
+-- ============================================
+-- TIER CONFIGURATION
+-- ============================================
+
+-- Function to get monthly free credits based on tier
+CREATE OR REPLACE FUNCTION public.get_tier_free_credits(p_tier TEXT)
+RETURNS INTEGER AS $$
+BEGIN
+  RETURN CASE p_tier
+    WHEN 'admin' THEN 10000
+    WHEN 'pro' THEN 2000
+    ELSE 500  -- 'free' tier
+  END;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+ALTER FUNCTION public.get_tier_free_credits(TEXT) SET search_path = public;
+
+-- ============================================
+-- ADMIN: SET USER TIER
+-- ============================================
+
+-- Set a user's tier by email (admin only, uses service_role)
+-- Usage: SELECT set_user_tier('user@example.com', 'pro');
+CREATE OR REPLACE FUNCTION public.set_user_tier(
+  p_user_email TEXT,
+  p_tier TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_new_free_credits INTEGER;
+BEGIN
+  -- Validate tier
+  IF p_tier NOT IN ('free', 'pro', 'admin') THEN
+    RETURN json_build_object('success', FALSE, 'error', 'Invalid tier. Must be: free, pro, or admin');
+  END IF;
+
+  -- Find user by email
+  SELECT id INTO v_user_id
+  FROM auth.users
+  WHERE email = p_user_email;
+
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('success', FALSE, 'error', 'User not found');
+  END IF;
+
+  -- Get new free credits for this tier
+  v_new_free_credits := get_tier_free_credits(p_tier);
+
+  -- Ensure user_limits row exists and update
+  INSERT INTO user_limits (user_id, user_tier, monthly_free_credits)
+  VALUES (v_user_id, p_tier, v_new_free_credits)
+  ON CONFLICT (user_id) DO UPDATE SET
+    user_tier = p_tier,
+    monthly_free_credits = v_new_free_credits,
+    updated_at = NOW();
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'user_id', v_user_id,
+    'email', p_user_email,
+    'tier', p_tier,
+    'monthly_free_credits', v_new_free_credits
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.set_user_tier(TEXT, TEXT) SET search_path = public;
+-- Only service_role can call this (admin function)
+REVOKE ALL ON FUNCTION public.set_user_tier(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_user_tier(TEXT, TEXT) TO service_role;
+
+-- ============================================
+-- ADMIN: GRANT BONUS CREDITS
+-- ============================================
+
+-- Grant one-time bonus credits to a user (added to purchased_credits)
+-- Usage: SELECT grant_bonus_credits('user@example.com', 500);
+CREATE OR REPLACE FUNCTION public.grant_bonus_credits(
+  p_user_email TEXT,
+  p_credits INTEGER
+)
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_new_purchased INTEGER;
+BEGIN
+  -- Validate credits
+  IF p_credits <= 0 THEN
+    RETURN json_build_object('success', FALSE, 'error', 'Credits must be positive');
+  END IF;
+
+  -- Find user by email
+  SELECT id INTO v_user_id
+  FROM auth.users
+  WHERE email = p_user_email;
+
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('success', FALSE, 'error', 'User not found');
+  END IF;
+
+  -- Ensure user_limits row exists and add credits
+  INSERT INTO user_limits (user_id, purchased_credits)
+  VALUES (v_user_id, p_credits)
+  ON CONFLICT (user_id) DO UPDATE SET
+    purchased_credits = user_limits.purchased_credits + p_credits,
+    updated_at = NOW()
+  RETURNING purchased_credits INTO v_new_purchased;
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'user_id', v_user_id,
+    'email', p_user_email,
+    'credits_granted', p_credits,
+    'new_purchased_total', v_new_purchased
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.grant_bonus_credits(TEXT, INTEGER) SET search_path = public;
+-- Only service_role can call this (admin function)
+REVOKE ALL ON FUNCTION public.grant_bonus_credits(TEXT, INTEGER) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.grant_bonus_credits(TEXT, INTEGER) TO service_role;
 
 -- Function to create user limits and preferences on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -356,6 +491,109 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
+-- SOFT DELETE FUNCTIONS
+-- ============================================
+
+-- Function to soft delete a search entry
+CREATE OR REPLACE FUNCTION soft_delete_search(p_search_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  v_user_id := auth.uid();
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  UPDATE search_history
+  SET deleted_at = NOW()
+  WHERE id = p_search_id
+    AND user_id = v_user_id
+    AND deleted_at IS NULL;
+
+  RETURN FOUND;
+END;
+$$;
+
+-- Function to recover a deleted search entry
+CREATE OR REPLACE FUNCTION recover_search(p_search_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  v_user_id := auth.uid();
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  UPDATE search_history
+  SET deleted_at = NULL
+  WHERE id = p_search_id
+    AND user_id = v_user_id
+    AND deleted_at IS NOT NULL;
+
+  RETURN FOUND;
+END;
+$$;
+
+-- Function to soft delete all search history for a user
+CREATE OR REPLACE FUNCTION soft_delete_all_searches()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_count INTEGER;
+BEGIN
+  v_user_id := auth.uid();
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  UPDATE search_history
+  SET deleted_at = NOW()
+  WHERE user_id = v_user_id
+    AND deleted_at IS NULL;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+-- Function to permanently delete old soft-deleted records (cleanup)
+-- This should be called by a scheduled job (pg_cron) monthly
+CREATE OR REPLACE FUNCTION cleanup_deleted_searches(p_days_old INTEGER DEFAULT 365)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  DELETE FROM search_history
+  WHERE deleted_at IS NOT NULL
+    AND deleted_at < NOW() - (p_days_old || ' days')::INTERVAL;
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
 
 -- Function to increment token usage atomically (updates both daily and monthly)
 CREATE OR REPLACE FUNCTION public.increment_token_usage(p_user_id UUID, p_tokens INTEGER)
@@ -640,53 +878,64 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 ALTER FUNCTION public.check_and_authorize_search(INTEGER) SET search_path = public;
 
 -- Get current credit balances (read-only, no side effects)
+-- Returns user tier along with credit information
 CREATE OR REPLACE FUNCTION public.get_user_credits()
 RETURNS JSON AS $$
 DECLARE
   v_user_id UUID;
+  v_tier TEXT;
   v_monthly_free INTEGER;
   v_free_used INTEGER;
   v_purchased INTEGER;
   v_last_reset DATE;
-  v_free_available INTEGER;
-  v_days_until_reset INTEGER;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
     RETURN json_build_object('error', 'Not authenticated');
   END IF;
 
-  -- Get or create user limits
+  -- Ensure user_limits row exists
   INSERT INTO user_limits (user_id)
   VALUES (v_user_id)
   ON CONFLICT (user_id) DO NOTHING;
 
+  -- Reset monthly counters if needed
+  UPDATE user_limits
+  SET monthly_searches_used = 0,
+      monthly_tokens_used = 0,
+      free_credits_used = 0,
+      last_monthly_reset = DATE_TRUNC('month', CURRENT_DATE)::DATE,
+      updated_at = NOW()
+  WHERE user_id = v_user_id
+    AND last_monthly_reset < DATE_TRUNC('month', CURRENT_DATE)::DATE;
+
+  -- Get current state with safe defaults
   SELECT
-    monthly_free_credits,
-    free_credits_used,
-    purchased_credits,
+    COALESCE(user_tier, 'free'),
+    COALESCE(monthly_free_credits, get_tier_free_credits(COALESCE(user_tier, 'free'))),
+    COALESCE(free_credits_used, 0),
+    COALESCE(purchased_credits, 0),
     last_monthly_reset
-  INTO v_monthly_free, v_free_used, v_purchased, v_last_reset
+  INTO v_tier, v_monthly_free, v_free_used, v_purchased, v_last_reset
   FROM user_limits
   WHERE user_id = v_user_id;
 
-  -- Check if monthly reset is needed
-  IF v_last_reset IS NULL OR v_last_reset < date_trunc('month', CURRENT_DATE)::DATE THEN
+  -- Handle case where row doesn't exist yet
+  IF v_tier IS NULL THEN
+    v_tier := 'free';
+    v_monthly_free := 500;
     v_free_used := 0;
+    v_purchased := 0;
   END IF;
 
-  v_free_available := v_monthly_free - v_free_used;
-
-  -- Calculate days until next reset (first of next month)
-  v_days_until_reset := (date_trunc('month', CURRENT_DATE) + INTERVAL '1 month')::DATE - CURRENT_DATE;
-
   RETURN json_build_object(
+    'user_tier', v_tier,
     'monthly_free_credits', v_monthly_free,
     'free_credits_used', v_free_used,
-    'free_credits_remaining', v_free_available,
+    'free_credits_remaining', v_monthly_free - v_free_used,
     'purchased_credits', v_purchased,
-    'total_available', v_free_available + v_purchased,
-    'days_until_reset', v_days_until_reset
+    'total_available', (v_monthly_free - v_free_used) + v_purchased,
+    'days_until_reset', EXTRACT(DAY FROM (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' - CURRENT_DATE))::INTEGER
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -724,9 +973,12 @@ CREATE TABLE IF NOT EXISTS user_preferences (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   default_provider TEXT DEFAULT 'deepseek' CHECK (default_provider IN ('deepseek', 'openai', 'grok', 'claude', 'gemini', 'vercel-gateway')),
   default_mode TEXT DEFAULT 'web' CHECK (default_mode IN ('web', 'pro', 'brainstorm')),
+  language TEXT DEFAULT 'en' CHECK (language IN ('en', 'zh')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+COMMENT ON COLUMN user_preferences.language IS 'UI language preference: en (English), zh (Chinese)';
 
 -- RLS for user preferences
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
@@ -744,10 +996,543 @@ CREATE POLICY "Users can update own preferences"
   USING ((select auth.uid()) = user_id)
   WITH CHECK ((select auth.uid()) = user_id);
 
--- Function to upsert user preferences
+-- ============================================
+-- CREDIT RESERVATIONS TABLE
+-- ============================================
+-- For dynamic billing: reserve credits before search, charge actual usage after
+
+CREATE TABLE IF NOT EXISTS credit_reservations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  reserved_credits INTEGER NOT NULL,
+  actual_credits INTEGER,  -- NULL until finalized
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'finalized', 'cancelled', 'expired')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  finalized_at TIMESTAMP WITH TIME ZONE
+);
+
+-- RLS for credit_reservations
+ALTER TABLE credit_reservations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own reservations"
+  ON credit_reservations
+  FOR SELECT
+  TO authenticated
+  USING ((SELECT auth.uid()) = user_id);
+
+-- Index for faster lookups and cleanup
+CREATE INDEX IF NOT EXISTS idx_credit_reservations_user_id ON credit_reservations(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_reservations_status ON credit_reservations(status) WHERE status = 'pending';
+
+-- ============================================
+-- EMAIL VERIFICATION CODES TABLE (OTP for CAPTCHA fallback)
+-- ============================================
+-- Provides fallback verification when Turnstile is blocked (e.g., in China)
+
+CREATE TABLE IF NOT EXISTS public.email_verification_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  code TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'login', 'reset')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  verified BOOLEAN DEFAULT FALSE,
+  attempts INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  ip_address TEXT -- For rate limiting
+);
+
+-- Index for quick lookups
+CREATE INDEX IF NOT EXISTS idx_otp_email_purpose ON email_verification_codes (email, purpose, verified);
+-- Index for cleanup job
+CREATE INDEX IF NOT EXISTS idx_otp_expires ON email_verification_codes (expires_at);
+
+-- RLS: Only allow access via functions (SECURITY DEFINER)
+ALTER TABLE email_verification_codes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "No direct access to OTP codes"
+ON email_verification_codes
+FOR ALL
+USING (FALSE);
+
+-- ============================================
+-- CREDIT RESERVATION FUNCTIONS
+-- ============================================
+
+-- Reserve credits for a search (blocks them from being used elsewhere)
+-- Returns: { allowed: boolean, reservation_id: uuid, reserved: number, error?: string }
+CREATE OR REPLACE FUNCTION public.reserve_credits(p_max_credits INTEGER)
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_tier TEXT;
+  v_monthly_free INTEGER;
+  v_free_used INTEGER;
+  v_purchased INTEGER;
+  v_free_available INTEGER;
+  v_total_available INTEGER;
+  v_reservation_id UUID;
+BEGIN
+  -- Get current user
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('allowed', FALSE, 'error', 'Not authenticated');
+  END IF;
+
+  -- Ensure user_limits row exists with default tier
+  INSERT INTO user_limits (user_id)
+  VALUES (v_user_id)
+  ON CONFLICT (user_id) DO NOTHING;
+
+  -- Get user's tier and set appropriate monthly_free_credits if not set
+  SELECT user_tier, monthly_free_credits INTO v_tier, v_monthly_free
+  FROM user_limits
+  WHERE user_id = v_user_id;
+
+  -- Update monthly_free_credits based on tier if it's still default
+  IF v_monthly_free = 500 AND v_tier != 'free' THEN
+    v_monthly_free := get_tier_free_credits(v_tier);
+    UPDATE user_limits SET monthly_free_credits = v_monthly_free WHERE user_id = v_user_id;
+  END IF;
+
+  -- Reset monthly counters if needed
+  UPDATE user_limits
+  SET monthly_searches_used = 0,
+      monthly_tokens_used = 0,
+      free_credits_used = 0,
+      last_monthly_reset = DATE_TRUNC('month', CURRENT_DATE)::DATE,
+      updated_at = NOW()
+  WHERE user_id = v_user_id
+    AND last_monthly_reset < DATE_TRUNC('month', CURRENT_DATE)::DATE;
+
+  -- Get current credit state
+  SELECT
+    COALESCE(monthly_free_credits, get_tier_free_credits(COALESCE(user_tier, 'free'))),
+    COALESCE(free_credits_used, 0),
+    COALESCE(purchased_credits, 0)
+  INTO v_monthly_free, v_free_used, v_purchased
+  FROM user_limits
+  WHERE user_id = v_user_id;
+
+  -- Calculate available credits
+  v_free_available := v_monthly_free - v_free_used;
+  v_total_available := v_free_available + v_purchased;
+
+  -- Check if we have enough credits to reserve
+  IF v_total_available < p_max_credits THEN
+    RETURN json_build_object(
+      'allowed', FALSE,
+      'error', 'Insufficient credits',
+      'needed', p_max_credits,
+      'available', v_total_available
+    );
+  END IF;
+
+  -- Create reservation record
+  INSERT INTO credit_reservations (user_id, reserved_credits, status)
+  VALUES (v_user_id, p_max_credits, 'pending')
+  RETURNING id INTO v_reservation_id;
+
+  -- Reserve credits: temporarily deduct from available pool
+  -- First use free credits, then purchased
+  IF v_free_available >= p_max_credits THEN
+    UPDATE user_limits
+    SET free_credits_used = free_credits_used + p_max_credits,
+        updated_at = NOW()
+    WHERE user_id = v_user_id;
+  ELSIF v_free_available > 0 THEN
+    -- Use all remaining free credits + some purchased
+    UPDATE user_limits
+    SET free_credits_used = monthly_free_credits,
+        purchased_credits = purchased_credits - (p_max_credits - v_free_available),
+        updated_at = NOW()
+    WHERE user_id = v_user_id;
+  ELSE
+    -- All from purchased
+    UPDATE user_limits
+    SET purchased_credits = purchased_credits - p_max_credits,
+        updated_at = NOW()
+    WHERE user_id = v_user_id;
+  END IF;
+
+  RETURN json_build_object(
+    'allowed', TRUE,
+    'reservation_id', v_reservation_id,
+    'reserved', p_max_credits,
+    'remaining_after_reserve', v_total_available - p_max_credits
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.reserve_credits(INTEGER) SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.reserve_credits(INTEGER) TO authenticated;
+
+-- Finalize a reservation: charge actual usage, refund unused
+-- Uses fixed refund logic: refunds to free_credits first, then purchased
+-- Returns: { success: boolean, charged: number, refunded: number, error?: string }
+CREATE OR REPLACE FUNCTION public.finalize_credits(
+  p_reservation_id UUID,
+  p_actual_credits INTEGER
+)
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_reservation RECORD;
+  v_refund INTEGER;
+  v_free_used INTEGER;
+  v_refund_to_free INTEGER;
+  v_refund_to_purchased INTEGER;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('success', FALSE, 'error', 'Not authenticated');
+  END IF;
+
+  -- Get and lock the reservation
+  SELECT * INTO v_reservation
+  FROM credit_reservations
+  WHERE id = p_reservation_id
+    AND user_id = v_user_id
+    AND status = 'pending'
+  FOR UPDATE;
+
+  IF v_reservation IS NULL THEN
+    RETURN json_build_object('success', FALSE, 'error', 'Reservation not found or already finalized');
+  END IF;
+
+  -- Calculate refund (reserved - actual)
+  v_refund := v_reservation.reserved_credits - p_actual_credits;
+
+  IF v_refund < 0 THEN
+    -- Shouldn't happen, but cap at reserved amount
+    p_actual_credits := v_reservation.reserved_credits;
+    v_refund := 0;
+  END IF;
+
+  -- Refund unused credits - give back to free first, then purchased
+  IF v_refund > 0 THEN
+    -- Get current free_credits_used
+    SELECT free_credits_used INTO v_free_used
+    FROM user_limits
+    WHERE user_id = v_user_id;
+
+    -- Calculate how much can go back to free vs purchased
+    -- We can only reduce free_credits_used down to 0
+    v_refund_to_free := LEAST(v_refund, COALESCE(v_free_used, 0));
+    v_refund_to_purchased := v_refund - v_refund_to_free;
+
+    UPDATE user_limits
+    SET free_credits_used = free_credits_used - v_refund_to_free,
+        purchased_credits = purchased_credits + v_refund_to_purchased,
+        updated_at = NOW()
+    WHERE user_id = v_user_id;
+  END IF;
+
+  -- Mark reservation as finalized
+  UPDATE credit_reservations
+  SET status = 'finalized',
+      actual_credits = p_actual_credits,
+      finalized_at = NOW()
+  WHERE id = p_reservation_id;
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'charged', p_actual_credits,
+    'refunded', v_refund
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.finalize_credits(UUID, INTEGER) SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.finalize_credits(UUID, INTEGER) TO authenticated;
+
+-- Cancel a reservation (full refund) - used if search fails
+-- Uses fixed refund logic: refunds to free_credits first, then purchased
+CREATE OR REPLACE FUNCTION public.cancel_reservation(p_reservation_id UUID)
+RETURNS JSON AS $$
+DECLARE
+  v_user_id UUID;
+  v_reservation RECORD;
+  v_free_used INTEGER;
+  v_refund_to_free INTEGER;
+  v_refund_to_purchased INTEGER;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN json_build_object('success', FALSE, 'error', 'Not authenticated');
+  END IF;
+
+  -- Get and lock the reservation
+  SELECT * INTO v_reservation
+  FROM credit_reservations
+  WHERE id = p_reservation_id
+    AND user_id = v_user_id
+    AND status = 'pending'
+  FOR UPDATE;
+
+  IF v_reservation IS NULL THEN
+    RETURN json_build_object('success', FALSE, 'error', 'Reservation not found or already processed');
+  END IF;
+
+  -- Get current free_credits_used
+  SELECT free_credits_used INTO v_free_used
+  FROM user_limits
+  WHERE user_id = v_user_id;
+
+  -- Calculate how much can go back to free vs purchased
+  v_refund_to_free := LEAST(v_reservation.reserved_credits, COALESCE(v_free_used, 0));
+  v_refund_to_purchased := v_reservation.reserved_credits - v_refund_to_free;
+
+  -- Full refund - give back to free first, then purchased
+  UPDATE user_limits
+  SET free_credits_used = free_credits_used - v_refund_to_free,
+      purchased_credits = purchased_credits + v_refund_to_purchased,
+      updated_at = NOW()
+  WHERE user_id = v_user_id;
+
+  -- Mark as cancelled
+  UPDATE credit_reservations
+  SET status = 'cancelled',
+      actual_credits = 0,
+      finalized_at = NOW()
+  WHERE id = p_reservation_id;
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'refunded', v_reservation.reserved_credits
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.cancel_reservation(UUID) SET search_path = public;
+GRANT EXECUTE ON FUNCTION public.cancel_reservation(UUID) TO authenticated;
+
+-- Expire stale reservations (older than 5 minutes) and refund credits
+-- Uses fixed refund logic: refunds to free_credits first, then purchased
+CREATE OR REPLACE FUNCTION public.cleanup_expired_reservations()
+RETURNS INTEGER AS $$
+DECLARE
+  v_count INTEGER := 0;
+  v_reservation RECORD;
+  v_free_used INTEGER;
+  v_refund_to_free INTEGER;
+  v_refund_to_purchased INTEGER;
+BEGIN
+  FOR v_reservation IN
+    SELECT * FROM credit_reservations
+    WHERE status = 'pending'
+      AND created_at < NOW() - INTERVAL '5 minutes'
+    FOR UPDATE
+  LOOP
+    -- Get current free_credits_used for this user
+    SELECT free_credits_used INTO v_free_used
+    FROM user_limits
+    WHERE user_id = v_reservation.user_id;
+
+    -- Calculate how much can go back to free vs purchased
+    v_refund_to_free := LEAST(v_reservation.reserved_credits, COALESCE(v_free_used, 0));
+    v_refund_to_purchased := v_reservation.reserved_credits - v_refund_to_free;
+
+    -- Refund credits - give back to free first, then purchased
+    UPDATE user_limits
+    SET free_credits_used = free_credits_used - v_refund_to_free,
+        purchased_credits = purchased_credits + v_refund_to_purchased,
+        updated_at = NOW()
+    WHERE user_id = v_reservation.user_id;
+
+    -- Mark as expired
+    UPDATE credit_reservations
+    SET status = 'expired',
+        actual_credits = 0,
+        finalized_at = NOW()
+    WHERE id = v_reservation.id;
+
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.cleanup_expired_reservations() SET search_path = public;
+-- Only service role should run cleanup
+GRANT EXECUTE ON FUNCTION public.cleanup_expired_reservations() TO service_role;
+
+-- ============================================
+-- EMAIL OTP FUNCTIONS
+-- ============================================
+
+-- Generate OTP for email verification
+CREATE OR REPLACE FUNCTION public.generate_email_otp(
+  p_email TEXT,
+  p_purpose TEXT,
+  p_ip_address TEXT DEFAULT NULL
+)
+RETURNS JSON AS $$
+DECLARE
+  v_code TEXT;
+  v_expires_at TIMESTAMPTZ;
+  v_recent_count INTEGER;
+  v_otp_id UUID;
+BEGIN
+  -- Rate limiting: max 3 OTP requests per email per purpose in 10 minutes
+  SELECT COUNT(*) INTO v_recent_count
+  FROM email_verification_codes
+  WHERE email = LOWER(p_email)
+    AND purpose = p_purpose
+    AND created_at > NOW() - INTERVAL '10 minutes';
+
+  IF v_recent_count >= 3 THEN
+    RETURN json_build_object(
+      'success', FALSE,
+      'error', 'Too many verification requests. Please wait 10 minutes.',
+      'retry_after', 600
+    );
+  END IF;
+
+  -- Rate limiting by IP: max 10 OTP requests per IP per hour
+  IF p_ip_address IS NOT NULL THEN
+    SELECT COUNT(*) INTO v_recent_count
+    FROM email_verification_codes
+    WHERE ip_address = p_ip_address
+      AND created_at > NOW() - INTERVAL '1 hour';
+
+    IF v_recent_count >= 10 THEN
+      RETURN json_build_object(
+        'success', FALSE,
+        'error', 'Too many requests from your location. Please try again later.',
+        'retry_after', 3600
+      );
+    END IF;
+  END IF;
+
+  -- Invalidate any existing unused codes for this email/purpose
+  UPDATE email_verification_codes
+  SET verified = TRUE
+  WHERE email = LOWER(p_email)
+    AND purpose = p_purpose
+    AND verified = FALSE;
+
+  -- Generate 6-digit code
+  v_code := LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
+
+  -- Set expiry (10 minutes)
+  v_expires_at := NOW() + INTERVAL '10 minutes';
+
+  -- Insert new code
+  INSERT INTO email_verification_codes (email, code, purpose, expires_at, ip_address)
+  VALUES (LOWER(p_email), v_code, p_purpose, v_expires_at, p_ip_address)
+  RETURNING id INTO v_otp_id;
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'otp_id', v_otp_id,
+    'code', v_code,
+    'expires_at', v_expires_at,
+    'expires_in', 600
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.generate_email_otp(TEXT, TEXT, TEXT) SET search_path = public;
+
+-- Verify OTP code
+CREATE OR REPLACE FUNCTION public.verify_email_otp(
+  p_email TEXT,
+  p_code TEXT,
+  p_purpose TEXT
+)
+RETURNS JSON AS $$
+DECLARE
+  v_otp_record RECORD;
+BEGIN
+  -- Find the most recent unverified code for this email/purpose
+  SELECT * INTO v_otp_record
+  FROM email_verification_codes
+  WHERE email = LOWER(p_email)
+    AND purpose = p_purpose
+    AND verified = FALSE
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  -- No code found
+  IF v_otp_record IS NULL THEN
+    RETURN json_build_object(
+      'success', FALSE,
+      'error', 'No verification code found. Please request a new one.'
+    );
+  END IF;
+
+  -- Code expired
+  IF v_otp_record.expires_at < NOW() THEN
+    RETURN json_build_object(
+      'success', FALSE,
+      'error', 'Verification code expired. Please request a new one.'
+    );
+  END IF;
+
+  -- Too many attempts (max 5)
+  IF v_otp_record.attempts >= 5 THEN
+    -- Mark as verified to prevent further attempts
+    UPDATE email_verification_codes
+    SET verified = TRUE
+    WHERE id = v_otp_record.id;
+
+    RETURN json_build_object(
+      'success', FALSE,
+      'error', 'Too many incorrect attempts. Please request a new code.'
+    );
+  END IF;
+
+  -- Increment attempts
+  UPDATE email_verification_codes
+  SET attempts = attempts + 1
+  WHERE id = v_otp_record.id;
+
+  -- Check code
+  IF v_otp_record.code != p_code THEN
+    RETURN json_build_object(
+      'success', FALSE,
+      'error', 'Incorrect verification code.',
+      'attempts_remaining', 4 - v_otp_record.attempts
+    );
+  END IF;
+
+  -- Success! Mark as verified
+  UPDATE email_verification_codes
+  SET verified = TRUE
+  WHERE id = v_otp_record.id;
+
+  RETURN json_build_object(
+    'success', TRUE,
+    'verified_at', NOW()
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.verify_email_otp(TEXT, TEXT, TEXT) SET search_path = public;
+
+-- Cleanup expired OTP codes (for pg_cron)
+CREATE OR REPLACE FUNCTION public.cleanup_expired_otp_codes()
+RETURNS INTEGER AS $$
+DECLARE
+  v_deleted INTEGER;
+BEGIN
+  -- Delete codes older than 1 hour (expired + buffer)
+  DELETE FROM email_verification_codes
+  WHERE expires_at < NOW() - INTERVAL '1 hour';
+
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  RETURN v_deleted;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+ALTER FUNCTION public.cleanup_expired_otp_codes() SET search_path = public;
+
+-- Function to upsert user preferences (with language support)
 CREATE OR REPLACE FUNCTION public.upsert_user_preferences(
   p_default_provider TEXT DEFAULT NULL,
-  p_default_mode TEXT DEFAULT NULL
+  p_default_mode TEXT DEFAULT NULL,
+  p_language TEXT DEFAULT NULL
 )
 RETURNS user_preferences AS $$
 DECLARE
@@ -759,22 +1544,97 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  INSERT INTO user_preferences (user_id, default_provider, default_mode, updated_at)
+  INSERT INTO user_preferences (user_id, default_provider, default_mode, language, updated_at)
   VALUES (
     v_user_id,
     COALESCE(p_default_provider, 'deepseek'),
     COALESCE(p_default_mode, 'web'),
+    COALESCE(p_language, 'en'),
     NOW()
   )
   ON CONFLICT (user_id) DO UPDATE SET
     default_provider = COALESCE(p_default_provider, user_preferences.default_provider),
     default_mode = COALESCE(p_default_mode, user_preferences.default_mode),
+    language = COALESCE(p_language, user_preferences.language),
     updated_at = NOW()
   RETURNING * INTO v_result;
 
   RETURN v_result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION public.upsert_user_preferences(TEXT, TEXT, TEXT) TO authenticated;
+
+-- ============================================
+-- UPSERT SEARCH HISTORY FUNCTION
+-- ============================================
+-- Optimizes the "add to history" flow by combining the duplicate check
+-- and insert/update into a single database call.
+-- If a BOOKMARKED entry with same (user_id, query, provider, mode) exists,
+-- updates that entry instead of creating a duplicate.
+
+CREATE OR REPLACE FUNCTION public.upsert_search_history(
+  p_user_id UUID,
+  p_query TEXT,
+  p_provider TEXT,
+  p_mode TEXT,
+  p_sources_count INTEGER,
+  p_refined_query TEXT DEFAULT NULL,
+  p_deep BOOLEAN DEFAULT false
+)
+RETURNS SETOF public.search_history
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing_id UUID;
+  v_result public.search_history;
+BEGIN
+  -- First, try to find an existing BOOKMARKED entry with same query/provider/mode
+  SELECT id INTO v_existing_id
+  FROM public.search_history
+  WHERE user_id = p_user_id
+    AND query = p_query
+    AND provider = p_provider
+    AND mode = p_mode
+    AND bookmarked = true
+    AND deleted_at IS NULL
+  LIMIT 1;
+
+  IF v_existing_id IS NOT NULL THEN
+    -- Update the existing bookmarked entry (move it to top of history)
+    UPDATE public.search_history
+    SET sources_count = p_sources_count,
+        refined_query = p_refined_query,
+        deep = p_deep,
+        created_at = NOW()
+    WHERE id = v_existing_id
+    RETURNING * INTO v_result;
+  ELSE
+    -- No bookmarked entry exists, insert new entry
+    INSERT INTO public.search_history (user_id, query, provider, mode, sources_count, refined_query, deep)
+    VALUES (p_user_id, p_query, p_provider, p_mode, p_sources_count, p_refined_query, p_deep)
+    RETURNING * INTO v_result;
+  END IF;
+
+  RETURN NEXT v_result;
+END;
+$$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION public.upsert_search_history TO authenticated;
+
+-- Add index to speed up the bookmarked entry lookup
+CREATE INDEX IF NOT EXISTS idx_search_history_bookmarked_lookup
+ON public.search_history(user_id, query, provider, mode)
+WHERE bookmarked = true;
+
+COMMENT ON FUNCTION public.upsert_search_history IS
+'Upserts a search history entry. If a bookmarked entry with the same query/provider/mode exists,
+updates it instead of creating a duplicate. Called from the client via supabase.rpc().
+Parameters include p_deep (boolean) for deep research mode tracking.';
 
 -- ============================================
 -- SEARCH CACHE TABLE (Two-tier caching)
@@ -1014,6 +1874,29 @@ ALTER FUNCTION public.record_failed_login(TEXT) SET search_path = public;
 ALTER FUNCTION public.reset_login_attempts(TEXT) SET search_path = public;
 
 -- ============================================
+-- ADMIN VIEW: USER CREDITS
+-- ============================================
+-- View to see all users and their tiers (for admin dashboard)
+
+CREATE OR REPLACE VIEW admin_user_credits AS
+SELECT
+  u.email,
+  ul.user_tier,
+  ul.monthly_free_credits,
+  ul.free_credits_used,
+  ul.purchased_credits,
+  (COALESCE(ul.monthly_free_credits, 500) - COALESCE(ul.free_credits_used, 0) + COALESCE(ul.purchased_credits, 0)) as total_available,
+  ul.last_monthly_reset,
+  ul.updated_at
+FROM auth.users u
+LEFT JOIN user_limits ul ON u.id = ul.user_id
+ORDER BY ul.updated_at DESC NULLS LAST;
+
+-- Only service_role can access this view
+REVOKE ALL ON admin_user_credits FROM PUBLIC;
+GRANT SELECT ON admin_user_credits TO service_role;
+
+-- ============================================
 -- GRANT PERMISSIONS
 -- ============================================
 
@@ -1024,7 +1907,9 @@ GRANT EXECUTE ON FUNCTION public.cleanup_old_history() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_token_usage(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_token_limits(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_cache() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.upsert_user_preferences(TEXT, TEXT) TO authenticated;
+
+-- Tier functions (get_tier_free_credits is already granted via its definition)
+GRANT EXECUTE ON FUNCTION public.get_tier_free_credits(TEXT) TO authenticated;
 
 -- Credit system functions
 GRANT EXECUTE ON FUNCTION public.check_and_use_credits(INTEGER) TO authenticated;
@@ -1032,6 +1917,11 @@ GRANT EXECUTE ON FUNCTION public.check_and_authorize_search(INTEGER) TO authenti
 GRANT EXECUTE ON FUNCTION public.get_user_credits() TO authenticated;
 -- Only service role can add credits (via Stripe webhooks)
 GRANT EXECUTE ON FUNCTION public.add_purchased_credits(UUID, INTEGER) TO service_role;
+
+-- Soft delete functions
+GRANT EXECUTE ON FUNCTION public.soft_delete_search(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.recover_search(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.soft_delete_all_searches() TO authenticated;
 
 -- Login lockout functions need to be callable from client during login
 GRANT EXECUTE ON FUNCTION public.check_login_lockout(TEXT) TO anon, authenticated;
@@ -1054,4 +1944,55 @@ GRANT EXECUTE ON FUNCTION public.reset_login_attempts(TEXT) TO anon, authenticat
 --
 -- History cleanup weekly on Sunday at 4am UTC:
 -- SELECT cron.schedule('cleanup-history', '0 4 * * 0', $$SELECT public.cleanup_old_history()$$);
+--
+-- Cleanup soft-deleted searches after 1 year (1st of month at 4am UTC):
+-- SELECT cron.schedule('cleanup-deleted-searches', '0 4 1 * *', $$SELECT public.cleanup_deleted_searches(365)$$);
+--
+-- Cleanup expired reservations every 5 minutes:
+-- SELECT cron.schedule('cleanup-expired-reservations', '*/5 * * * *', $$SELECT public.cleanup_expired_reservations()$$);
+--
+-- Cleanup expired OTP codes every hour:
+-- SELECT cron.schedule('cleanup-expired-otp', '0 * * * *', $$SELECT public.cleanup_expired_otp_codes()$$);
+
+-- ============================================
+-- AVATAR STORAGE BUCKET (run separately)
+-- ============================================
+-- This creates a public storage bucket for user avatars.
+-- Run this SEPARATELY in Supabase SQL Editor after creating tables:
+--
+-- INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+-- VALUES (
+--   'avatars',
+--   'avatars',
+--   true,  -- Public bucket so avatars can be displayed without auth
+--   307200,  -- 300KB max file size
+--   ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+-- )
+-- ON CONFLICT (id) DO UPDATE SET
+--   public = true,
+--   file_size_limit = 307200,
+--   allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+--
+-- RLS Policies for avatars bucket:
+--
+-- -- Allow authenticated users to upload their own avatar
+-- CREATE POLICY "Users can upload their own avatar"
+-- ON storage.objects FOR INSERT TO authenticated
+-- WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+--
+-- -- Allow authenticated users to update their own avatar
+-- CREATE POLICY "Users can update their own avatar"
+-- ON storage.objects FOR UPDATE TO authenticated
+-- USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text)
+-- WITH CHECK (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+--
+-- -- Allow authenticated users to delete their own avatar
+-- CREATE POLICY "Users can delete their own avatar"
+-- ON storage.objects FOR DELETE TO authenticated
+-- USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
+--
+-- -- Allow public read access (since bucket is public)
+-- CREATE POLICY "Public read access for avatars"
+-- ON storage.objects FOR SELECT TO public
+-- USING (bucket_id = 'avatars');
 
