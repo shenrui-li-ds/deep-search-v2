@@ -635,6 +635,56 @@ Change Email modal requires password verification before sending email change re
 3. Only then `updateUser({ email })` is called
 4. Verification email sent to new address
 
+### Open Redirect Prevention
+
+The middleware validates redirect paths to prevent open redirect attacks:
+
+```typescript
+function isValidRedirectPath(path: string): boolean {
+  // Must start with single forward slash
+  if (!path.startsWith('/')) return false;
+  // Must not start with // (protocol-relative URL)
+  if (path.startsWith('//')) return false;
+  // Must not contain backslash
+  if (path.includes('\\')) return false;
+  // Check decoded version for encoded bypasses
+  const decoded = decodeURIComponent(path);
+  if (decoded.startsWith('//') || decoded.includes('\\')) return false;
+  // Must not contain protocol
+  if (/^\/[a-z]+:/i.test(path)) return false;
+  return true;
+}
+```
+
+### Route Matching Security
+
+Public routes use exact match OR proper path prefix to prevent route bypass attacks:
+
+```typescript
+// Prevents /auth-attack from matching /auth/login
+const isPublicRoute = publicRoutes.some(route => {
+  const pathname = request.nextUrl.pathname;
+  return pathname === route || pathname.startsWith(route + '/');
+});
+```
+
+This prevents attackers from creating paths like `/auth/login-malicious` that would incorrectly match `/auth/login`.
+
+### Robust API Error Handling
+
+All client-side fetch calls to auth APIs include `response.ok` checks before parsing JSON:
+
+```typescript
+const response = await fetch('/api/auth/verify-turnstile', { ... });
+if (!response.ok) {
+  console.error('Verification failed:', response.status);
+  return false;
+}
+const data = await response.json();
+```
+
+This prevents crashes when APIs return 5xx errors and ensures graceful degradation.
+
 ## Avatar Storage
 
 User profile photos are stored in Supabase Storage.

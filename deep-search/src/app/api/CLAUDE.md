@@ -689,11 +689,21 @@ Validates Cloudflare Turnstile CAPTCHA tokens server-side.
 }
 ```
 
+**Response (Cloudflare unavailable):**
+```json
+{
+  "success": false,
+  "error": "Verification service unavailable"
+}
+```
+Status: 503
+
 **Features:**
 - Validates token with Cloudflare's siteverify API
 - Checks email whitelist before token validation
 - Forwards client IP for enhanced validation
-- Returns 400 for invalid tokens, 500 for server errors
+- Returns 400 for invalid tokens, 503 for Cloudflare API errors, 500 for server errors
+- Includes `response.ok` check before parsing Cloudflare response (prevents JSON parse errors on 5xx)
 
 ### `/api/auth/verify-hcaptcha` - hCaptcha Token Verification (Legacy)
 Validates hCaptcha tokens server-side. **No longer used by auth pages** - replaced by Email OTP.
