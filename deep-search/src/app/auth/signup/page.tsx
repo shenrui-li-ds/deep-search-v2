@@ -131,6 +131,10 @@ export default function SignUpPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail }),
       });
+      if (!response.ok) {
+        console.error('Whitelist check failed:', response.status);
+        return false;
+      }
       const data = await response.json();
       return data.whitelisted === true;
     } catch {
@@ -149,6 +153,10 @@ export default function SignUpPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, email: userEmail }),
       });
+      if (!response.ok) {
+        console.error('Turnstile verification failed:', response.status);
+        return false;
+      }
       const data = await response.json();
       return data.success === true;
     } catch {

@@ -75,7 +75,12 @@ export async function updateSession(request: NextRequest) {
     '/api/auth/send-otp',
     '/api/auth/verify-otp',
   ];
-  const isPublicRoute = publicRoutes.some(route => request.nextUrl.pathname.startsWith(route));
+  // Check if route is public using exact match or proper path prefix
+  // This prevents /auth/login-attack from matching /auth/login
+  const isPublicRoute = publicRoutes.some(route => {
+    const pathname = request.nextUrl.pathname;
+    return pathname === route || pathname.startsWith(route + '/');
+  });
 
   // If user is not logged in and trying to access protected route, redirect to login
   if (!user && !isPublicRoute) {

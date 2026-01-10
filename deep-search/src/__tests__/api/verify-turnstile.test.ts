@@ -58,6 +58,7 @@ describe('/api/auth/verify-turnstile', () => {
   describe('successful verification', () => {
     it('should return success when Cloudflare verifies token', async () => {
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ success: true }),
       });
 
@@ -82,6 +83,7 @@ describe('/api/auth/verify-turnstile', () => {
 
     it('should include secret and token in request body', async () => {
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ success: true }),
       });
 
@@ -102,6 +104,7 @@ describe('/api/auth/verify-turnstile', () => {
   describe('failed verification', () => {
     it('should return 400 when Cloudflare rejects token', async () => {
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({
           success: false,
           'error-codes': ['invalid-input-response'],
@@ -119,6 +122,25 @@ describe('/api/auth/verify-turnstile', () => {
       expect(response.status).toBe(400);
       expect(data.success).toBe(false);
       expect(data.error).toBe('Verification failed');
+    });
+
+    it('should return 503 when Cloudflare API returns non-ok response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      const request = new NextRequest('http://localhost/api/auth/verify-turnstile', {
+        method: 'POST',
+        body: JSON.stringify({ token: 'test-token' }),
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(503);
+      expect(data.success).toBe(false);
+      expect(data.error).toBe('Verification service unavailable');
     });
 
     it('should return 500 when fetch throws an error', async () => {
@@ -141,6 +163,7 @@ describe('/api/auth/verify-turnstile', () => {
   describe('IP forwarding', () => {
     it('should include client IP when x-forwarded-for header is present', async () => {
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ success: true }),
       });
 
@@ -161,6 +184,7 @@ describe('/api/auth/verify-turnstile', () => {
 
     it('should include client IP when x-real-ip header is present', async () => {
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ success: true }),
       });
 
@@ -181,6 +205,7 @@ describe('/api/auth/verify-turnstile', () => {
 
     it('should not include remoteip when IP is unknown', async () => {
       mockFetch.mockResolvedValueOnce({
+        ok: true,
         json: () => Promise.resolve({ success: true }),
       });
 

@@ -69,6 +69,14 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    if (!verifyResponse.ok) {
+      console.error('Cloudflare Turnstile API error:', verifyResponse.status);
+      return NextResponse.json(
+        { success: false, error: 'Verification service unavailable' },
+        { status: 503 }
+      );
+    }
+
     const result: TurnstileVerifyResponse = await verifyResponse.json();
 
     if (!result.success) {
