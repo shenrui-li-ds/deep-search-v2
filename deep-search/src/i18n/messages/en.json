@@ -251,6 +251,7 @@
     "dailyTokens": "Daily Tokens",
     "dailyTokensReset": "Resets daily at midnight",
     "monthlyTokensReset": "Resets on the 1st of each month",
+    "unlimited": "Unlimited",
     "noDataYet": "No data yet",
     "estimatedApiCost": "Est. API Cost",
     "last30Days": "Last 30 days",

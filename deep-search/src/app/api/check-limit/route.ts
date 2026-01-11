@@ -2,11 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { MAX_CREDITS } from '@/lib/supabase/database';
 
+// Tier-based daily token limits
+const DAILY_TOKEN_LIMITS: Record<string, number> = {
+  free: 50_000,
+  pro: 200_000,
+  admin: Infinity, // Unlimited
+};
+
 /**
  * POST /api/check-limit
  *
  * Reserves credits for a search using dynamic billing:
- * 1. Rate limits (security) - daily/monthly search limits
+ * 1. Daily token limits (tier-based) - prevents excessive LLM usage
  * 2. Credit reservation (billing) - reserves max credits, actual charged on finalize
  *
  * Request body:
@@ -42,6 +49,18 @@ export async function POST(request: NextRequest) {
     }
 
     const maxCredits = MAX_CREDITS[mode];
+
+    // Check daily token limits (tier-based)
+    const tokenLimitCheck = await checkDailyTokenLimit(supabase);
+    if (!tokenLimitCheck.allowed) {
+      return NextResponse.json({
+        allowed: false,
+        reason: tokenLimitCheck.reason,
+        isTokenLimitError: true,
+        dailyTokensUsed: tokenLimitCheck.used,
+        dailyTokenLimit: tokenLimitCheck.limit,
+      });
+    }
 
     // Try optimized single-call function first (checks rate limits + reserves credits)
     const { data, error } = await supabase.rpc('reserve_credits', {
@@ -158,4 +177,48 @@ async function legacyCheck(
     creditsUsed: data.credits_used,
     source: data.source,
   });
+}
+
+/**
+ * Check if user is within their daily token limit (tier-based).
+ * Returns allowed: true for admin tier (unlimited).
+ */
+async function checkDailyTokenLimit(
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<{ allowed: boolean; reason?: string; used?: number; limit?: number }> {
+  try {
+    // Get user tier from credits
+    const { data: credits } = await supabase.rpc('get_user_credits');
+    const tier = credits?.user_tier || 'free';
+    const dailyLimit = DAILY_TOKEN_LIMITS[tier] ?? DAILY_TOKEN_LIMITS.free;
+
+    // Admin has unlimited tokens
+    if (dailyLimit === Infinity) {
+      return { allowed: true };
+    }
+
+    // Get current daily token usage
+    const { data: limits } = await supabase
+      .from('user_limits')
+      .select('daily_tokens_used')
+      .single();
+
+    const dailyUsed = limits?.daily_tokens_used || 0;
+
+    if (dailyUsed >= dailyLimit) {
+      return {
+        allowed: false,
+        reason: `Daily token limit reached (${dailyUsed.toLocaleString()} / ${dailyLimit.toLocaleString()}). Resets at midnight.`,
+        used: dailyUsed,
+        limit: dailyLimit,
+      };
+    }
+
+    return { allowed: true, used: dailyUsed, limit: dailyLimit };
+  } catch (error) {
+    // On error, allow the request (fail-open for token limits only)
+    // Credit system is the primary limiter
+    console.warn('Error checking daily token limit:', error);
+    return { allowed: true };
+  }
 }

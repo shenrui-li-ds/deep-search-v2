@@ -251,6 +251,7 @@
     "dailyTokens": "每日 Token",
     "dailyTokensReset": "每天午夜重置",
     "monthlyTokensReset": "每月1日重置",
+    "unlimited": "无限制",
     "noDataYet": "暂无数据",
     "estimatedApiCost": "预估 API 费用",
     "last30Days": "最近30天",

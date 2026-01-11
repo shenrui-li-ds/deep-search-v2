@@ -1739,29 +1739,32 @@ function UsageProgressBar({
   limit,
   resetText,
   formatValue = (v: number) => v.toString(),
+  unlimitedText = 'Unlimited',
 }: {
   label: string;
   used: number;
   limit: number;
   resetText: string;
   formatValue?: (value: number) => string;
+  unlimitedText?: string;
 }) {
-  const percent = limit > 0 ? (used / limit) * 100 : 0;
+  const isUnlimited = !isFinite(limit);
+  const percent = isUnlimited ? 0 : limit > 0 ? (used / limit) * 100 : 0;
 
   return (
     <div className="p-6 rounded-lg bg-[var(--card)] border border-[var(--border)]">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-medium text-[var(--text-secondary)]">{label}</h3>
         <span className="text-sm text-[var(--text-muted)]">
-          {formatValue(used)} / {formatValue(limit)}
+          {formatValue(used)} / {isUnlimited ? unlimitedText : formatValue(limit)}
         </span>
       </div>
       <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${
-            percent >= 90 ? 'bg-rose-500' : percent >= 70 ? 'bg-yellow-500' : 'bg-[var(--accent)]'
+            isUnlimited ? 'bg-[var(--accent)]' : percent >= 90 ? 'bg-rose-500' : percent >= 70 ? 'bg-yellow-500' : 'bg-[var(--accent)]'
           }`}
-          style={{ width: `${Math.min(percent, 100)}%` }}
+          style={{ width: isUnlimited ? '5%' : `${Math.min(percent, 100)}%` }}
         />
       </div>
       <p className="text-xs text-[var(--text-muted)] mt-2">{resetText}</p>
@@ -1860,9 +1863,23 @@ function ActivityChart({ data }: { data: { date: string; count: number }[] }) {
   );
 }
 
+// Tier-based daily token limits (must match /api/check-limit)
+const DAILY_TOKEN_LIMITS: Record<string, number> = {
+  free: 50_000,
+  pro: 200_000,
+  admin: Infinity,
+};
+
+const MONTHLY_TOKEN_LIMITS: Record<string, number> = {
+  free: 500_000,
+  pro: 2_000_000,
+  admin: Infinity,
+};
+
 // Usage Tab Content
 function UsageTab() {
   const [limits, setLimits] = useState<UserLimits | null>(null);
+  const [credits, setCredits] = useState<UserCredits | null>(null);
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [apiCosts, setApiCosts] = useState<ApiUsageWithCosts | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -1873,12 +1890,14 @@ function UsageTab() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [userLimits, usageStats, usageCosts] = await Promise.all([
+        const [userLimits, userCredits, usageStats, usageCosts] = await Promise.all([
           getUserLimits(),
+          getUserCredits(),
           getUsageStats(30),
           getApiUsageWithCosts(30),
         ]);
         setLimits(userLimits);
+        setCredits(userCredits);
         setStats(usageStats);
         setApiCosts(usageCosts);
       } catch (error) {
@@ -1889,6 +1908,11 @@ function UsageTab() {
     };
     loadData();
   }, []);
+
+  // Get tier-based limits
+  const userTier = credits?.user_tier || 'free';
+  const dailyTokenLimit = DAILY_TOKEN_LIMITS[userTier] ?? DAILY_TOKEN_LIMITS.free;
+  const monthlyTokenLimit = MONTHLY_TOKEN_LIMITS[userTier] ?? MONTHLY_TOKEN_LIMITS.free;
 
   if (isLoading) {
     return (
@@ -2034,16 +2058,18 @@ function UsageTab() {
           <UsageProgressBar
             label={t('dailyTokens')}
             used={limits?.daily_tokens_used || 0}
-            limit={limits?.daily_token_limit || 100000}
+            limit={dailyTokenLimit}
             resetText={t('dailyTokensReset')}
             formatValue={formatNumber}
+            unlimitedText={t('unlimited')}
           />
           <UsageProgressBar
             label={t('monthlyTokens')}
             used={limits?.monthly_tokens_used || 0}
-            limit={limits?.monthly_token_limit || 500000}
+            limit={monthlyTokenLimit}
             resetText={t('monthlyTokensReset')}
             formatValue={formatNumber}
+            unlimitedText={t('unlimited')}
           />
         </div>
       </div>
