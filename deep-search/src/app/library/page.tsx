@@ -310,12 +310,16 @@ interface UndoToastProps {
   onUndo: () => void;
   onDismiss: () => void;
   duration?: number;
+  itemId?: string;  // Track which item is pending deletion - timer resets when this changes
 }
 
-function UndoToast({ message, undoLabel = 'Undo', onUndo, onDismiss, duration = 3000 }: UndoToastProps) {
+function UndoToast({ message, undoLabel = 'Undo', onUndo, onDismiss, duration = 3000, itemId }: UndoToastProps) {
   const [progress, setProgress] = useState(100);
 
   useEffect(() => {
+    // Reset progress when item changes
+    setProgress(100);
+
     const startTime = Date.now();
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
@@ -329,7 +333,7 @@ function UndoToast({ message, undoLabel = 'Undo', onUndo, onDismiss, duration = 
     }, 50);
 
     return () => clearInterval(interval);
-  }, [duration, onDismiss]);
+  }, [duration, onDismiss, itemId]);  // Reset timer when itemId changes
 
   return (
     <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
@@ -915,10 +919,11 @@ export default function LibraryPage() {
         )}
       </div>
 
-      {/* Undo Toast */}
+      {/* Undo Toast - use stable key so it updates rather than remounts on quick deletes */}
       {pendingDeletion && (
         <UndoToast
-          key={pendingDeletion.id}
+          key="undo-toast"
+          itemId={pendingDeletion.id}
           message={t('searchDeleted')}
           undoLabel={t('undo')}
           onUndo={handleUndo}

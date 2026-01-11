@@ -125,7 +125,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const streamResponse = useCallback(async (
     response: Response,
     onChunk: (content: string) => void,
-    onComplete: (fullContent: string) => void
+    onComplete: (fullContent: string) => void,
+    streamTimeoutMs: number = 30000 // 30s inactivity timeout for streaming
   ): Promise<{ content: string; interrupted: boolean }> => {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
@@ -135,7 +136,18 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     if (reader) {
       try {
         while (true) {
-          const { done, value } = await reader.read();
+          // Race between read and timeout - timeout resets on each successful read
+          const readPromise = reader.read();
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            const timeoutId = setTimeout(() => {
+              reject(new Error('Stream timeout - no data received'));
+            }, streamTimeoutMs);
+            // Clean up timeout when read completes (success or failure)
+            readPromise.finally(() => clearTimeout(timeoutId));
+          });
+
+          const { done, value } = await Promise.race([readPromise, timeoutPromise]);
+
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
@@ -158,9 +170,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }
           if (receivedDone) break;
         }
-      } catch (err) {
-        // Network error during streaming (connection dropped, etc.)
-        console.error('Stream interrupted:', err);
+      } catch {
+        // Network error or timeout during streaming - return partial content
         onComplete(fullContent);
         return { content: fullContent, interrupted: true };
       }
@@ -231,10 +242,44 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       round2: 60000,     // 60 seconds for round 2 specifically
     };
 
-    // Helper to create a timeout promise
-    const createTimeout = (ms: number, message: string) =>
+    // Helper to create a cancellable timeout promise
+    const createTimeoutWithCancel = (ms: number, message: string, onTimeout?: () => void) => {
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const promise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          onTimeout?.();
+          reject(new Error(message));
+        }, ms);
+      });
+      const cancel = () => clearTimeout(timeoutId);
+      return { promise, cancel };
+    };
+
+    // Helper for Promise.race with auto-cancel timeout
+    const raceWithTimeout = async <T>(
+      promise: Promise<T>,
+      ms: number,
+      message: string,
+      onTimeout?: () => void
+    ): Promise<T> => {
+      const { promise: timeoutPromise, cancel } = createTimeoutWithCancel(ms, message, onTimeout);
+      try {
+        const result = await Promise.race([promise, timeoutPromise]);
+        cancel(); // Clear timeout when promise wins
+        return result;
+      } catch (err) {
+        cancel(); // Clear timeout on error too
+        throw err;
+      }
+    };
+
+    // Legacy createTimeout for backwards compatibility (used in round2)
+    const createTimeout = (ms: number, message: string, onTimeout?: () => void) =>
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(message)), ms)
+        setTimeout(() => {
+          onTimeout?.();
+          reject(new Error(message));
+        }, ms)
       );
 
     // Helper to finalize credits with localStorage retry
@@ -329,10 +374,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }).then(res => res.json())
         ]);
 
-        const [planResponse, limitCheck] = await Promise.race([
+        const [planResponse, limitCheck] = await raceWithTimeout(
           initialPromise,
-          createTimeout(TIMEOUTS.initial, 'Research planning timed out')
-        ]);
+          TIMEOUTS.initial,
+          'Research planning timed out',
+          () => abortController.abort()
+        );
 
         if (!isActive) return;
 
@@ -840,7 +887,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           })
           .catch(() => {});
 
-        const synthesizeResponse = await fetch('/api/research/synthesize', {
+        // Fetch with timeout (30s for streaming API calls)
+        const synthesizePromise = fetch('/api/research/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -854,6 +902,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }),
           signal: abortController.signal
         });
+
+        const synthesizeResponse = await raceWithTimeout(
+          synthesizePromise,
+          30000,
+          'Research synthesis request timed out',
+          () => abortController.abort()
+        );
 
         if (!isActive) return;
 
@@ -887,7 +942,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // If stream was interrupted, skip proofreading and show partial content with warning
         // (SearchResult component shows inline warning when streamCompleted=false)
         if (synthesisInterrupted) {
-          console.warn('Research synthesis stream interrupted, showing partial content');
           finalizeCredits(reservationId, tavilyQueryCount);
           // markComplete=false for warning banner, skipHistory=true (network likely down)
           transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false, true);
@@ -983,10 +1037,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }).then(res => res.json())
         ]);
 
-        const [reframeResponse, limitCheck] = await Promise.race([
+        const [reframeResponse, limitCheck] = await raceWithTimeout(
           initialPromise,
-          createTimeout(TIMEOUTS.initial, 'Brainstorm reframing timed out')
-        ]);
+          TIMEOUTS.initial,
+          'Brainstorm reframing timed out',
+          () => abortController.abort()
+        );
 
         if (!isActive) return;
 
@@ -1116,7 +1172,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           })
           .catch(() => {});
 
-        const synthesizeResponse = await fetch('/api/brainstorm/synthesize', {
+        // Fetch with timeout (30s for streaming API calls)
+        const synthesizePromise = fetch('/api/brainstorm/synthesize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1127,6 +1184,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }),
           signal: abortController.signal
         });
+
+        const synthesizeResponse = await raceWithTimeout(
+          synthesizePromise,
+          30000,
+          'Brainstorm synthesis request timed out',
+          () => abortController.abort()
+        );
 
         if (!isActive) return;
 
@@ -1159,7 +1223,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // If stream was interrupted, skip proofreading and show partial content with warning
         if (brainstormInterrupted) {
-          console.warn('Brainstorm synthesis stream interrupted, showing partial content');
           finalizeCredits(reservationId, tavilyQueryCount);
           // markComplete=false for warning banner, skipHistory=true (network likely down)
           transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false, true);
@@ -1255,10 +1318,12 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }).then(res => res.json())
         ]);
 
-        const [refineResult, limitCheck] = await Promise.race([
+        const [refineResult, limitCheck] = await raceWithTimeout(
           initialPromise,
-          createTimeout(TIMEOUTS.initial, 'Query refinement timed out')
-        ]);
+          TIMEOUTS.initial,
+          'Query refinement timed out',
+          () => abortController.abort()
+        );
 
         if (!isActive) return;
 
@@ -1345,7 +1410,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Step 3: Summarize search results (stream for all modes)
         setLoadingStage('summarizing');
 
-        const summarizeResponse = await fetch('/api/summarize', {
+        // Fetch with timeout (30s for streaming API calls)
+        const summarizePromise = fetch('/api/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1356,6 +1422,13 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }),
           signal: abortController.signal
         });
+
+        const summarizeResponse = await raceWithTimeout(
+          summarizePromise,
+          30000,
+          'Summarization request timed out',
+          () => abortController.abort()
+        );
 
         if (!isActive) return;
 
@@ -1392,7 +1465,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // If stream was interrupted, show partial content with warning
         // Skip history save - network is likely down if stream was interrupted
         if (summarizeInterrupted) {
-          console.warn('Summarize stream interrupted, showing partial content');
           finalizeCredits(reservationId, searchData.cached ? 0 : 1);
           // Don't set streamCompleted=true so warning banner shows
           setSearchResult({
