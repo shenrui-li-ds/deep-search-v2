@@ -278,7 +278,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     };
 
     // Helper for Promise.race with auto-cancel timeout
-    const raceWithTimeout = async <T>(
+    const raceWithTimeout = async <T,>(
       promise: Promise<T>,
       ms: number,
       message: string,
