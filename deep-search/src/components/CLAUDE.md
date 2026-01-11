@@ -2,6 +2,39 @@
 
 React components for the Athenius UI.
 
+## Error Handling Components
+
+### `ErrorBoundary.tsx`
+React error boundary to catch rendering errors and prevent white screen crashes.
+
+**Props:**
+```typescript
+{
+  children: ReactNode;
+  fallback?: ReactNode;           // Custom fallback UI (optional)
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;  // Error callback
+}
+```
+
+**Features:**
+- Catches errors in child component tree
+- Shows user-friendly error message with "Try Again" button
+- Shows stack trace in development mode only
+- Supports custom fallback UI via `fallback` prop
+- Calls `onError` callback for logging/monitoring
+
+**Usage:**
+```tsx
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
+<ErrorBoundary>
+  <SearchClient {...props} />
+</ErrorBoundary>
+```
+
+**Used in:**
+- `/search` page - Wraps SearchClient to prevent crashes from rendering errors
+
 ## Layout Components
 
 ### `MainLayout.tsx`

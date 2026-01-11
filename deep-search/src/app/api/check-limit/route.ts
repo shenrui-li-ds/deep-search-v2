@@ -55,8 +55,12 @@ export async function POST(request: NextRequest) {
         return await legacyCheck(supabase, maxCredits);
       }
       console.error('Error in reserve_credits:', error);
-      // On error, allow but log (fail-open for availability)
-      return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
+      // Fail-closed: don't allow unlimited searches on database errors
+      return NextResponse.json({
+        allowed: false,
+        reason: 'Unable to verify credits. Please try again in a moment.',
+        isTemporaryError: true,
+      });
     }
 
     // Handle reservation result
@@ -81,7 +85,12 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error in check-limit:', error);
-    return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
+    // Fail-closed: don't allow unlimited searches on unexpected errors
+    return NextResponse.json({
+      allowed: false,
+      reason: 'Unable to verify credits. Please try again in a moment.',
+      isTemporaryError: true,
+    });
   }
 }
 
@@ -106,8 +115,13 @@ async function legacyCheck(
       });
 
       if (oldError) {
-        console.warn('No credit functions found, allowing search');
-        return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
+        console.error('No credit functions available:', oldError);
+        // Fail-closed: don't allow unlimited searches without credit system
+        return NextResponse.json({
+          allowed: false,
+          reason: 'Credit system unavailable. Please try again later.',
+          isTemporaryError: true,
+        });
       }
 
       if (!oldData.allowed) {
@@ -124,7 +138,12 @@ async function legacyCheck(
       });
     }
     console.error('Error in legacy check:', error);
-    return NextResponse.json({ allowed: true, remaining: -1, limit: -1 });
+    // Fail-closed: don't allow unlimited searches on database errors
+    return NextResponse.json({
+      allowed: false,
+      reason: 'Unable to verify credits. Please try again in a moment.',
+      isTemporaryError: true,
+    });
   }
 
   if (!data.allowed) {

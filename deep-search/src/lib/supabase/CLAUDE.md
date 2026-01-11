@@ -685,6 +685,19 @@ const data = await response.json();
 
 This prevents crashes when APIs return 5xx errors and ensures graceful degradation.
 
+### Auth Redirect Query Preservation
+
+When redirecting unauthenticated users to login, the middleware preserves the full URL including query parameters:
+
+```typescript
+const fullPath = request.nextUrl.search
+  ? redirectPath + request.nextUrl.search
+  : redirectPath;
+url.searchParams.set('redirectTo', fullPath);
+```
+
+This ensures users don't lose their search query when redirected to login (e.g., `/search?q=quantum+computing` is preserved).
+
 ## Avatar Storage
 
 User profile photos are stored in Supabase Storage.

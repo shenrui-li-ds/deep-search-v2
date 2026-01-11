@@ -7,3 +7,4 @@ export { default as SourcesList } from './SourcesList';
 export { default as SourceItem } from './SourceItem';
 export { default as ThemeToggle } from './ThemeToggle';
 export { default as Sidebar } from './Sidebar';
+export { ErrorBoundary } from './ErrorBoundary';

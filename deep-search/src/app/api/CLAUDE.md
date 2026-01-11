@@ -576,12 +576,21 @@ The `isCreditsError` flag allows the frontend to distinguish credit errors from 
 | pro | 4 | 3-4 queries |
 | brainstorm | 6 | 4-6 queries |
 
+**Response (temporary error):**
+```json
+{
+  "allowed": false,
+  "reason": "Unable to verify credits. Please try again in a moment.",
+  "isTemporaryError": true
+}
+```
+
 **Features:**
 - **Reserve→Finalize Pattern**: Reserves max credits, charges actual usage after search
 - **Optimized Path**: Single `reserve_credits` RPC call
 - **Legacy Fallback**: Falls back to `check_and_authorize_search` if reserve function unavailable
 - **Deep Fallback**: Falls back to `check_and_use_credits` if combined function unavailable
-- Fail-open on errors (allows search, logs error)
+- **Fail-closed on errors**: Returns `allowed: false` with `isTemporaryError: true` on database errors (prevents unlimited free searches)
 - Runs server-side to avoid React Strict Mode double-invocation
 - Called in parallel with first API call (no added latency)
 

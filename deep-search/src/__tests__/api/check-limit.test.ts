@@ -255,13 +255,15 @@ describe('/api/check-limit', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(data.allowed).toBe(true);
-      expect(data.remaining).toBe(-1);
+      // Fail-closed: don't allow without credit system
+      expect(data.allowed).toBe(false);
+      expect(data.reason).toContain('unavailable');
+      expect(data.isTemporaryError).toBe(true);
     });
   });
 
   describe('error handling', () => {
-    it('should allow on reserve_credits error (fail open for availability)', async () => {
+    it('should deny on reserve_credits error (fail-closed for security)', async () => {
       mockSupabaseClient.rpc.mockResolvedValueOnce({
         data: null,
         error: { code: 'UNKNOWN', message: 'Database error' },
@@ -274,8 +276,10 @@ describe('/api/check-limit', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      // Fail open - allow on error to maintain availability
-      expect(data.allowed).toBe(true);
+      // Fail-closed: don't allow unlimited searches on database errors
+      expect(data.allowed).toBe(false);
+      expect(data.reason).toContain('try again');
+      expect(data.isTemporaryError).toBe(true);
     });
 
     it('should handle malformed request body gracefully', async () => {

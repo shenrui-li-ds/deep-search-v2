@@ -87,9 +87,13 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/auth/login';
     // Only set redirectTo if the path is valid (prevents open redirect attacks)
+    // Include search params so user doesn't lose their query after login
     const redirectPath = request.nextUrl.pathname;
     if (isValidRedirectPath(redirectPath)) {
-      url.searchParams.set('redirectTo', redirectPath);
+      const fullPath = request.nextUrl.search
+        ? redirectPath + request.nextUrl.search
+        : redirectPath;
+      url.searchParams.set('redirectTo', fullPath);
     }
     return NextResponse.redirect(url);
   }
