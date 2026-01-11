@@ -174,7 +174,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
   // Smooth transition to new content
   // markComplete=false when stream was interrupted (shows warning banner)
-  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[], searchMode: 'web' | 'pro' | 'brainstorm', searchProvider: string, markComplete: boolean = true) => {
+  // skipHistory=true when network is likely down (stream interrupted)
+  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[], searchMode: 'web' | 'pro' | 'brainstorm', searchProvider: string, markComplete: boolean = true, skipHistory: boolean = false) => {
     // Start fade out
     setIsTransitioning(true);
 
@@ -192,19 +193,21 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       });
       setLoadingStage('complete');
 
-      // Save to search history and capture the entry ID
-      addSearchToHistory({
-        query,
-        provider: searchProvider,
-        mode: searchMode,
-        sources_count: fetchedSources.length,
-        deep: searchMode === 'pro' ? deep : false
-      }).then(entry => {
-        if (entry?.id) {
-          setHistoryEntryId(entry.id);
-          setIsBookmarked(entry.bookmarked || false);
-        }
-      }).catch(err => console.error('Failed to save to history:', err));
+      // Save to search history (skip if network is likely down)
+      if (!skipHistory) {
+        addSearchToHistory({
+          query,
+          provider: searchProvider,
+          mode: searchMode,
+          sources_count: fetchedSources.length,
+          deep: searchMode === 'pro' ? deep : false
+        }).then(entry => {
+          if (entry?.id) {
+            setHistoryEntryId(entry.id);
+            setIsBookmarked(entry.bookmarked || false);
+          }
+        }).catch(err => console.error('Failed to save to history:', err));
+      }
 
       // Small delay before starting fade in
       setTimeout(() => {
@@ -886,8 +889,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (synthesisInterrupted) {
           console.warn('Research synthesis stream interrupted, showing partial content');
           finalizeCredits(reservationId, tavilyQueryCount);
-          // Pass markComplete=false to keep streamCompleted=false, triggering warning banner
-          transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false);
+          // markComplete=false for warning banner, skipHistory=true (network likely down)
+          transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false, true);
           return;
         }
 
@@ -1158,7 +1161,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (brainstormInterrupted) {
           console.warn('Brainstorm synthesis stream interrupted, showing partial content');
           finalizeCredits(reservationId, tavilyQueryCount);
-          transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false);
+          // markComplete=false for warning banner, skipHistory=true (network likely down)
+          transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false, true);
           return;
         }
 
@@ -1386,6 +1390,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         const cleanedContent = cleanupFinalContent(summarizedContent);
 
         // If stream was interrupted, show partial content with warning
+        // Skip history save - network is likely down if stream was interrupted
         if (summarizeInterrupted) {
           console.warn('Summarize stream interrupted, showing partial content');
           finalizeCredits(reservationId, searchData.cached ? 0 : 1);
@@ -1397,19 +1402,6 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             images: fetchedImages
           });
           setLoadingStage('complete');
-          // Save to history even for partial content
-          addSearchToHistory({
-            query,
-            provider,
-            mode: mode as 'web' | 'pro' | 'brainstorm',
-            sources_count: fetchedSources.length,
-            deep: false
-          }).then(entry => {
-            if (entry?.id) {
-              setHistoryEntryId(entry.id);
-              setIsBookmarked(entry.bookmarked || false);
-            }
-          }).catch(err => console.error('Failed to save to history:', err));
           return;
         }
 
