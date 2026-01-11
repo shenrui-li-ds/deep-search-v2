@@ -168,6 +168,7 @@ Main result display component with floating follow-up input.
   isTransitioning?: boolean;
   historyEntryId?: string | null;  // ID of the search history entry (enables bookmark button)
   isBookmarked?: boolean;           // Whether this search is bookmarked
+  historySaveFailed?: boolean;      // Whether history save failed after retries
   onToggleBookmark?: () => void;    // Callback to toggle bookmark status
   queryType?: QueryType | null;     // Research query classification (pro mode only)
   researchPlan?: ResearchPlanItem[] | null;  // Research plan aspects (pro mode only)
@@ -264,6 +265,8 @@ The reframe API generates 4-6 unexpected angles from diverse domains:
 **Save/Bookmark Button (in Tabs area):**
 - Shows "Save" when not bookmarked, "Saved" when bookmarked
 - Disabled (grayed out) until `historyEntryId` is set (history entry created)
+- Tooltip shows "Saving..." while save in progress, "Save failed" if all retries fail
+- History save retries 3 times with 1s/2s backoff before failing
 - Amber color when bookmarked
 - Calls `onToggleBookmark` callback when clicked
 

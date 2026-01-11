@@ -47,6 +47,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [historyEntryId, setHistoryEntryId] = useState<string | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
+  const [historySaveFailed, setHistorySaveFailed] = useState(false);
   // Research thinking state
   const [queryType, setQueryType] = useState<QueryType | null>(null);
   const [researchPlan, setResearchPlan] = useState<ResearchPlanItem[] | null>(null);
@@ -132,6 +133,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
     const decoder = new TextDecoder();
     let fullContent = '';
     let receivedDone = false;
+    let consecutiveParseErrors = 0;
+    const MAX_CONSECUTIVE_PARSE_ERRORS = 5;
 
     if (reader) {
       try {
@@ -157,21 +160,25 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(5));
+                consecutiveParseErrors = 0; // Reset on successful parse
                 if (data.done === true) {
                   receivedDone = true;
                   break;
                 }
                 fullContent += data.data;
                 onChunk(fullContent);
-              } catch (e) {
-                console.error('Error parsing stream:', e);
+              } catch {
+                consecutiveParseErrors++;
+                if (consecutiveParseErrors >= MAX_CONSECUTIVE_PARSE_ERRORS) {
+                  throw new Error('Stream corrupted - too many parse errors');
+                }
               }
             }
           }
           if (receivedDone) break;
         }
       } catch {
-        // Network error or timeout during streaming - return partial content
+        // Network error, timeout, or parse corruption - return partial content
         onComplete(fullContent);
         return { content: fullContent, interrupted: true };
       }
@@ -204,20 +211,35 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       });
       setLoadingStage('complete');
 
-      // Save to search history (skip if network is likely down)
+      // Save to search history with retry (skip if network is likely down)
       if (!skipHistory) {
-        addSearchToHistory({
-          query,
-          provider: searchProvider,
-          mode: searchMode,
-          sources_count: fetchedSources.length,
-          deep: searchMode === 'pro' ? deep : false
-        }).then(entry => {
-          if (entry?.id) {
-            setHistoryEntryId(entry.id);
-            setIsBookmarked(entry.bookmarked || false);
+        const saveWithRetry = async (retries = 2) => {
+          for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+              const entry = await addSearchToHistory({
+                query,
+                provider: searchProvider,
+                mode: searchMode,
+                sources_count: fetchedSources.length,
+                deep: searchMode === 'pro' ? deep : false
+              });
+              if (entry?.id) {
+                setHistoryEntryId(entry.id);
+                setIsBookmarked(entry.bookmarked || false);
+                return; // Success
+              }
+            } catch (err) {
+              if (attempt === retries) {
+                console.error('Failed to save to history after retries:', err);
+                setHistorySaveFailed(true);
+              } else {
+                // Wait before retry: 1s, 2s
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+              }
+            }
           }
-        }).catch(err => console.error('Failed to save to history:', err));
+        };
+        saveWithRetry();
       }
 
       // Small delay before starting fade in
@@ -1703,6 +1725,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       isTransitioning={isTransitioning}
       historyEntryId={historyEntryId}
       isBookmarked={isBookmarked}
+      historySaveFailed={historySaveFailed}
       onToggleBookmark={handleToggleBookmark}
       queryType={queryType}
       researchPlan={researchPlan}

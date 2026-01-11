@@ -515,6 +515,8 @@ Both checks must pass. Runs in parallel with first API call (no added latency). 
 - Content streams to UI with batched updates (50ms intervals) to prevent jerkiness
 - Status banner at top shows "Generating response..." or "Polishing response..."
 - Pulsing cursor shows active streaming position
+- **Interruption handling**: 30s inactivity timeout, corrupted data detection (5 consecutive parse errors)
+- Interrupted streams show partial content with warning banner
 
 ### Layout
 - Fixed sidebar (always visible, floats over content)
@@ -531,6 +533,7 @@ See `src/lib/CLAUDE.md` for prompt design guidelines.
 
 ### Changing streaming behavior
 Edit `src/app/search/search-client.tsx`. Key areas:
+- `streamResponse` - stream reading with timeout and parse error detection
 - `scheduleContentUpdate` - batching logic
 - `performSearch` - main search orchestration
 

@@ -26,6 +26,7 @@ jest.mock('next-intl', () => ({
         'actions.save': 'Save',
         'actions.saved': 'Saved',
         'actions.saving': 'Saving...',
+        'actions.saveFailed': 'Save failed',
         'actions.saveToFavorites': 'Save to favorites',
         'actions.removeFromFavorites': 'Remove from favorites',
         'actions.comingSoon': '(coming soon)',
@@ -469,6 +470,31 @@ describe('SearchResult', () => {
         <SearchResult
           {...defaultProps}
           historyEntryId={null}
+          onToggleBookmark={mockToggleBookmark}
+        />
+      );
+
+      const saveButton = screen.getByText('Save').closest('button');
+      fireEvent.click(saveButton!);
+
+      expect(mockToggleBookmark).not.toHaveBeenCalled();
+    });
+
+    it('shows Save button as disabled when historySaveFailed is true', () => {
+      render(<SearchResult {...defaultProps} historySaveFailed={true} />);
+
+      const saveButton = screen.getByText('Save').closest('button');
+      expect(saveButton).toBeDisabled();
+      expect(saveButton).toHaveClass('opacity-50');
+      expect(saveButton).toHaveClass('cursor-not-allowed');
+    });
+
+    it('does not call onToggleBookmark when historySaveFailed is true', () => {
+      const mockToggleBookmark = jest.fn();
+      render(
+        <SearchResult
+          {...defaultProps}
+          historySaveFailed={true}
           onToggleBookmark={mockToggleBookmark}
         />
       );

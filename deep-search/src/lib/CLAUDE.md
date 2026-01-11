@@ -448,7 +448,7 @@ Categorized error types for consistent user-facing error messages.
 | `search_failed` | Search Failed | Yes | Search API failure |
 | `synthesis_failed` | Response Generation Failed | Yes | LLM synthesis error |
 | `network_error` | Connection Issue | Yes | Network/fetch failure |
-| `stream_interrupted` | Response Interrupted | Yes | Streaming response ended prematurely (network drop mid-stream) |
+| `stream_interrupted` | Response Interrupted | Yes | Streaming response ended prematurely (network drop, timeout, or corrupted data) |
 | `timeout` | Request Timed Out | Yes | Operation timed out |
 | `invalid_query` | Invalid Query | No | Empty or malformed query |
 | `no_results` | No Results Found | No | Search returned nothing |

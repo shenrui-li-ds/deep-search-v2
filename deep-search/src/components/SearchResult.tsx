@@ -88,6 +88,7 @@ interface SearchResultProps {
   isTransitioning?: boolean;
   historyEntryId?: string | null;
   isBookmarked?: boolean;
+  historySaveFailed?: boolean;
   onToggleBookmark?: () => void;
   // Research thinking state
   queryType?: QueryType | null;
@@ -103,7 +104,7 @@ interface SearchResultProps {
   streamCompleted?: boolean;
 }
 
-const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null, streamCompleted = false }) => {
+const SearchResult: React.FC<SearchResultProps> = ({ query, result, relatedSearches = [], provider = 'deepseek', mode = 'web', deep = false, loadingStage = 'complete', isLoading = false, isSearching = false, isStreaming = false, isPolishing = false, isTransitioning = false, historyEntryId = null, isBookmarked = false, historySaveFailed = false, onToggleBookmark, queryType = null, researchPlan = null, suggestedDepth = null, researchGaps = null, brainstormAngles = null, searchIntent = null, refinedQuery = null, streamCompleted = false }) => {
   const t = useTranslations('search');
   const tCommon = useTranslations('common');
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
@@ -474,11 +475,13 @@ ${sourcesText}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {!historyEntryId
-                    ? t('actions.saving')
-                    : isBookmarked
-                      ? t('actions.removeFromFavorites')
-                      : t('actions.saveToFavorites')}
+                  {historySaveFailed
+                    ? t('actions.saveFailed')
+                    : !historyEntryId
+                      ? t('actions.saving')
+                      : isBookmarked
+                        ? t('actions.removeFromFavorites')
+                        : t('actions.saveToFavorites')}
                 </TooltipContent>
               </Tooltip>
 

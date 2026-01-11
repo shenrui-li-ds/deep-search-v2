@@ -99,6 +99,7 @@
       "save": "Save",
       "saved": "Saved",
       "saving": "Saving...",
+      "saveFailed": "Save failed",
       "saveToFavorites": "Save to favorites",
       "removeFromFavorites": "Remove from favorites",
       "comingSoon": "(coming soon)",
