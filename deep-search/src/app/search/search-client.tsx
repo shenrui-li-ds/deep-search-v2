@@ -121,51 +121,69 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
   }, []); // Run once on mount
 
   // Stream content from a response
+  // Returns { content, interrupted } - interrupted=true if stream ended without done:true
   const streamResponse = useCallback(async (
     response: Response,
     onChunk: (content: string) => void,
     onComplete: (fullContent: string) => void
-  ) => {
+  ): Promise<{ content: string; interrupted: boolean }> => {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
+    let receivedDone = false;
 
     if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n\n');
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n\n');
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(5));
-              if (data.done === true) break;
-              fullContent += data.data;
-              onChunk(fullContent);
-            } catch (e) {
-              console.error('Error parsing stream:', e);
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(5));
+                if (data.done === true) {
+                  receivedDone = true;
+                  break;
+                }
+                fullContent += data.data;
+                onChunk(fullContent);
+              } catch (e) {
+                console.error('Error parsing stream:', e);
+              }
             }
           }
+          if (receivedDone) break;
         }
+      } catch (err) {
+        // Network error during streaming (connection dropped, etc.)
+        console.error('Stream interrupted:', err);
+        onComplete(fullContent);
+        return { content: fullContent, interrupted: true };
       }
     }
 
     onComplete(fullContent);
-    return fullContent;
+    // Stream is interrupted if we didn't receive done:true and have partial content
+    const interrupted = !receivedDone && fullContent.length > 0;
+    return { content: fullContent, interrupted };
   }, []);
 
   // Smooth transition to new content
-  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[], searchMode: 'web' | 'pro' | 'brainstorm', searchProvider: string) => {
+  // markComplete=false when stream was interrupted (shows warning banner)
+  const transitionToContent = useCallback((newContent: string, fetchedSources: Source[], fetchedImages: SearchImage[], searchMode: 'web' | 'pro' | 'brainstorm', searchProvider: string, markComplete: boolean = true) => {
     // Start fade out
     setIsTransitioning(true);
 
     // After fade out, update content and fade in
     setTimeout(() => {
       setStreamingContent(newContent);
-      setStreamCompleted(true); // Mark stream as successfully completed
+      if (markComplete) {
+        setStreamCompleted(true); // Mark stream as successfully completed
+      }
       setSearchResult({
         query,
         content: newContent,
@@ -204,6 +222,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
     // Timeout configuration (in milliseconds)
     const TIMEOUTS = {
+      initial: 30000,    // 30 seconds for initial plan/reframe/refine calls
       standard: 60000,   // 60 seconds for standard research
       deep: 120000,      // 120 seconds for deep research (2 rounds)
       round2: 60000,     // 60 seconds for round 2 specifically
@@ -290,10 +309,10 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       let tavilyQueryCount = 0;
 
       try {
-        // Step 1: Create research plan and check limits in parallel
+        // Step 1: Create research plan and check limits in parallel (with timeout)
         // Use 'deep' mode for credit check if deep research is enabled
         const creditMode = deep ? 'deep' : 'pro';
-        const [planResponse, limitCheck] = await Promise.all([
+        const initialPromise = Promise.all([
           fetch('/api/research/plan', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -305,6 +324,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode: creditMode })
           }).then(res => res.json())
+        ]);
+
+        const [planResponse, limitCheck] = await Promise.race([
+          initialPromise,
+          createTimeout(TIMEOUTS.initial, 'Research planning timed out')
         ]);
 
         if (!isActive) return;
@@ -836,7 +860,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Stream synthesis to UI
         let synthesizedContent = '';
-        await streamResponse(
+        const { interrupted: synthesisInterrupted } = await streamResponse(
           synthesizeResponse,
           (content) => {
             if (!isActive) return;
@@ -856,6 +880,16 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         );
 
         if (!isActive) return;
+
+        // If stream was interrupted, skip proofreading and show partial content with warning
+        // (SearchResult component shows inline warning when streamCompleted=false)
+        if (synthesisInterrupted) {
+          console.warn('Research synthesis stream interrupted, showing partial content');
+          finalizeCredits(reservationId, tavilyQueryCount);
+          // Pass markComplete=false to keep streamCompleted=false, triggering warning banner
+          transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false);
+          return;
+        }
 
         const cleanedContent = cleanupFinalContent(synthesizedContent);
 
@@ -931,8 +965,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       let tavilyQueryCount = 0;
 
       try {
-        // Step 1: Generate creative angles and check limits in parallel
-        const [reframeResponse, limitCheck] = await Promise.all([
+        // Step 1: Generate creative angles and check limits in parallel (with timeout)
+        const initialPromise = Promise.all([
           fetch('/api/brainstorm/reframe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -944,6 +978,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode: 'brainstorm' })
           }).then(res => res.json())
+        ]);
+
+        const [reframeResponse, limitCheck] = await Promise.race([
+          initialPromise,
+          createTimeout(TIMEOUTS.initial, 'Brainstorm reframing timed out')
         ]);
 
         if (!isActive) return;
@@ -1094,7 +1133,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         // Stream synthesis to UI
         let synthesizedContent = '';
-        await streamResponse(
+        const { interrupted: brainstormInterrupted } = await streamResponse(
           synthesizeResponse,
           (content) => {
             if (!isActive) return;
@@ -1114,6 +1153,14 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         );
 
         if (!isActive) return;
+
+        // If stream was interrupted, skip proofreading and show partial content with warning
+        if (brainstormInterrupted) {
+          console.warn('Brainstorm synthesis stream interrupted, showing partial content');
+          finalizeCredits(reservationId, tavilyQueryCount);
+          transitionToContent(cleanupFinalContent(synthesizedContent), allSources, allImages, mode, provider, false);
+          return;
+        }
 
         const cleanedContent = cleanupFinalContent(synthesizedContent);
 
@@ -1189,8 +1236,8 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
       let reservationId: string | undefined;
 
       try {
-        // Step 1: Refine query and check limits in parallel
-        const [refineResult, limitCheck] = await Promise.all([
+        // Step 1: Refine query and check limits in parallel (with timeout)
+        const initialPromise = Promise.all([
           fetch('/api/refine', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1202,6 +1249,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ mode: 'web' })
           }).then(res => res.json())
+        ]);
+
+        const [refineResult, limitCheck] = await Promise.race([
+          initialPromise,
+          createTimeout(TIMEOUTS.initial, 'Query refinement timed out')
         ]);
 
         if (!isActive) return;
@@ -1310,7 +1362,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Stream summarization to UI
         let summarizedContent = '';
 
-        await streamResponse(
+        const { interrupted: summarizeInterrupted } = await streamResponse(
           summarizeResponse,
           (content) => {
             if (!isActive) return;
@@ -1332,6 +1384,34 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         if (!isActive) return;
 
         const cleanedContent = cleanupFinalContent(summarizedContent);
+
+        // If stream was interrupted, show partial content with warning
+        if (summarizeInterrupted) {
+          console.warn('Summarize stream interrupted, showing partial content');
+          finalizeCredits(reservationId, searchData.cached ? 0 : 1);
+          // Don't set streamCompleted=true so warning banner shows
+          setSearchResult({
+            query,
+            content: cleanedContent,
+            sources: fetchedSources,
+            images: fetchedImages
+          });
+          setLoadingStage('complete');
+          // Save to history even for partial content
+          addSearchToHistory({
+            query,
+            provider,
+            mode: mode as 'web' | 'pro' | 'brainstorm',
+            sources_count: fetchedSources.length,
+            deep: false
+          }).then(entry => {
+            if (entry?.id) {
+              setHistoryEntryId(entry.id);
+              setIsBookmarked(entry.bookmarked || false);
+            }
+          }).catch(err => console.error('Failed to save to history:', err));
+          return;
+        }
 
         // NON-PRO MODE: Just set final result (no proofreading)
         if (!isActive) return;

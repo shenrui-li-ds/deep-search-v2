@@ -10,6 +10,7 @@ export type ErrorType =
   | 'search_failed'           // Search API failed
   | 'synthesis_failed'        // LLM synthesis/summarization failed
   | 'network_error'           // Network/connection issue
+  | 'stream_interrupted'      // Streaming response ended prematurely
   | 'timeout'                 // Request timed out
   | 'invalid_query'           // Query is invalid or empty
   | 'no_results'              // Search returned no results
@@ -55,6 +56,11 @@ export const errorMessages: Record<ErrorType, { title: string; message: string; 
   network_error: {
     title: 'Connection Issue',
     message: 'Please check your internet connection and try again.',
+    canRetry: true,
+  },
+  stream_interrupted: {
+    title: 'Response Interrupted',
+    message: 'The response was cut off. Your answer may be incomplete. Please try again.',
     canRetry: true,
   },
   timeout: {

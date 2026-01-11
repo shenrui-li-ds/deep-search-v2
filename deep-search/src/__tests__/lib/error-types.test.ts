@@ -19,6 +19,7 @@ describe('error-types', () => {
         'search_failed',
         'synthesis_failed',
         'network_error',
+        'stream_interrupted',
         'timeout',
         'invalid_query',
         'no_results',
@@ -47,6 +48,7 @@ describe('error-types', () => {
       expect(errorMessages.search_failed.canRetry).toBe(true);
       expect(errorMessages.synthesis_failed.canRetry).toBe(true);
       expect(errorMessages.network_error.canRetry).toBe(true);
+      expect(errorMessages.stream_interrupted.canRetry).toBe(true);
       expect(errorMessages.timeout.canRetry).toBe(true);
       expect(errorMessages.unknown.canRetry).toBe(true);
     });
