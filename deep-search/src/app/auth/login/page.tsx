@@ -15,6 +15,7 @@ import { APP_ICON } from '@/lib/branding';
 const TRUSTED_REDIRECT_DOMAINS = [
   'docs.athenius.io',
   'athenius.io',
+  'www.athenius.io',
   'localhost:3000',
   'localhost:3001',
 ];

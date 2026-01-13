@@ -11,6 +11,7 @@
 const TRUSTED_REDIRECT_DOMAINS = [
   'docs.athenius.io',
   'athenius.io',
+  'www.athenius.io',
   'localhost:3000',
   'localhost:3001',
 ];
@@ -73,6 +74,8 @@ describe('Redirect URL Validation', () => {
       expect(isValidRedirectUrl('https://athenius.io')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/search')).toBe(true);
+      expect(isValidRedirectUrl('https://www.athenius.io')).toBe(true);
+      expect(isValidRedirectUrl('https://www.athenius.io/search')).toBe(true);
       expect(isValidRedirectUrl('https://docs.athenius.io')).toBe(true);
       expect(isValidRedirectUrl('https://docs.athenius.io/files')).toBe(true);
     });
