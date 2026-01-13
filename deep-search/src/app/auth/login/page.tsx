@@ -11,6 +11,39 @@ import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
 import { APP_ICON } from '@/lib/branding';
 
+// Trusted domains for external redirects (must match middleware)
+const TRUSTED_REDIRECT_DOMAINS = [
+  'docs.athenius.io',
+  'athenius.io',
+  'localhost:3000',
+  'localhost:3001',
+];
+
+/**
+ * Validate redirect URL to prevent open redirect attacks.
+ * Only allows relative paths or absolute URLs to trusted domains.
+ */
+function isValidRedirectUrl(url: string): boolean {
+  // Relative paths are always safe
+  if (url.startsWith('/') && !url.startsWith('//')) {
+    return true;
+  }
+
+  // Validate absolute URLs against trusted domains
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      return TRUSTED_REDIRECT_DOMAINS.some(
+        domain => parsed.host === domain || parsed.host.endsWith('.' + domain)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 interface LockoutStatus {
   locked: boolean;
   locked_until: string | null;
@@ -306,8 +339,16 @@ export default function LoginPage() {
     // Store session start time for security cooldown on sensitive actions
     localStorage.setItem('session_start_time', Date.now().toString());
 
-    router.push(redirectTo);
-    router.refresh();
+    // Validate redirect URL to prevent open redirect attacks
+    const safeRedirectTo = isValidRedirectUrl(redirectTo) ? redirectTo : '/';
+
+    // Handle external redirects (e.g., to docs.athenius.io) vs internal routes
+    if (safeRedirectTo.startsWith('http://') || safeRedirectTo.startsWith('https://')) {
+      window.location.href = safeRedirectTo;
+    } else {
+      router.push(safeRedirectTo);
+      router.refresh();
+    }
   };
 
   // Format seconds to human-readable time

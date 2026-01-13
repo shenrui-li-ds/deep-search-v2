@@ -1,15 +1,41 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+// Cookie domain for cross-subdomain auth (e.g., '.athenius.io')
+const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined;
+
+// Trusted domains for cross-app redirects (SSO)
+const TRUSTED_REDIRECT_DOMAINS = [
+  'docs.athenius.io',
+  'athenius.io',
+  // Add localhost for development
+  'localhost:3000',
+  'localhost:3001',
+];
+
 /**
- * Validates that a redirect path is safe (relative, no protocol, no encoded tricks)
- * Prevents open redirect attacks like:
- * - //evil.com (protocol-relative URL)
- * - /\evil.com (backslash trick)
- * - /%2Fevil.com (encoded slashes)
+ * Validates that a redirect path/URL is safe
+ * Allows:
+ * - Relative paths (e.g., /dashboard)
+ * - Full URLs to trusted domains (e.g., https://docs.athenius.io/library)
+ * Prevents:
+ * - Open redirect attacks (//evil.com, /\evil.com, etc.)
  */
 function isValidRedirectPath(path: string): boolean {
-  // Must start with single forward slash
+  // Check if it's a full URL to a trusted domain
+  if (path.startsWith('https://') || path.startsWith('http://')) {
+    try {
+      const url = new URL(path);
+      const isTrusted = TRUSTED_REDIRECT_DOMAINS.some(
+        domain => url.host === domain || url.host.endsWith('.' + domain)
+      );
+      return isTrusted;
+    } catch {
+      return false;
+    }
+  }
+
+  // Must start with single forward slash (relative path)
   if (!path.startsWith('/')) return false;
 
   // Must not start with // (protocol-relative URL)
@@ -47,7 +73,11 @@ export async function updateSession(request: NextRequest) {
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              // Share cookies across subdomains for SSO
+              domain: COOKIE_DOMAIN,
+            })
           );
         },
       },
