@@ -343,15 +343,12 @@ export default function LoginPage() {
     // Validate redirect URL to prevent open redirect attacks
     const safeRedirectTo = isValidRedirectUrl(redirectTo) ? redirectTo : '/';
 
-    // Handle external redirects (e.g., to docs.athenius.io) vs internal routes
-    if (safeRedirectTo.startsWith('http://') || safeRedirectTo.startsWith('https://')) {
-      // Use SSO redirect route to trigger middleware (sets cookies with shared domain)
-      // This enables the external domain to read the auth cookies
-      window.location.href = `/auth/sso-redirect?to=${encodeURIComponent(safeRedirectTo)}`;
-    } else {
-      router.push(safeRedirectTo);
-      router.refresh();
-    }
+    // Always use SSO redirect to ensure cookies are set with shared domain (.athenius.io)
+    // This enables cross-subdomain authentication (AS ↔ AD)
+    const fullRedirectUrl = safeRedirectTo.startsWith('http://') || safeRedirectTo.startsWith('https://')
+      ? safeRedirectTo
+      : `${window.location.origin}${safeRedirectTo}`;
+    window.location.href = `/auth/sso-redirect?to=${encodeURIComponent(fullRedirectUrl)}`;
   };
 
   // Format seconds to human-readable time
