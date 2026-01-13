@@ -75,9 +75,12 @@ export async function createClient() {
         },
         setAll(cookiesToSet) {
           try {
-            // TEMPORARILY DISABLED: Cookie domain customization for debugging
+            // Set cookie with shared domain for SSO (server-side only)
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, {
+                ...options,
+                ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+              })
             );
           } catch {
             // The `setAll` method was called from a Server Component.

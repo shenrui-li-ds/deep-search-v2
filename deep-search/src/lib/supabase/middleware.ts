@@ -74,9 +74,11 @@ export async function updateSession(request: NextRequest) {
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) => {
-            // TEMPORARILY DISABLED: Cookie domain customization for debugging
-            // Just use default Supabase cookie settings
-            supabaseResponse.cookies.set(name, value, options);
+            // Set cookie with shared domain for SSO (server-side only)
+            supabaseResponse.cookies.set(name, value, {
+              ...options,
+              ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+            });
           });
         },
       },
