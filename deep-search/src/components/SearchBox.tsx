@@ -15,6 +15,13 @@ import {
 import MobileBottomSheet from './MobileBottomSheet';
 import { useTranslations } from 'next-intl';
 
+interface AttachedFile {
+  id: string;
+  filename: string;
+  original_filename: string;
+  file_type: string;
+}
+
 interface SearchBoxProps {
   large?: boolean;
   initialValue?: string;
@@ -22,6 +29,7 @@ interface SearchBoxProps {
   autoFocus?: boolean;
   defaultProvider?: ModelId;
   defaultMode?: SearchMode;
+  initialFiles?: AttachedFile[];
 }
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
@@ -92,7 +100,8 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   placeholder,
   autoFocus = false,
   defaultProvider = 'gemini',
-  defaultMode = 'web'
+  defaultMode = 'web',
+  initialFiles = []
 }) => {
   const [query, setQuery] = useState(initialValue);
   const [isSearching, setIsSearching] = useState(false);
@@ -102,6 +111,11 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [deepMode, setDeepMode] = useState(false);
   const [isModeSheetOpen, setIsModeSheetOpen] = useState(false);
   const [isModelSheetOpen, setIsModelSheetOpen] = useState(false);
+  const [isFileSheetOpen, setIsFileSheetOpen] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(initialFiles);
+  const [availableFiles, setAvailableFiles] = useState<AttachedFile[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
+  const [filesError, setFilesError] = useState<string | null>(null);
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -116,6 +130,42 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const getModeDescription = (modeId: SearchMode) => t(`modeDescriptions.${modeId}`);
   const getModelLabel = (modelId: ModelId) => tProviders(modelTranslationKeys[modelId]);
   const getProviderLabel = (providerKey: ProviderKey) => tProviderGroups(providerKey);
+
+  // Fetch available files for attachment
+  const fetchAvailableFiles = useCallback(async () => {
+    setIsLoadingFiles(true);
+    setFilesError(null);
+    try {
+      const response = await fetch('/api/files?status=ready');
+      if (!response.ok) {
+        throw new Error('Failed to fetch files');
+      }
+      const data = await response.json();
+      setAvailableFiles(data.files || []);
+    } catch (err) {
+      setFilesError(err instanceof Error ? err.message : 'Failed to load files');
+      setAvailableFiles([]);
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  }, []);
+
+  // Toggle file attachment
+  const toggleFileAttachment = (file: AttachedFile) => {
+    setAttachedFiles(prev => {
+      const isAttached = prev.some(f => f.id === file.id);
+      if (isAttached) {
+        return prev.filter(f => f.id !== file.id);
+      } else {
+        return [...prev, file];
+      }
+    });
+  };
+
+  // Remove attached file
+  const removeAttachedFile = (fileId: string) => {
+    setAttachedFiles(prev => prev.filter(f => f.id !== fileId));
+  };
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
@@ -173,6 +223,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     if (searchMode === 'pro' && deepMode) {
       searchParams.set('deep', 'true');
     }
+    // Add attached file IDs
+    if (attachedFiles.length > 0) {
+      searchParams.set('files', attachedFiles.map(f => f.id).join(','));
+    }
     router.push(`/search?${searchParams.toString()}`);
 
     // Reset after a short delay to handle back navigation
@@ -191,6 +245,10 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     // Add deep param only when enabled for Research mode
     if (searchMode === 'pro' && deepMode) {
       params.set('deep', 'true');
+    }
+    // Add attached file IDs
+    if (attachedFiles.length > 0) {
+      params.set('files', attachedFiles.map(f => f.id).join(','));
     }
     return `/search?${params.toString()}`;
   };
@@ -217,6 +275,31 @@ const SearchBox: React.FC<SearchBoxProps> = ({
             onBlur={() => setIsFocused(false)}
             disabled={isSearching}
           />
+
+          {/* Attached files display */}
+          {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {attachedFiles.map((file) => (
+                <span
+                  key={file.id}
+                  className="inline-flex items-center gap-1 px-2 py-1 bg-[var(--accent)]/10 text-[var(--accent)] rounded-lg text-xs font-medium"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                  <span className="truncate max-w-[120px]">{file.original_filename}</span>
+                  <button
+                    onClick={() => removeAttachedFile(file.id)}
+                    className="ml-0.5 p-0.5 hover:bg-[var(--accent)]/20 rounded transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Bottom toolbar */}
           <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border)]">
@@ -365,17 +448,96 @@ const SearchBox: React.FC<SearchBoxProps> = ({
                 </DropdownMenu>
               </div>
 
-              {/* Attachment button - both desktop and mobile */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-[var(--text-muted)] opacity-50 cursor-not-allowed">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{t('actions.attachFiles')}</TooltipContent>
-              </Tooltip>
+              {/* Attachment button - Desktop dropdown */}
+              <div className="hidden sm:block">
+                <DropdownMenu onOpenChange={(open) => {
+                  if (open) {
+                    fetchAvailableFiles();
+                  }
+                }}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={`h-8 w-8 ${attachedFiles.length > 0 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      {attachedFiles.length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                          {attachedFiles.length}
+                        </span>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto">
+                    <DropdownMenuLabel>{t('actions.attachFiles')}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {isLoadingFiles ? (
+                      <div className="py-4 text-center text-sm text-[var(--text-muted)]">
+                        Loading files...
+                      </div>
+                    ) : filesError ? (
+                      <div className="py-4 text-center text-sm text-red-500">
+                        {filesError}
+                      </div>
+                    ) : availableFiles.length === 0 ? (
+                      <div className="py-4 text-center">
+                        <p className="text-sm text-[var(--text-muted)] mb-2">No files available</p>
+                        <a href="/files" className="text-xs text-[var(--accent)] hover:underline">
+                          Upload files
+                        </a>
+                      </div>
+                    ) : (
+                      availableFiles.map((file) => {
+                        const isAttached = attachedFiles.some(f => f.id === file.id);
+                        return (
+                          <DropdownMenuItem
+                            key={file.id}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              toggleFileAttachment(file);
+                            }}
+                            className={`flex items-center gap-2 cursor-pointer ${isAttached ? 'bg-[var(--accent)]/10' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isAttached}
+                              onChange={() => {}}
+                              className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{file.original_filename}</p>
+                              <p className="text-xs text-[var(--text-muted)] uppercase">{file.file_type}</p>
+                            </div>
+                          </DropdownMenuItem>
+                        );
+                      })
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Attachment button - Mobile */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`sm:hidden h-8 w-8 ${attachedFiles.length > 0 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
+                onClick={() => {
+                  fetchAvailableFiles();
+                  setIsFileSheetOpen(true);
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                {attachedFiles.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {attachedFiles.length}
+                  </span>
+                )}
+              </Button>
 
               {/* Submit button */}
               <Tooltip>
@@ -572,6 +734,77 @@ const SearchBox: React.FC<SearchBoxProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      </MobileBottomSheet>
+
+      {/* Mobile Bottom Sheet for File Selection */}
+      <MobileBottomSheet
+        isOpen={isFileSheetOpen}
+        onClose={() => setIsFileSheetOpen(false)}
+        title={t('actions.attachFiles')}
+      >
+        <div className="space-y-2">
+          {isLoadingFiles ? (
+            <div className="py-8 text-center text-sm text-[var(--text-muted)]">
+              Loading files...
+            </div>
+          ) : filesError ? (
+            <div className="py-8 text-center text-sm text-red-500">
+              {filesError}
+            </div>
+          ) : availableFiles.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-[var(--text-muted)] mb-3">No files available</p>
+              <a
+                href="/files"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-sm font-medium"
+              >
+                Upload files
+              </a>
+            </div>
+          ) : (
+            <>
+              {availableFiles.map((file) => {
+                const isAttached = attachedFiles.some(f => f.id === file.id);
+                return (
+                  <button
+                    key={file.id}
+                    onClick={() => toggleFileAttachment(file)}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                      isAttached
+                        ? 'bg-[var(--accent)]/10 border-2 border-[var(--accent)]'
+                        : 'bg-[var(--card)] border-2 border-transparent'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                      isAttached ? 'bg-[var(--accent)] text-white' : 'bg-[var(--background)] text-[var(--text-muted)]'
+                    }`}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 text-left min-w-0">
+                      <p className={`font-medium truncate ${isAttached ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]'}`}>
+                        {file.original_filename}
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)] uppercase">{file.file_type}</p>
+                    </div>
+                    {isAttached && (
+                      <svg className="w-5 h-5 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setIsFileSheetOpen(false)}
+                className="w-full mt-4 py-2.5 rounded-lg bg-[var(--accent)] text-white font-medium"
+              >
+                {tCommon('confirm')}
+              </button>
+            </>
+          )}
         </div>
       </MobileBottomSheet>
     </TooltipProvider>

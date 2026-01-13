@@ -29,11 +29,12 @@ interface SearchClientProps {
   provider?: string;
   mode?: 'web' | 'pro' | 'brainstorm';
   deep?: boolean;
+  fileIds?: string[];
 }
 
 type LoadingStage = 'refining' | 'searching' | 'summarizing' | 'proofreading' | 'complete' | 'planning' | 'researching' | 'extracting' | 'synthesizing' | 'reframing' | 'exploring' | 'ideating' | 'analyzing_gaps' | 'deepening';
 
-export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false }: SearchClientProps) {
+export default function SearchClient({ query, provider = 'deepseek', mode = 'web', deep = false, fileIds = [] }: SearchClientProps) {
   const [loadingStage, setLoadingStage] = useState<LoadingStage>('searching');
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [streamingContent, setStreamingContent] = useState<string>('');
@@ -494,7 +495,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         } else {
           // Full round 1: Execute searches and extractions
 
-        // Step 2: Execute multiple searches in parallel
+        // Step 2: Execute multiple searches in parallel (including docs if files attached)
         setLoadingStage('researching');
 
         const searchPromises = plan.map((planItem: { aspect: string; query: string }) =>
@@ -514,7 +515,22 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }))
         );
 
-        const searchResults = await Promise.all(searchPromises);
+        // Query docs in parallel if files are attached
+        const docsPromise = fileIds.length > 0
+          ? fetch('/api/files/query', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: query,
+                fileIds: fileIds,
+                mode: 'detailed', // Use detailed mode for research
+                stream: false
+              }),
+              signal: abortController.signal
+            }).then(res => res.ok ? res.json() : null).catch(() => null)
+          : Promise.resolve(null);
+
+        const [searchResults, docsResult] = await Promise.all([Promise.all(searchPromises), docsPromise]);
 
         if (!isActive) return;
 
@@ -556,6 +572,36 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               content: r.content
             }))
           });
+        }
+
+        // Add doc sources if files are attached
+        if (docsResult?.sources && docsResult.sources.length > 0) {
+          for (const ds of docsResult.sources) {
+            const docUrl = ds.url || `#doc-${ds.id}`;
+            if (!seenUrls.has(docUrl)) {
+              seenUrls.add(docUrl);
+              allSources.unshift({
+                id: `doc-${sourceIndex++}`,
+                title: `📄 ${ds.title}`,
+                url: docUrl,
+                iconUrl: '',
+                snippet: ds.snippet
+              });
+            }
+          }
+
+          // Add doc content as a special "files" aspect for synthesis
+          aspectResults.unshift({
+            aspect: 'attached_files',
+            query: `Content from your uploaded files related to: ${query}`,
+            results: docsResult.sources.map((ds: { title: string; url: string; content: string; id: string }) => ({
+              title: `[From your files] ${ds.title}`,
+              url: ds.url || `#doc-${ds.id}`,
+              content: ds.content
+            }))
+          });
+
+          console.log(`[Research] Included ${docsResult.sources.length} sources from attached files`);
         }
 
         if (allSources.length === 0) {
@@ -1090,7 +1136,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         // Store brainstorm thinking state for UI display
         setBrainstormAngles(creativeAngles);
 
-        // Step 2: Execute parallel searches for each creative angle
+        // Step 2: Execute parallel searches for each creative angle (including docs if files attached)
         setLoadingStage('exploring');
 
         const searchPromises = creativeAngles.map((angleItem: { angle: string; query: string }) =>
@@ -1110,7 +1156,22 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           }))
         );
 
-        const searchResults = await Promise.all(searchPromises);
+        // Query docs in parallel if files are attached
+        const docsPromise = fileIds.length > 0
+          ? fetch('/api/files/query', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: query,
+                fileIds: fileIds,
+                mode: 'simple',
+                stream: false
+              }),
+              signal: abortController.signal
+            }).then(res => res.ok ? res.json() : null).catch(() => null)
+          : Promise.resolve(null);
+
+        const [searchResults, docsResult] = await Promise.all([Promise.all(searchPromises), docsPromise]);
 
         if (!isActive) return;
 
@@ -1157,6 +1218,36 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
               content: r.content
             }))
           });
+        }
+
+        // Add doc sources if files are attached
+        if (docsResult?.sources && docsResult.sources.length > 0) {
+          for (const ds of docsResult.sources) {
+            const docUrl = ds.url || `#doc-${ds.id}`;
+            if (!seenUrls.has(docUrl)) {
+              seenUrls.add(docUrl);
+              allSources.unshift({
+                id: `doc-${sourceIndex++}`,
+                title: `📄 ${ds.title}`,
+                url: docUrl,
+                iconUrl: '',
+                snippet: ds.snippet
+              });
+            }
+          }
+
+          // Add doc content as a special "your_content" angle for brainstorm synthesis
+          angleResults.unshift({
+            angle: 'your_content',
+            query: `Ideas and concepts from your uploaded files`,
+            results: docsResult.sources.map((ds: { title: string; url: string; content: string; id: string }) => ({
+              title: `[From your files] ${ds.title}`,
+              url: ds.url || `#doc-${ds.id}`,
+              content: ds.content
+            }))
+          });
+
+          console.log(`[Brainstorm] Included ${docsResult.sources.length} sources from attached files`);
         }
 
         if (allSources.length === 0) {
@@ -1370,9 +1461,10 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         setRefinedQuery(searchQuery);
 
         // Step 2: Perform search via Tavily with refined query
+        // If files are attached, also query docs API in parallel
         setLoadingStage('searching');
 
-        const searchResponse = await fetch('/api/search', {
+        const searchPromise = fetch('/api/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1383,6 +1475,23 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
           signal: abortController.signal
         });
 
+        // Query docs if files are attached
+        const docsPromise = fileIds.length > 0
+          ? fetch('/api/files/query', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                query: query,
+                fileIds: fileIds,
+                mode: 'simple',
+                stream: false
+              }),
+              signal: abortController.signal
+            }).then(res => res.ok ? res.json() : null).catch(() => null)
+          : Promise.resolve(null);
+
+        const [searchResponse, docsResult] = await Promise.all([searchPromise, docsPromise]);
+
         if (!isActive) return;
 
         if (!searchResponse.ok) {
@@ -1390,8 +1499,32 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         }
 
         const searchData = await searchResponse.json();
-        const fetchedSources: Source[] = searchData.sources || [];
+        let fetchedSources: Source[] = searchData.sources || [];
         const fetchedImages: SearchImage[] = searchData.images || [];
+
+        // If we have doc results, add doc sources at the beginning
+        // and include doc content in the raw results for summarization
+        let docSourcesAdded = 0;
+        if (docsResult?.sources && docsResult.sources.length > 0) {
+          // Convert doc sources to Source format and prepend
+          const docSources: Source[] = docsResult.sources.map((ds: { id: string; title: string; url: string; snippet: string }, idx: number) => ({
+            id: `doc-${idx}`,
+            title: `📄 ${ds.title}`,
+            url: ds.url || '#',
+            iconUrl: '',
+            snippet: ds.snippet
+          }));
+          docSourcesAdded = docSources.length;
+          fetchedSources = [...docSources, ...fetchedSources];
+
+          // Prepend doc content to raw results for summarization
+          const docResults = docsResult.sources.map((ds: { title: string; url: string; content: string }) => ({
+            title: `[From your files] ${ds.title}`,
+            url: ds.url || '#',
+            content: ds.content
+          }));
+          searchData.rawResults.results = [...docResults, ...searchData.rawResults.results];
+        }
 
         if (!isActive) return;
 
@@ -1403,6 +1536,11 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
 
         setSources(fetchedSources);
         setImages(fetchedImages);
+
+        // Log if docs were included
+        if (docSourcesAdded > 0) {
+          console.log(`[Search] Included ${docSourcesAdded} sources from attached files`);
+        }
 
         // Start related searches immediately using refined query + search context
         // This runs in parallel with summarization for faster results
@@ -1561,7 +1699,7 @@ export default function SearchClient({ query, provider = 'deepseek', mode = 'web
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [query, provider, mode, deep, scheduleContentUpdate, streamResponse, transitionToContent]);
+  }, [query, provider, mode, deep, fileIds, scheduleContentUpdate, streamResponse, transitionToContent]);
 
   // Handle bookmark toggle - must be before any early returns
   const handleToggleBookmark = useCallback(async () => {

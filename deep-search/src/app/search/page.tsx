@@ -17,6 +17,7 @@ interface SearchPageProps {
     provider?: string;
     mode?: string;
     deep?: string;
+    files?: string;
   }>;
 }
 
@@ -49,6 +50,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   // Deep mode is opt-in via URL param (strict boolean check)
   const deep = params.deep === 'true';
 
+  // Parse attached file IDs (comma-separated UUIDs)
+  const fileIds = params.files
+    ? params.files.split(',').filter(id => id.trim().length > 0)
+    : [];
+
   if (!query) {
     notFound();
   }
@@ -62,6 +68,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             provider={provider}
             mode={mode}
             deep={deep}
+            fileIds={fileIds}
           />
         </Suspense>
       </ErrorBoundary>

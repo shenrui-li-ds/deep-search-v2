@@ -24,6 +24,7 @@
   "nav": {
     "home": "Home",
     "library": "Library",
+    "files": "Files",
     "account": "Account",
     "signOut": "Sign Out",
     "newSearch": "New",
@@ -103,7 +104,7 @@
       "saveToFavorites": "Save to favorites",
       "removeFromFavorites": "Remove from favorites",
       "comingSoon": "(coming soon)",
-      "attachFiles": "Attach files (coming soon)"
+      "attachFiles": "Attach files"
     },
     "followUp": "Ask a follow-up",
     "incomplete": {

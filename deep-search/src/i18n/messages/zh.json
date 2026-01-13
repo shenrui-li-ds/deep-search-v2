@@ -24,6 +24,7 @@
   "nav": {
     "home": "首页",
     "library": "历史",
+    "files": "文件",
     "account": "账号",
     "signOut": "退出登录",
     "newSearch": "新建",
@@ -103,7 +104,7 @@
       "saveToFavorites": "添加到收藏",
       "removeFromFavorites": "取消收藏",
       "comingSoon": "(即将推出)",
-      "attachFiles": "添加附件（即将推出）"
+      "attachFiles": "添加文件"
     },
     "followUp": "提出后续问题",
     "incomplete": {
