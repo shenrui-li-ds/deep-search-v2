@@ -14,6 +14,9 @@ import { cookies } from 'next/headers';
 
 const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined;
 
+// Log the configured domain for debugging
+console.log('[SSO Redirect] COOKIE_DOMAIN configured as:', COOKIE_DOMAIN || '(not set - will use host-only)');
+
 // Trusted domains for SSO redirects
 const TRUSTED_DOMAINS = [
   'docs.athenius.io',
@@ -56,11 +59,14 @@ export async function GET(request: Request) {
         },
         setAll(cookiesToSet) {
           // Set cookies directly on the redirect response with shared domain
+          console.log('[SSO Redirect] setAll called with', cookiesToSet.length, 'cookies');
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, {
+            const cookieOptions = {
               ...options,
               ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
-            });
+            };
+            console.log('[SSO Redirect] Setting cookie:', name, 'with domain:', cookieOptions.domain || '(host-only)');
+            response.cookies.set(name, value, cookieOptions);
           });
         },
       },
@@ -68,6 +74,7 @@ export async function GET(request: Request) {
   );
 
   // Force session refresh - this calls setAll() with new tokens
+  console.log('[SSO Redirect] Calling refreshSession...');
   const { data: { session }, error } = await supabase.auth.refreshSession();
 
   if (error || !session) {
@@ -75,6 +82,17 @@ export async function GET(request: Request) {
     // Redirect to login instead
     return NextResponse.redirect(`${origin}/auth/login`);
   }
+
+  console.log('[SSO Redirect] Session refresh successful, user:', session.user?.email);
+  console.log('[SSO Redirect] Redirecting to:', targetUrl);
+
+  // Log the cookies that will be sent
+  const setCookieHeaders = response.headers.getSetCookie();
+  console.log('[SSO Redirect] Set-Cookie headers count:', setCookieHeaders.length);
+  setCookieHeaders.forEach((cookie, i) => {
+    // Log first 100 chars of each cookie (avoid logging full tokens)
+    console.log(`[SSO Redirect] Cookie ${i + 1}:`, cookie.substring(0, 100) + '...');
+  });
 
   // Return the response with cookies set
   return response;
