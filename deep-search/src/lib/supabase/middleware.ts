@@ -108,6 +108,7 @@ export async function updateSession(request: NextRequest) {
     '/auth/login',
     '/auth/signup',
     '/auth/callback',
+    '/auth/sso-redirect',  // SSO redirect handles its own auth check
     '/auth/error',
     '/auth/forgot-password',
     '/auth/reset-password',

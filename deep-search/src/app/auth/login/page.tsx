@@ -345,7 +345,9 @@ export default function LoginPage() {
 
     // Handle external redirects (e.g., to docs.athenius.io) vs internal routes
     if (safeRedirectTo.startsWith('http://') || safeRedirectTo.startsWith('https://')) {
-      window.location.href = safeRedirectTo;
+      // Use SSO redirect route to trigger middleware (sets cookies with shared domain)
+      // This enables the external domain to read the auth cookies
+      window.location.href = `/auth/sso-redirect?to=${encodeURIComponent(safeRedirectTo)}`;
     } else {
       router.push(safeRedirectTo);
       router.refresh();
