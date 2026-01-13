@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 /**
  * SSO Redirect Route
  *
- * This route exists to trigger server-side middleware before redirecting
- * to an external domain. The middleware sets cookies with the shared
- * domain (.athenius.io), enabling SSO across subdomains.
+ * This route forces cookies to be set with the shared domain (.athenius.io)
+ * before redirecting to an external subdomain.
  *
- * Flow:
- * 1. User logs in on AS (browser sets cookies for www.athenius.io)
- * 2. Login page redirects to /auth/sso-redirect?to=https://docs.athenius.io
- * 3. Middleware runs, sets cookies with domain=.athenius.io
- * 4. This route redirects to the external URL
- * 5. External domain can now read the shared cookies
+ * The key insight: We must set cookies on the REDIRECT RESPONSE itself,
+ * not via cookieStore (which sets on a different response object).
  */
+
+const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined;
 
 // Trusted domains for SSO redirects
 const TRUSTED_DOMAINS = [
@@ -41,20 +39,43 @@ export async function GET(request: Request) {
   const redirectTo = url.searchParams.get('to');
   const origin = url.origin;
 
-  // Verify user is authenticated
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
 
-  if (!user) {
-    // Not authenticated - redirect to login
+  // Create redirect response first - we'll set cookies on THIS response
+  const targetUrl = (redirectTo && isValidExternalUrl(redirectTo)) ? redirectTo : origin;
+  const response = NextResponse.redirect(targetUrl);
+
+  // Create Supabase client that sets cookies on our redirect response
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          // Set cookies directly on the redirect response with shared domain
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, {
+              ...options,
+              ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+            });
+          });
+        },
+      },
+    }
+  );
+
+  // Force session refresh - this calls setAll() with new tokens
+  const { data: { session }, error } = await supabase.auth.refreshSession();
+
+  if (error || !session) {
+    console.error('[SSO Redirect] Session refresh failed:', error?.message);
+    // Redirect to login instead
     return NextResponse.redirect(`${origin}/auth/login`);
   }
 
-  // Validate redirect URL
-  if (redirectTo && isValidExternalUrl(redirectTo)) {
-    return NextResponse.redirect(redirectTo);
-  }
-
-  // Invalid or missing redirect - go home
-  return NextResponse.redirect(origin);
+  // Return the response with cookies set
+  return response;
 }
