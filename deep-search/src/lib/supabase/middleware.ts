@@ -73,19 +73,11 @@ export async function updateSession(request: NextRequest) {
           supabaseResponse = NextResponse.next({
             request,
           });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, {
-              ...options,
-              // Share cookies across subdomains for SSO
-              // All attributes must be set for cross-subdomain cookies to work
-              ...(COOKIE_DOMAIN && {
-                domain: COOKIE_DOMAIN,
-                sameSite: 'lax' as const,  // Required for cross-subdomain navigation
-                secure: true,               // Required for HTTPS
-                path: '/',                  // Ensure cookie is available site-wide
-              }),
-            })
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // TEMPORARILY DISABLED: Cookie domain customization for debugging
+            // Just use default Supabase cookie settings
+            supabaseResponse.cookies.set(name, value, options);
+          });
         },
       },
     }
@@ -95,9 +87,19 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      // Log but don't throw - treat as unauthenticated
+      console.warn('[Middleware] Auth error:', error.message);
+    } else {
+      user = data.user;
+    }
+  } catch (err) {
+    // Rate limit or network error - treat as unauthenticated but don't loop
+    console.error('[Middleware] Auth check failed:', err);
+  }
 
   // Define public routes that don't require authentication
   const publicRoutes = [
