@@ -128,11 +128,27 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If user is logged in and trying to access auth pages, redirect to home
+  // If user is logged in and trying to access auth pages, redirect appropriately
   // Exception: /auth/reset-password needs to be accessible for password recovery flow
   const noRedirectRoutes = ['/auth/callback', '/auth/reset-password'];
   const shouldRedirect = user && isPublicRoute && !noRedirectRoutes.some(route => request.nextUrl.pathname.startsWith(route));
   if (shouldRedirect) {
+    // Check for redirectTo parameter - if it's a valid external URL, redirect there
+    // This enables SSO: user logged in on AS, visiting from AD, should go back to AD
+    const redirectTo = request.nextUrl.searchParams.get('redirectTo');
+    if (redirectTo && isValidRedirectPath(redirectTo)) {
+      // External URL (e.g., https://docs.athenius.io) - redirect directly
+      if (redirectTo.startsWith('http://') || redirectTo.startsWith('https://')) {
+        return NextResponse.redirect(redirectTo);
+      }
+      // Internal path - redirect within AS
+      const url = request.nextUrl.clone();
+      url.pathname = redirectTo;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+
+    // No valid redirectTo - go to home
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);
