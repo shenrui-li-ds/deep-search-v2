@@ -204,6 +204,80 @@ const stats = circuitBreakerRegistry.getAllStats();
 // { 'my-service': { state: 'closed', failures: 0, ... } }
 ```
 
+### `docs-api.ts` - Athenius Docs API Client
+
+Server-side client for communicating with the Athenius Docs API. Handles file upload, management, and document querying.
+
+**Types:**
+```typescript
+interface DocsFile {
+  id: string;
+  filename: string;
+  original_filename: string;
+  file_type: 'pdf' | 'txt' | 'md';
+  file_size: number;
+  status: 'pending' | 'processing' | 'ready' | 'error';
+  chunk_count: number | null;
+  created_at: string;
+  expires_at: string;
+  entities_enabled: boolean;
+  entities_status: 'pending' | 'processing' | 'ready' | 'error' | null;
+  entities_progress: number | null;
+  error_message?: string | null;
+}
+
+interface DocsSource {
+  id: string;
+  title: string;
+  url: string;
+  snippet: string;
+  content: string;
+}
+
+type QueryMode = 'simple' | 'detailed' | 'deep';
+```
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `listFiles(userId, options?)` | List user's files with optional status filter |
+| `uploadFile(userId, file, filename)` | Upload a file for processing |
+| `getFile(userId, fileId)` | Get file details |
+| `deleteFile(userId, fileId)` | Delete a file |
+| `queryDocs(userId, query, fileIds, mode?)` | Query documents (non-streaming) |
+| `queryDocsStream(userId, query, fileIds, mode?)` | Query documents with streaming |
+| `getEntityStatus(userId, fileId)` | Get entity extraction status |
+| `enableEntities(userId, fileId)` | Enable entity extraction |
+| `disableEntities(userId, fileId)` | Disable entity extraction |
+| `isDocsApiAvailable()` | Check if Docs API is configured |
+
+**Usage:**
+```typescript
+import { listFiles, queryDocs, isDocsApiAvailable } from '@/lib/docs-api';
+
+// Check availability
+if (!isDocsApiAvailable()) {
+  return { error: 'File storage not configured' };
+}
+
+// List ready files
+const { files } = await listFiles(userId, { status: 'ready' });
+
+// Query documents
+const result = await queryDocs(userId, 'What is the main topic?', ['file-1', 'file-2'], 'simple');
+console.log(result.content, result.sources);
+```
+
+**Environment Variables:**
+- `DOCS_API_URL` - Athenius Docs API base URL (e.g., `http://localhost:3001`)
+- `ATHENIUS_API_KEY` - API key for authentication
+
+**Headers:**
+All requests include:
+- `Authorization: Bearer {ATHENIUS_API_KEY}`
+- `X-User-ID: {userId}` - For user-scoped file access
+
 ### `logger.ts` - Structured Logging & Sentry Integration
 
 Structured JSON logging with automatic Sentry error reporting.

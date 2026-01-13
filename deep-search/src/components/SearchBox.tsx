@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { getUserCredits } from '@/lib/supabase/database';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -116,6 +117,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
   const [availableFiles, setAvailableFiles] = useState<AttachedFile[]>([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [filesError, setFilesError] = useState<string | null>(null);
+  const [userTier, setUserTier] = useState<'free' | 'pro' | 'admin' | null>(null);
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -196,6 +198,20 @@ const SearchBox: React.FC<SearchBoxProps> = ({
     setSearchMode(defaultMode);
   }, [defaultMode]);
 
+  // Fetch user tier on mount
+  useEffect(() => {
+    async function fetchUserTier() {
+      try {
+        const credits = await getUserCredits();
+        setUserTier(credits?.user_tier || 'free');
+      } catch {
+        // Default to free tier if fetch fails
+        setUserTier('free');
+      }
+    }
+    fetchUserTier();
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       // Enter without Shift: submit search
@@ -235,6 +251,9 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
   // Get current mode icon
   const currentModeIcon = searchModeIcons[searchMode];
+
+  // Check if user can use file attachments (pro or admin only)
+  const canUseFiles = userTier === 'pro' || userTier === 'admin';
 
   const buildSearchUrl = (queryText: string) => {
     const params = new URLSearchParams({
@@ -450,94 +469,128 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
               {/* Attachment button - Desktop dropdown */}
               <div className="hidden sm:block">
-                <DropdownMenu onOpenChange={(open) => {
-                  if (open) {
-                    fetchAvailableFiles();
-                  }
-                }}>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-8 w-8 ${attachedFiles.length > 0 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                      </svg>
-                      {attachedFiles.length > 0 && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                          {attachedFiles.length}
-                        </span>
+                {canUseFiles ? (
+                  <DropdownMenu onOpenChange={(open) => {
+                    if (open) {
+                      fetchAvailableFiles();
+                    }
+                  }}>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 ${attachedFiles.length > 0 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        {attachedFiles.length > 0 && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                            {attachedFiles.length}
+                          </span>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto">
+                      <DropdownMenuLabel>{t('actions.attachFiles')}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {isLoadingFiles ? (
+                        <div className="py-4 text-center text-sm text-[var(--text-muted)]">
+                          Loading files...
+                        </div>
+                      ) : filesError ? (
+                        <div className="py-4 text-center text-sm text-red-500">
+                          {filesError}
+                        </div>
+                      ) : availableFiles.length === 0 ? (
+                        <div className="py-4 text-center">
+                          <p className="text-sm text-[var(--text-muted)] mb-2">No files available</p>
+                          <a href="/files" className="text-xs text-[var(--accent)] hover:underline">
+                            Upload files
+                          </a>
+                        </div>
+                      ) : (
+                        availableFiles.map((file) => {
+                          const isAttached = attachedFiles.some(f => f.id === file.id);
+                          return (
+                            <DropdownMenuItem
+                              key={file.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                toggleFileAttachment(file);
+                              }}
+                              className={`flex items-center gap-2 cursor-pointer ${isAttached ? 'bg-[var(--accent)]/10' : ''}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isAttached}
+                                onChange={() => {}}
+                                className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{file.original_filename}</p>
+                                <p className="text-xs text-[var(--text-muted)] uppercase">{file.file_type}</p>
+                              </div>
+                            </DropdownMenuItem>
+                          );
+                        })
                       )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" side="bottom" className="w-64 max-h-[320px] overflow-y-auto">
-                    <DropdownMenuLabel>{t('actions.attachFiles')}</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {isLoadingFiles ? (
-                      <div className="py-4 text-center text-sm text-[var(--text-muted)]">
-                        Loading files...
-                      </div>
-                    ) : filesError ? (
-                      <div className="py-4 text-center text-sm text-red-500">
-                        {filesError}
-                      </div>
-                    ) : availableFiles.length === 0 ? (
-                      <div className="py-4 text-center">
-                        <p className="text-sm text-[var(--text-muted)] mb-2">No files available</p>
-                        <a href="/files" className="text-xs text-[var(--accent)] hover:underline">
-                          Upload files
-                        </a>
-                      </div>
-                    ) : (
-                      availableFiles.map((file) => {
-                        const isAttached = attachedFiles.some(f => f.id === file.id);
-                        return (
-                          <DropdownMenuItem
-                            key={file.id}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              toggleFileAttachment(file);
-                            }}
-                            className={`flex items-center gap-2 cursor-pointer ${isAttached ? 'bg-[var(--accent)]/10' : ''}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isAttached}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded border-[var(--border)] text-[var(--accent)] focus:ring-[var(--accent)]"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{file.original_filename}</p>
-                              <p className="text-xs text-[var(--text-muted)] uppercase">{file.file_type}</p>
-                            </div>
-                          </DropdownMenuItem>
-                        );
-                      })
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-[var(--text-muted)] opacity-40 cursor-not-allowed"
+                        disabled
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="font-medium">Pro Feature</p>
+                      <p className="text-xs text-[var(--text-muted)]">File attachments available for Pro users</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
               </div>
 
               {/* Attachment button - Mobile */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`sm:hidden h-8 w-8 ${attachedFiles.length > 0 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
-                onClick={() => {
-                  fetchAvailableFiles();
-                  setIsFileSheetOpen(true);
-                }}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                {attachedFiles.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {attachedFiles.length}
-                  </span>
-                )}
-              </Button>
+              {canUseFiles ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`sm:hidden h-8 w-8 ${attachedFiles.length > 0 ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}
+                  onClick={() => {
+                    fetchAvailableFiles();
+                    setIsFileSheetOpen(true);
+                  }}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  {attachedFiles.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--accent)] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {attachedFiles.length}
+                    </span>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="sm:hidden h-8 w-8 text-[var(--text-muted)] opacity-40 cursor-not-allowed"
+                  disabled
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                </Button>
+              )}
 
               {/* Submit button */}
               <Tooltip>

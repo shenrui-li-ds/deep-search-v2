@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import MainLayout from '@/components/MainLayout';
+import { getUserCredits } from '@/lib/supabase/database';
 
 interface DocsFile {
   id: string;
@@ -195,8 +196,28 @@ export default function FilesPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [togglingEntityIds, setTogglingEntityIds] = useState<Set<string>>(new Set());
+  const [userTier, setUserTier] = useState<'free' | 'pro' | 'admin' | null>(null);
+  const [isTierLoading, setIsTierLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Check if user can use files (pro or admin only)
+  const canUseFiles = userTier === 'pro' || userTier === 'admin';
+
+  // Fetch user tier on mount
+  useEffect(() => {
+    async function fetchUserTier() {
+      try {
+        const credits = await getUserCredits();
+        setUserTier(credits?.user_tier || 'free');
+      } catch {
+        setUserTier('free');
+      } finally {
+        setIsTierLoading(false);
+      }
+    }
+    fetchUserTier();
+  }, []);
 
   // Fetch files
   const fetchFiles = useCallback(async () => {
@@ -226,8 +247,14 @@ export default function FilesPage() {
     }
   }, []);
 
-  // Initial fetch and polling for processing files
+  // Initial fetch and polling for processing files (only for pro/admin users)
   useEffect(() => {
+    // Don't fetch until we know user tier
+    if (isTierLoading || !canUseFiles) {
+      setIsLoading(false);
+      return;
+    }
+
     fetchFiles();
 
     // Poll every 5 seconds if there are processing files
@@ -246,7 +273,7 @@ export default function FilesPage() {
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [fetchFiles, files]);
+  }, [fetchFiles, files, isTierLoading, canUseFiles]);
 
   // Handle file upload
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -350,66 +377,48 @@ export default function FilesPage() {
               </p>
             </div>
 
-            {/* Upload button */}
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.txt,.md"
-                onChange={handleUpload}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer transition-colors ${
-                  isUploading
-                    ? 'bg-[var(--card)] text-[var(--text-muted)] cursor-not-allowed'
-                    : 'bg-[var(--accent)] text-white hover:opacity-90'
-                }`}
-              >
-                {isUploading ? (
-                  <>
-                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Upload File
-                  </>
-                )}
-              </label>
-            </div>
+            {/* Upload button - only for pro/admin users */}
+            {!isTierLoading && canUseFiles && (
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,.md"
+                  onChange={handleUpload}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label
+                  htmlFor="file-upload"
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer transition-colors ${
+                    isUploading
+                      ? 'bg-[var(--card)] text-[var(--text-muted)] cursor-not-allowed'
+                      : 'bg-[var(--accent)] text-white hover:opacity-90'
+                  }`}
+                >
+                  {isUploading ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Upload File
+                    </>
+                  )}
+                </label>
+              </div>
+            )}
           </div>
 
-          {/* Upload error */}
-          {uploadError && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-500">
-              {uploadError}
-            </div>
-          )}
-
-          {/* Error */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-500">
-              {error}
-              <button
-                onClick={() => setError(null)}
-                className="ml-2 underline hover:no-underline"
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {/* Loading state */}
-          {isLoading && (
+          {/* Loading tier check */}
+          {isTierLoading && (
             <div className="flex items-center justify-center py-12">
               <svg className="h-8 w-8 animate-spin text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -418,54 +427,116 @@ export default function FilesPage() {
             </div>
           )}
 
-          {/* Empty state */}
-          {!isLoading && files.length === 0 && (
-            <div className="text-center py-12">
-              <svg className="h-12 w-12 mx-auto text-[var(--text-muted)] mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-              </svg>
-              <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">No files uploaded</h3>
-              <p className="text-sm text-[var(--text-muted)] mb-4">
-                Upload PDF, TXT, or MD files to search and analyze them.
+          {/* Premium feature notice for free tier users */}
+          {!isTierLoading && !canUseFiles && (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-[var(--accent)]/10 flex items-center justify-center">
+                <svg className="h-8 w-8 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-3">
+                Pro Feature
+              </h2>
+              <p className="text-[var(--text-muted)] mb-6 max-w-md mx-auto">
+                File upload and document analysis is available for Pro users.
+                Upgrade to upload PDFs, TXT, and Markdown files, then attach them to your searches for document-aware answers.
               </p>
-              <label
-                htmlFor="file-upload"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer bg-[var(--accent)] text-white hover:opacity-90 transition-colors"
+              <a
+                href="/account"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-medium bg-[var(--accent)] text-white hover:opacity-90 transition-colors"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Upload your first file
-              </label>
+                View Account
+              </a>
             </div>
           )}
 
-          {/* Files list */}
-          {!isLoading && files.length > 0 && (
-            <div className="space-y-3">
-              {files.map(file => (
-                <FileItem
-                  key={file.id}
-                  file={file}
-                  onDelete={handleDelete}
-                  onToggleEntities={handleToggleEntities}
-                  isDeleting={deletingIds.has(file.id)}
-                  isTogglingEntities={togglingEntityIds.has(file.id)}
-                />
-              ))}
-            </div>
-          )}
+          {/* Content for pro/admin users */}
+          {!isTierLoading && canUseFiles && (
+            <>
+              {/* Upload error */}
+              {uploadError && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-500">
+                  {uploadError}
+                </div>
+              )}
 
-          {/* Info footer */}
-          <div className="mt-8 p-4 bg-[var(--card)] rounded-lg border border-[var(--border)]">
-            <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2">About Files</h4>
-            <ul className="text-xs text-[var(--text-muted)] space-y-1">
-              <li>• Supported formats: PDF, TXT, MD (max 10MB)</li>
-              <li>• Files are automatically deleted after 24 hours</li>
-              <li>• Enable &quot;Deep Analysis&quot; for multi-hop reasoning on complex documents</li>
-              <li>• Attach files to any search to include document context</li>
-            </ul>
-          </div>
+              {/* Error */}
+              {error && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-500">
+                  {error}
+                  <button
+                    onClick={() => setError(null)}
+                    className="ml-2 underline hover:no-underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {/* Loading state */}
+              {isLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <svg className="h-8 w-8 animate-spin text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!isLoading && files.length === 0 && (
+                <div className="text-center py-12">
+                  <svg className="h-12 w-12 mx-auto text-[var(--text-muted)] mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m6.75 12l-3-3m0 0l-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">No files uploaded</h3>
+                  <p className="text-sm text-[var(--text-muted)] mb-4">
+                    Upload PDF, TXT, or MD files to search and analyze them.
+                  </p>
+                  <label
+                    htmlFor="file-upload"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium cursor-pointer bg-[var(--accent)] text-white hover:opacity-90 transition-colors"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Upload your first file
+                  </label>
+                </div>
+              )}
+
+              {/* Files list */}
+              {!isLoading && files.length > 0 && (
+                <div className="space-y-3">
+                  {files.map(file => (
+                    <FileItem
+                      key={file.id}
+                      file={file}
+                      onDelete={handleDelete}
+                      onToggleEntities={handleToggleEntities}
+                      isDeleting={deletingIds.has(file.id)}
+                      isTogglingEntities={togglingEntityIds.has(file.id)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Info footer */}
+              <div className="mt-8 p-4 bg-[var(--card)] rounded-lg border border-[var(--border)]">
+                <h4 className="text-sm font-medium text-[var(--text-primary)] mb-2">About Files</h4>
+                <ul className="text-xs text-[var(--text-muted)] space-y-1">
+                  <li>• Supported formats: PDF, TXT, MD (max 10MB)</li>
+                  <li>• Files are automatically deleted after 24 hours</li>
+                  <li>• Enable &quot;Deep Analysis&quot; for multi-hop reasoning on complex documents</li>
+                  <li>• Attach files to any search to include document context</li>
+                </ul>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </MainLayout>

@@ -97,13 +97,13 @@ Main search input component with responsive design.
 **Desktop:**
 - Inline mode toggle buttons (Web Search, Research, Brainstorm)
 - Grouped model selector dropdown (models grouped by provider)
-- Attachment button (disabled, coming soon)
+- File attachment button with dropdown (paperclip icon)
 
 **Mobile:**
 - Separate mode and model selector buttons (each opens own `MobileBottomSheet`)
 - Mode selector: Shows current mode icon + short label
 - Model selector: Shows AI icon + model name, opens grouped selection sheet
-- Attachment button (disabled, coming soon)
+- File attachment button opens `MobileBottomSheet` for file selection
 
 **Props:**
 ```typescript
@@ -114,8 +114,34 @@ Main search input component with responsive design.
   autoFocus?: boolean;
   defaultProvider?: ModelId;  // Default model to use
   defaultMode?: SearchMode;   // Default search mode
+  initialFiles?: AttachedFile[];  // Pre-attached files (from URL params)
 }
 ```
+
+**File Attachment:**
+```typescript
+interface AttachedFile {
+  id: string;
+  filename: string;
+  original_filename: string;
+  file_type: string;
+}
+```
+
+**File Attachment UI:**
+- Paperclip button shows file count badge when files attached
+- Desktop: Dropdown menu lists available files with checkboxes
+- Mobile: Bottom sheet with file list and confirm button
+- Files fetched from `/api/files?status=ready` when dropdown opens
+- Selected files shown as removable chips below textarea
+- File IDs passed to search via `files` URL param (comma-separated)
+
+**File Attachment Flow:**
+1. User clicks paperclip button → dropdown/sheet opens
+2. `fetchAvailableFiles()` called → fetches ready files from `/api/files?status=ready`
+3. User toggles files → updates `attachedFiles` state
+4. On search submit → file IDs appended to URL as `?files=id1,id2`
+5. SearchClient receives `fileIds` prop → queries docs API in parallel with web search
 
 **ModelId Type:**
 ```typescript

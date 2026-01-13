@@ -800,6 +800,229 @@ All CAPTCHA endpoints read from `CAPTCHA_WHITELIST_EMAILS` env var (comma-separa
 CAPTCHA_WHITELIST_EMAILS=user1@example.com,user2@example.com
 ```
 
+## File Management Routes
+
+Routes for managing user-uploaded documents via the Athenius Docs API. Files can be attached to searches to include document content in results.
+
+### `/api/files` - List & Upload Files
+
+**GET - List Files:**
+```
+GET /api/files
+GET /api/files?status=ready
+GET /api/files?status=processing&limit=10&offset=0
+```
+
+**Response:**
+```json
+{
+  "files": [
+    {
+      "id": "uuid",
+      "filename": "doc_abc123.txt",
+      "original_filename": "document.txt",
+      "file_type": "txt",
+      "file_size": 1024,
+      "status": "ready",
+      "chunk_count": 5,
+      "created_at": "2024-01-15T10:00:00Z",
+      "expires_at": "2024-01-16T10:00:00Z",
+      "entities_enabled": false,
+      "entities_status": null,
+      "entities_progress": null
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "total": 1
+  }
+}
+```
+
+**POST - Upload File:**
+```
+POST /api/files
+Content-Type: multipart/form-data
+
+file: <binary>
+```
+
+**Response:**
+```json
+{
+  "fileId": "uuid",
+  "filename": "doc_xyz789.pdf",
+  "originalFilename": "report.pdf",
+  "fileType": "pdf",
+  "fileSize": 2048,
+  "status": "pending",
+  "message": "File uploaded successfully"
+}
+```
+
+**File Type Validation:**
+- Allowed types: PDF, TXT, MD
+- Max size: 10MB
+- MIME types: `application/pdf`, `text/plain`, `text/markdown`
+
+**File Status:**
+| Status | Description |
+|--------|-------------|
+| `pending` | File uploaded, waiting for processing |
+| `processing` | File being chunked and indexed |
+| `ready` | File ready for queries |
+| `error` | Processing failed |
+
+### `/api/files/[id]` - Get & Delete File
+
+**GET - File Details:**
+```
+GET /api/files/{fileId}
+```
+
+**Response:**
+```json
+{
+  "file": {
+    "id": "uuid",
+    "filename": "doc_abc123.txt",
+    "original_filename": "document.txt",
+    "file_type": "txt",
+    "file_size": 1024,
+    "status": "ready",
+    "chunk_count": 5,
+    "created_at": "2024-01-15T10:00:00Z",
+    "expires_at": "2024-01-16T10:00:00Z",
+    "entities_enabled": false,
+    "entities_status": null,
+    "entities_progress": null
+  }
+}
+```
+
+**DELETE - Remove File:**
+```
+DELETE /api/files/{fileId}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "File deleted"
+}
+```
+
+### `/api/files/[id]/entities` - Entity Extraction
+
+**GET - Entity Status:**
+```
+GET /api/files/{fileId}/entities
+```
+
+**Response:**
+```json
+{
+  "fileId": "uuid",
+  "entitiesEnabled": true,
+  "entitiesStatus": "ready",
+  "entitiesProgress": 100,
+  "stats": {
+    "entityCount": 25,
+    "relationshipCount": 15,
+    "entityTypes": { "Person": 10, "Organization": 15 }
+  }
+}
+```
+
+**POST - Enable Entity Extraction:**
+```
+POST /api/files/{fileId}/entities
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Entity extraction started",
+  "status": "pending"
+}
+```
+
+**DELETE - Disable Entity Extraction:**
+```
+DELETE /api/files/{fileId}/entities
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Entity extraction disabled"
+}
+```
+
+### `/api/files/query` - Query Documents
+
+**POST - Query Files:**
+```json
+{
+  "query": "What is the main topic?",
+  "fileIds": ["file-id-1", "file-id-2"],
+  "mode": "simple",
+  "stream": false
+}
+```
+
+**Query Modes:**
+| Mode | Description |
+|------|-------------|
+| `simple` | Quick answer from relevant chunks |
+| `detailed` | More comprehensive answer with more context |
+| `deep` | Full analysis with entity relationships |
+
+**Response (non-streaming):**
+```json
+{
+  "content": "Based on the documents...",
+  "sources": [
+    {
+      "id": "chunk-uuid",
+      "title": "document.txt - Section 1",
+      "url": "",
+      "snippet": "Relevant excerpt...",
+      "content": "Full content of the chunk..."
+    }
+  ]
+}
+```
+
+**Response (streaming):**
+Server-Sent Events (SSE) format:
+```
+data: {"data": "Based on "}
+data: {"data": "the documents..."}
+data: {"done": true, "sources": [...]}
+```
+
+**Features:**
+- Queries multiple files simultaneously
+- Returns relevant chunks with source attribution
+- Supports streaming for real-time responses
+- Document sources are merged with web search results in SearchClient
+
+**Integration with Search:**
+When files are attached to a search:
+1. SearchBox passes `files` param (comma-separated IDs) to search URL
+2. SearchClient queries `/api/files/query` in parallel with web search
+3. Document sources are prepended to web sources (marked with 📄)
+4. Document content is included in LLM summarization
+
+**Environment Variables Required:**
+- `DOCS_API_URL` - Athenius Docs API base URL (e.g., `http://localhost:3001`)
+- `ATHENIUS_API_KEY` - API key for Docs API authentication
+
 ## Provider Handling
 
 All LLM-powered routes accept a `provider` parameter:
