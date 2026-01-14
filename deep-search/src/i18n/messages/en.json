@@ -462,5 +462,148 @@
     "xai": "xAI",
     "deepseek": "DeepSeek",
     "vercel": "Vercel Gateway"
+  },
+  "landing": {
+    "nav": {
+      "signIn": "Sign In",
+      "getStarted": "Get Started"
+    },
+    "hero": {
+      "badge": "AI-Powered Deep Search",
+      "headline1": "Search that",
+      "headline2": "thinks",
+      "subheadline": "Not just links. Athenius understands your question, researches multiple sources, and synthesizes comprehensive answers with citations.",
+      "cta": {
+        "primary": "Try Athenius Free",
+        "secondary": "See How It Works"
+      },
+      "preview": {
+        "query": "What are the latest breakthroughs in quantum computing?",
+        "step1": "Analyzing intent",
+        "step2": "Searching 15 sources",
+        "step3": "Synthesizing..."
+      }
+    },
+    "difference": {
+      "title": {
+        "before": "Beyond",
+        "strikethrough": "10 blue links"
+      },
+      "subtitle": "Traditional search gives you links to sort through. Athenius gives you answers.",
+      "traditional": {
+        "title": "Traditional Search",
+        "description": "Links to click, pages to read, information to piece together..."
+      },
+      "athenius": {
+        "title": "Athenius",
+        "preview": "Quantum computing has seen significant breakthroughs in 2025, particularly in error correction and qubit stability...",
+        "description": "Synthesized answer with cited sources, ready to use."
+      }
+    },
+    "modes": {
+      "title": "Three modes. Infinite possibilities.",
+      "subtitle": "From quick answers to deep research to creative brainstorming—choose the right tool for the job.",
+      "web": {
+        "title": "Web Search",
+        "description": "Instant, intelligent answers powered by real-time web search. Perfect for quick questions and current information."
+      },
+      "research": {
+        "title": "Research Mode",
+        "description": "Multi-angle deep research that explores topics from multiple perspectives, synthesized into comprehensive reports with citations."
+      },
+      "brainstorm": {
+        "title": "Brainstorm",
+        "description": "Cross-domain creative exploration that draws unexpected connections from diverse fields to spark breakthrough ideas."
+      }
+    },
+    "thinking": {
+      "title": "Watch it think.",
+      "subtitle": "See the AI's research process in real-time—from planning to gap analysis to final synthesis.",
+      "header": "Deepening research...",
+      "approach": {
+        "label": "Research Approach",
+        "type": "Shopping Research",
+        "badge": "Deep"
+      },
+      "aiSuggestion": "AI suggested Deep Research for this query",
+      "planLabel": "Research Plan:",
+      "plan": {
+        "item1": "best beginner dive computers under 48mm under 400 USD 2025",
+        "item2": "Mares Smart vs Cressi Neon vs Aqua Lung i200C comparison",
+        "item3": "best budget scuba dive computer reviews for beginners 2025 2026",
+        "item4": "small wrist budget dive computer reddit user reviews and feedback"
+      },
+      "gapsLabel": "Deepening research on gaps:",
+      "gaps": {
+        "item1": "Lack of clarity on Bluetooth integration versus proprietary interface cables; many budget models require a $60-$100 accessory to sync logs.",
+        "query1": "scuba diving computer bluetooth vs interface cable cost Cressi Neon Seac Action Scubapro A1 i330R",
+        "item2": "Direct comparison of display legibility (Color TFT vs. Monochrome LCD) specifically for the sub-48mm size constraint.",
+        "query2": "Aqua Lung i330R color display vs Cressi Neon LCD readability comparison"
+      }
+    },
+    "docs": {
+      "badge": "Athenius Docs",
+      "title": {
+        "line1": "Search your own",
+        "line2": "documents."
+      },
+      "subtitle": "Upload PDFs, Word docs, and text files. Ask questions and get answers grounded in your documents—with citations to exact pages.",
+      "features": {
+        "upload": {
+          "title": "Multi-file Upload",
+          "description": "Upload PDF, DOCX, TXT, and Markdown files. Process multiple documents at once."
+        },
+        "citations": {
+          "title": "Grounded Citations",
+          "description": "Every answer cites specific files and page numbers. No hallucination—only what's in your docs."
+        },
+        "hybrid": {
+          "title": "Hybrid Search",
+          "description": "Combine your documents with web search. Get answers from both your files and the internet."
+        }
+      },
+      "preview": {
+        "pages": "pages",
+        "queryLabel": "Query:",
+        "query": "\"What were our Q3 revenue projections?\"",
+        "citation": "Q3-Financial-Report.pdf, Page 12"
+      }
+    },
+    "howItWorks": {
+      "title": "How it works",
+      "subtitle": "A sophisticated AI pipeline that goes far beyond keyword matching.",
+      "steps": {
+        "understand": {
+          "title": "Understand",
+          "description": "Our AI analyzes your query to understand intent, context, and what you're really looking for—not just keywords."
+        },
+        "research": {
+          "title": "Research",
+          "description": "Multiple parallel searches across the web and your documents, with deep thinking and gap analysis to identify and fill missing perspectives."
+        },
+        "synthesize": {
+          "title": "Synthesize",
+          "description": "Advanced language models combine findings into coherent, comprehensive answers tailored to your question."
+        },
+        "cite": {
+          "title": "Cite",
+          "description": "Every claim is linked to its source—web pages or document pages. Verify anything with a click."
+        }
+      }
+    },
+    "poweredBy": {
+      "label": "Powered by leading AI models"
+    },
+    "cta": {
+      "title": "Ready to search smarter?",
+      "subtitle": "Join us! Trusted by researchers, students, and professionals who've upgraded their search.",
+      "button": "Get Started Free",
+      "note": "No credit card required. 500 free credits per month."
+    },
+    "footer": {
+      "signIn": "Sign In",
+      "signUp": "Sign Up",
+      "rights": "All rights reserved."
+    }
   }
 }

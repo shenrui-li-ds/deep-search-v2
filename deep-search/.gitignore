@@ -43,6 +43,7 @@ next-env.d.ts
 # mock folders
 /mock
 /verify
+/blog
 
 # private assets
 /public/noun-owl-ok.png

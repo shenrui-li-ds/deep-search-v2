@@ -681,3 +681,45 @@ html.dark .source-hover-card {
     margin: 1in;
   }
 }
+
+/* Landing page animations */
+@keyframes landing-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(2deg);
+  }
+}
+
+@keyframes landing-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes landing-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-float {
+  animation: landing-float 15s ease-in-out infinite;
+}
+
+.landing-fade-in {
+  animation: landing-fade-in 0.8s ease-out forwards;
+}
+
+.landing-fade-in-up {
+  animation: landing-fade-in-up 0.8s ease-out forwards;
+}

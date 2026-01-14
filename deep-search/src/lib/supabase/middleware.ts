@@ -68,6 +68,8 @@ export async function updateSession(request: NextRequest) {
 
   // Define public routes that don't require authentication
   const publicRoutes = [
+    '/',  // Home page handles its own auth check (shows landing for non-auth)
+    '/landing',  // Public landing page
     '/auth/login',
     '/auth/signup',
     '/auth/callback',
@@ -104,8 +106,14 @@ export async function updateSession(request: NextRequest) {
   }
 
   // If user is logged in and trying to access auth pages, redirect appropriately
-  // Exception: These routes need to handle their own logic
-  const noRedirectRoutes = ['/auth/callback', '/auth/reset-password', '/auth/sso-redirect'];
+  // Exception: These routes need to handle their own logic or are viewable by all
+  const noRedirectRoutes = [
+    '/',  // Home page handles its own content based on auth
+    '/landing',  // Landing page is always viewable (for sharing)
+    '/auth/callback',
+    '/auth/reset-password',
+    '/auth/sso-redirect',
+  ];
   const shouldRedirect = user && isPublicRoute && !noRedirectRoutes.some(route => request.nextUrl.pathname.startsWith(route));
   if (shouldRedirect) {
     // Check for redirectTo parameter - if it's a valid external URL, redirect there

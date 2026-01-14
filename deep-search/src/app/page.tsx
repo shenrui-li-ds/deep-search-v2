@@ -7,19 +7,24 @@ import MainLayout from '../components/MainLayout';
 import SearchBox from '../components/SearchBox';
 import MobileSidebar from '../components/MobileSidebar';
 import { getUserPreferences, type UserModelId } from '@/lib/supabase/database';
+import { useAuth } from '@/lib/supabase/auth-context';
 import { APP_ICON } from '@/lib/branding';
+import LandingPage from './landing/page';
 
 type SearchMode = 'web' | 'pro' | 'brainstorm';
 
 export default function Home() {
+  const { user, loading } = useAuth();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [defaultProvider, setDefaultProvider] = useState<UserModelId>('gemini');
   const [defaultMode, setDefaultMode] = useState<SearchMode>('web');
   const t = useTranslations('common');
   const locale = useLocale();
 
-  // Load user preferences on mount
+  // Load user preferences on mount (only if authenticated)
   useEffect(() => {
+    if (!user) return;
+
     const loadPreferences = async () => {
       try {
         const prefs = await getUserPreferences();
@@ -33,8 +38,23 @@ export default function Home() {
       }
     };
     loadPreferences();
-  }, []);
+  }, [user]);
 
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]" />
+      </div>
+    );
+  }
+
+  // Show landing page for non-authenticated users
+  if (!user) {
+    return <LandingPage />;
+  }
+
+  // Authenticated user - show the search interface
   return (
     <>
       {/* Mobile hamburger button - floating in corner */}

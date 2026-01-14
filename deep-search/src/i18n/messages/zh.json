@@ -462,5 +462,148 @@
     "xai": "xAI",
     "deepseek": "DeepSeek",
     "vercel": "Vercel Gateway"
+  },
+  "landing": {
+    "nav": {
+      "signIn": "登录",
+      "getStarted": "开始使用"
+    },
+    "hero": {
+      "badge": "AI 深度搜索",
+      "headline1": "会思考的",
+      "headline2": "搜索",
+      "subheadline": "不只是网页链接。Athenius 理解您的问题，研究多个来源，并综合出带有引用的全面答案",
+      "cta": {
+        "primary": "免费试用 Athenius",
+        "secondary": "了解工作原理"
+      },
+      "preview": {
+        "query": "量子计算的最新突破是什么？",
+        "step1": "分析意图",
+        "step2": "搜索 15 个来源",
+        "step3": "综合中..."
+      }
+    },
+    "difference": {
+      "title": {
+        "before": "不止",
+        "strikethrough": "10 个蓝色链接"
+      },
+      "subtitle": "传统搜索给你链接让你自己整理。Athenius 直接给你答案",
+      "traditional": {
+        "title": "传统搜索",
+        "description": "点击链接、阅读页面、拼凑信息..."
+      },
+      "athenius": {
+        "title": "Athenius",
+        "preview": "量子计算在 2025 年取得了重大突破，特别是在纠错和量子比特稳定性方面...",
+        "description": "综合答案，附带引用来源，即可使用。"
+      }
+    },
+    "modes": {
+      "title": "三种模式，无限可能",
+      "subtitle": "从快速回答到深度研究再到创意头脑风暴——选择适合的工具",
+      "web": {
+        "title": "网页搜索",
+        "description": "由实时网络搜索驱动的即时智能回答。适合快速问题和时事信息。"
+      },
+      "research": {
+        "title": "研究模式",
+        "description": "多角度深度研究，从多个视角探索主题，综合成带引用的全面报告。"
+      },
+      "brainstorm": {
+        "title": "头脑风暴",
+        "description": "跨领域创意探索，从不同领域汲取灵感，激发突破性想法。"
+      }
+    },
+    "thinking": {
+      "title": "看着它思考",
+      "subtitle": "实时查看 AI 的研究过程——从规划到缺漏分析再到最终综合",
+      "header": "深入研究中...",
+      "approach": {
+        "label": "研究方法",
+        "type": "购物研究",
+        "badge": "深度"
+      },
+      "aiSuggestion": "AI 建议对此查询使用深度研究",
+      "planLabel": "研究计划：",
+      "plan": {
+        "item1": "2025 年 400 美元以下 48mm 以下最佳入门潜水电脑",
+        "item2": "Mares Smart vs Cressi Neon vs Aqua Lung i200C 对比",
+        "item3": "2025 2026 年最佳预算潜水电脑初学者评测",
+        "item4": "小型手腕预算潜水电脑 Reddit 用户评价和反馈"
+      },
+      "gapsLabel": "思考查漏补缺：",
+      "gaps": {
+        "item1": "蓝牙集成与专有接口线缆的选择不明确；许多预算型号需要 $60-$100 的配件来同步日志。",
+        "query1": "潜水电脑蓝牙 vs 接口线缆成本 Cressi Neon Seac Action Scubapro A1 i330R",
+        "item2": "针对 48mm 以下尺寸限制，彩色 TFT 与单色 LCD 显示屏可读性的直接对比。",
+        "query2": "Aqua Lung i330R 彩色显示屏 vs Cressi Neon LCD 可读性对比"
+      }
+    },
+    "docs": {
+      "badge": "Athenius 文档",
+      "title": {
+        "line1": "搜索你自己的",
+        "line2": "文档"
+      },
+      "subtitle": "上传 PDF、Word 文档和文本文件，提问并获得基于文档的答案——精确到页码的引用",
+      "features": {
+        "upload": {
+          "title": "多文件上传",
+          "description": "上传 PDF、DOCX、TXT 和 Markdown 文件。一次处理多个文档。"
+        },
+        "citations": {
+          "title": "可靠引用",
+          "description": "每个答案都引用具体文件和页码。无幻觉——仅来自您的文档。"
+        },
+        "hybrid": {
+          "title": "混合搜索",
+          "description": "将您的文档与网络搜索结合。同时从文件和互联网获取答案。"
+        }
+      },
+      "preview": {
+        "pages": "页",
+        "queryLabel": "查询：",
+        "query": "\"我们第三季度的收入预测是多少？\"",
+        "citation": "Q3-Financial-Report.pdf，第 12 页"
+      }
+    },
+    "howItWorks": {
+      "title": "工作原理",
+      "subtitle": "远超关键词匹配的智能 AI 流程",
+      "steps": {
+        "understand": {
+          "title": "理解",
+          "description": "我们的 AI 分析您的查询，理解意图、上下文以及您真正在寻找什么——而不仅仅是关键词。"
+        },
+        "research": {
+          "title": "研究",
+          "description": "跨网络和您的文档进行多个并行搜索，通过深度思考和缺漏分析识别并补充遗漏的视角。"
+        },
+        "synthesize": {
+          "title": "综合",
+          "description": "先进的语言模型将发现整合成针对您问题的连贯、全面的答案。"
+        },
+        "cite": {
+          "title": "引用",
+          "description": "每个论点都链接到来源——网页或文档页面。点击即可验证。"
+        }
+      }
+    },
+    "poweredBy": {
+      "label": "由领先的 AI 模型驱动"
+    },
+    "cta": {
+      "title": "准备好更智能地搜索了吗？",
+      "subtitle": "加入我们！受研究人员、学生和专业人士信赖的搜索体验。",
+      "button": "免费开始",
+      "note": "无需信用卡。每月 500 点免费搜索点数。"
+    },
+    "footer": {
+      "signIn": "登录",
+      "signUp": "注册",
+      "rights": "保留所有权利。"
+    }
   }
 }
