@@ -150,27 +150,33 @@ export default function EmailOTPFallback({
     if (e.key === 'Backspace' && !code[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
-    // Handle paste
+    // Handle paste via keyboard shortcut
     if (e.key === 'v' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      navigator.clipboard.readText().then(text => {
-        const digits = text.replace(/\D/g, '').slice(0, 6).split('');
-        if (digits.length > 0) {
-          const newCode = [...code];
-          digits.forEach((d, i) => {
-            if (i < 6) newCode[i] = d;
-          });
-          setCode(newCode);
-          // Focus appropriate input
-          const nextEmpty = newCode.findIndex(d => !d);
-          if (nextEmpty >= 0) {
-            inputRefs.current[nextEmpty]?.focus();
-          } else {
-            // All filled, verify
-            verifyCode(newCode.join(''));
+      // Only use clipboard API if available (requires HTTPS or localhost)
+      if (navigator.clipboard?.readText) {
+        e.preventDefault();
+        navigator.clipboard.readText().then(text => {
+          const digits = text.replace(/\D/g, '').slice(0, 6).split('');
+          if (digits.length > 0) {
+            const newCode = [...code];
+            digits.forEach((d, i) => {
+              if (i < 6) newCode[i] = d;
+            });
+            setCode(newCode);
+            // Focus appropriate input
+            const nextEmpty = newCode.findIndex(d => !d);
+            if (nextEmpty >= 0) {
+              inputRefs.current[nextEmpty]?.focus();
+            } else {
+              // All filled, verify
+              verifyCode(newCode.join(''));
+            }
           }
-        }
-      });
+        }).catch(() => {
+          // Clipboard access denied, let browser handle paste via onPaste
+        });
+      }
+      // If clipboard API unavailable, let browser's native paste trigger onPaste handler
     }
   };
 
