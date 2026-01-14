@@ -29,6 +29,7 @@ const PRODUCTION_DOMAINS = [
   'docs.athenius.io',
   'athenius.io',
   'www.athenius.io',
+  'search.athenius.io',
 ];
 
 // Development domains from env
@@ -125,6 +126,8 @@ describe('Redirect URL Validation (Exact Domain Matching)', () => {
       expect(isValidRedirectUrl('https://www.athenius.io/search')).toBe(true);
       expect(isValidRedirectUrl('https://docs.athenius.io')).toBe(true);
       expect(isValidRedirectUrl('https://docs.athenius.io/files')).toBe(true);
+      expect(isValidRedirectUrl('https://search.athenius.io')).toBe(true);
+      expect(isValidRedirectUrl('https://search.athenius.io/results')).toBe(true);
     });
 
     it('should allow exact dev domain matches from env', () => {

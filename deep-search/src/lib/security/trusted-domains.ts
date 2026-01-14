@@ -11,6 +11,7 @@ const PRODUCTION_DOMAINS = [
   'docs.athenius.io',
   'athenius.io',
   'www.athenius.io',
+  'search.athenius.io',
 ];
 
 /**
