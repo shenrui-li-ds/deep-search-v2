@@ -4,37 +4,75 @@
 
 /**
  * Redirect URL validation tests for open redirect prevention.
- * Tests the isValidRedirectUrl function used in login page.
+ * Tests the isValidRedirectUrl function from trusted-domains-client.ts
+ *
+ * SECURITY UPDATE: Now uses exact domain matching instead of subdomain wildcards
+ * to prevent subdomain takeover attacks.
  */
 
-// Trusted domains for external redirects (must match login/page.tsx)
-const TRUSTED_REDIRECT_DOMAINS = [
+// Mock environment variable for dev domains
+const originalEnv = process.env;
+
+beforeEach(() => {
+  process.env = {
+    ...originalEnv,
+    NEXT_PUBLIC_DEV_DOMAINS: 'localhost:3000,localhost:3001,as.myapp.test:3000,docs.myapp.test:3001'
+  };
+});
+
+afterEach(() => {
+  process.env = originalEnv;
+});
+
+// Production domains - always trusted (must match trusted-domains.ts)
+const PRODUCTION_DOMAINS = [
   'docs.athenius.io',
   'athenius.io',
   'www.athenius.io',
-  'localhost:3000',
-  'localhost:3001',
 ];
 
+// Development domains from env
+function getDevDomains(): string[] {
+  const devDomainsEnv = process.env.NEXT_PUBLIC_DEV_DOMAINS;
+  if (!devDomainsEnv) return [];
+  return devDomainsEnv.split(',').map(d => d.trim()).filter(d => d.length > 0);
+}
+
+function getTrustedDomains(): string[] {
+  return [...PRODUCTION_DOMAINS, ...getDevDomains()];
+}
+
 /**
- * Validate redirect URL to prevent open redirect attacks.
- * Only allows relative paths or absolute URLs to trusted domains.
- *
- * This mirrors the implementation in src/app/auth/login/page.tsx
+ * Check if a host EXACTLY matches a trusted domain.
+ * Does NOT allow arbitrary subdomains to prevent subdomain takeover attacks.
+ */
+function isExactTrustedDomain(host: string): boolean {
+  const trustedDomains = getTrustedDomains();
+  return trustedDomains.includes(host);
+}
+
+/**
+ * Validate redirect URL - mirrors trusted-domains-client.ts
  */
 function isValidRedirectUrl(url: string): boolean {
-  // Relative paths are always safe
+  // Relative paths starting with single slash are safe
   if (url.startsWith('/') && !url.startsWith('//')) {
+    if (url.includes('\\')) return false;
+    try {
+      const decoded = decodeURIComponent(url);
+      if (decoded.startsWith('//') || decoded.includes('\\')) return false;
+    } catch {
+      return false;
+    }
+    if (/^\/[a-z]+:/i.test(url)) return false;
     return true;
   }
 
-  // Validate absolute URLs against trusted domains
+  // Validate absolute URLs against trusted domains (exact match only)
   if (url.startsWith('http://') || url.startsWith('https://')) {
     try {
       const parsed = new URL(url);
-      return TRUSTED_REDIRECT_DOMAINS.some(
-        domain => parsed.host === domain || parsed.host.endsWith('.' + domain)
-      );
+      return isExactTrustedDomain(parsed.host);
     } catch {
       return false;
     }
@@ -43,7 +81,7 @@ function isValidRedirectUrl(url: string): boolean {
   return false;
 }
 
-describe('Redirect URL Validation', () => {
+describe('Redirect URL Validation (Exact Domain Matching)', () => {
   describe('Relative Paths', () => {
     it('should allow simple relative paths', () => {
       expect(isValidRedirectUrl('/')).toBe(true);
@@ -67,10 +105,19 @@ describe('Redirect URL Validation', () => {
       expect(isValidRedirectUrl('//evil.com/path')).toBe(false);
       expect(isValidRedirectUrl('///evil.com')).toBe(false);
     });
+
+    it('should reject backslash bypass attempts', () => {
+      expect(isValidRedirectUrl('/\\evil.com')).toBe(false);
+      expect(isValidRedirectUrl('\\\\evil.com')).toBe(false);
+    });
+
+    it('should reject encoded bypass attempts', () => {
+      expect(isValidRedirectUrl('%2F%2Fevil.com')).toBe(false);
+    });
   });
 
-  describe('Trusted Domains', () => {
-    it('should allow exact trusted domain matches', () => {
+  describe('Trusted Domains (Exact Match Only)', () => {
+    it('should allow exact production domain matches', () => {
       expect(isValidRedirectUrl('https://athenius.io')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/search')).toBe(true);
@@ -80,23 +127,28 @@ describe('Redirect URL Validation', () => {
       expect(isValidRedirectUrl('https://docs.athenius.io/files')).toBe(true);
     });
 
-    it('should allow localhost for development', () => {
+    it('should allow exact dev domain matches from env', () => {
       expect(isValidRedirectUrl('http://localhost:3000')).toBe(true);
       expect(isValidRedirectUrl('http://localhost:3000/')).toBe(true);
       expect(isValidRedirectUrl('http://localhost:3000/search')).toBe(true);
       expect(isValidRedirectUrl('http://localhost:3001')).toBe(true);
       expect(isValidRedirectUrl('http://localhost:3001/files')).toBe(true);
-    });
-
-    it('should allow subdomains of trusted domains', () => {
-      expect(isValidRedirectUrl('https://api.athenius.io')).toBe(true);
-      expect(isValidRedirectUrl('https://staging.athenius.io')).toBe(true);
-      expect(isValidRedirectUrl('https://test.docs.athenius.io')).toBe(true);
+      expect(isValidRedirectUrl('http://as.myapp.test:3000')).toBe(true);
+      expect(isValidRedirectUrl('http://docs.myapp.test:3001')).toBe(true);
     });
 
     it('should allow URLs with query params and fragments', () => {
       expect(isValidRedirectUrl('https://docs.athenius.io/files?id=123')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/search?q=test#results')).toBe(true);
+    });
+
+    it('should REJECT arbitrary subdomains (subdomain takeover prevention)', () => {
+      // These would have been allowed with the old .endsWith() check
+      // but are now rejected with exact matching
+      expect(isValidRedirectUrl('https://api.athenius.io')).toBe(false);
+      expect(isValidRedirectUrl('https://staging.athenius.io')).toBe(false);
+      expect(isValidRedirectUrl('https://test.docs.athenius.io')).toBe(false);
+      expect(isValidRedirectUrl('https://evil.docs.athenius.io')).toBe(false);
     });
   });
 
@@ -108,21 +160,18 @@ describe('Redirect URL Validation', () => {
     });
 
     it('should reject domains that look similar to trusted ones', () => {
-      // Typosquatting attempts
       expect(isValidRedirectUrl('https://athenius.com')).toBe(false);
       expect(isValidRedirectUrl('https://athenious.io')).toBe(false);
       expect(isValidRedirectUrl('https://atheniusio.com')).toBe(false);
     });
 
     it('should reject subdomain injection attacks', () => {
-      // Attacker owns evil.com, tries to make it look like athenius.io
       expect(isValidRedirectUrl('https://athenius.io.evil.com')).toBe(false);
       expect(isValidRedirectUrl('https://docs.athenius.io.evil.com')).toBe(false);
       expect(isValidRedirectUrl('https://athenius-io.evil.com')).toBe(false);
     });
 
     it('should reject credential injection in URLs', () => {
-      // Attempts to confuse with userinfo component
       expect(isValidRedirectUrl('https://athenius.io@evil.com')).toBe(false);
       expect(isValidRedirectUrl('https://user:pass@evil.com')).toBe(false);
     });
@@ -164,56 +213,35 @@ describe('Redirect URL Validation', () => {
       expect(isValidRedirectUrl('  /search')).toBe(false);
     });
 
-    it('should handle URL encoding tricks', () => {
-      // Encoded slashes shouldn't bypass checks
-      expect(isValidRedirectUrl('%2F%2Fevil.com')).toBe(false);
-      expect(isValidRedirectUrl('/%2Fevil.com')).toBe(true); // This is a valid relative path
-    });
-
-    it('should handle backslash tricks', () => {
-      // Some browsers treat backslash as forward slash
-      expect(isValidRedirectUrl('/\\evil.com')).toBe(true); // Relative path (browser would normalize)
-      expect(isValidRedirectUrl('\\\\evil.com')).toBe(false);
-    });
-
     it('should handle case sensitivity in domain matching', () => {
       expect(isValidRedirectUrl('https://ATHENIUS.IO')).toBe(true);
       expect(isValidRedirectUrl('https://Docs.Athenius.IO')).toBe(true);
-      expect(isValidRedirectUrl('HTTPS://athenius.io')).toBe(false); // Protocol is case-sensitive in our check
+      expect(isValidRedirectUrl('HTTPS://athenius.io')).toBe(false);
     });
   });
 
-  describe('Integration with Login Flow', () => {
-    it('should handle typical docs.athenius.io redirect', () => {
-      const redirectTo = 'https://docs.athenius.io/files';
-      expect(isValidRedirectUrl(redirectTo)).toBe(true);
-    });
+  describe('Environment-based Domain Configuration', () => {
+    it('should reject dev domains when env var is not set', () => {
+      // Temporarily unset the env var
+      delete process.env.NEXT_PUBLIC_DEV_DOMAINS;
 
-    it('should handle typical internal redirect', () => {
-      const redirectTo = '/search?q=test';
-      expect(isValidRedirectUrl(redirectTo)).toBe(true);
-    });
+      expect(isValidRedirectUrl('http://localhost:3000')).toBe(false);
+      expect(isValidRedirectUrl('http://as.myapp.test:3000')).toBe(false);
 
-    it('should fall back safely for invalid redirects', () => {
-      const maliciousRedirect = 'https://evil.com/phishing';
-      const safeRedirect = isValidRedirectUrl(maliciousRedirect) ? maliciousRedirect : '/';
-      expect(safeRedirect).toBe('/');
+      // Production domains should still work
+      expect(isValidRedirectUrl('https://athenius.io')).toBe(true);
     });
   });
 
-  describe('SSO Flow (Middleware Behavior)', () => {
-    /**
-     * Simulates the middleware decision for logged-in users visiting auth pages.
-     * This mirrors the logic in src/lib/supabase/middleware.ts
-     */
+  describe('SSO Flow (Updated for Exact Matching)', () => {
     function getRedirectForLoggedInUser(redirectTo: string | null): string {
       if (redirectTo && isValidRedirectUrl(redirectTo)) {
         return redirectTo;
       }
-      return '/'; // Default to home if no valid redirectTo
+      return '/';
     }
 
-    it('should redirect logged-in user to external docs.athenius.io', () => {
+    it('should redirect logged-in user to exact trusted domain', () => {
       const redirectTo = 'https://docs.athenius.io/library';
       const result = getRedirectForLoggedInUser(redirectTo);
       expect(result).toBe('https://docs.athenius.io/library');
@@ -236,17 +264,20 @@ describe('Redirect URL Validation', () => {
       expect(result).toBe('/');
     });
 
+    it('should block subdomain takeover attempts in SSO flow', () => {
+      // Attacker has taken over evil.docs.athenius.io
+      const subdomainTakeover = 'https://evil.docs.athenius.io/phishing';
+      const result = getRedirectForLoggedInUser(subdomainTakeover);
+      expect(result).toBe('/'); // Blocked with exact matching
+    });
+
     it('should handle full SSO flow: AD -> AS -> AD', () => {
-      // Simulating: User at docs.athenius.io is not logged in
-      // AD middleware creates redirect URL
       const adOrigin = 'https://docs.athenius.io';
       const asLoginUrl = `https://athenius.io/auth/login?redirectTo=${encodeURIComponent(adOrigin + '/library')}`;
 
-      // Extract redirectTo from URL
       const url = new URL(asLoginUrl);
       const redirectTo = url.searchParams.get('redirectTo');
 
-      // AS middleware (user already logged in) should redirect back to AD
       expect(redirectTo).toBe('https://docs.athenius.io/library');
       expect(isValidRedirectUrl(redirectTo!)).toBe(true);
 
@@ -255,7 +286,6 @@ describe('Redirect URL Validation', () => {
     });
 
     it('should block SSO flow to untrusted domain', () => {
-      // Attacker tries to use AS as open redirect
       const maliciousUrl = 'https://evil.com/phishing';
       const asLoginUrl = `https://athenius.io/auth/login?redirectTo=${encodeURIComponent(maliciousUrl)}`;
 
@@ -265,7 +295,7 @@ describe('Redirect URL Validation', () => {
       expect(isValidRedirectUrl(redirectTo!)).toBe(false);
 
       const finalRedirect = getRedirectForLoggedInUser(redirectTo);
-      expect(finalRedirect).toBe('/'); // Falls back to home, not evil.com
+      expect(finalRedirect).toBe('/');
     });
   });
 });

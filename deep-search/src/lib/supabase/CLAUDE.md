@@ -637,24 +637,51 @@ Change Email modal requires password verification before sending email change re
 
 ### Open Redirect Prevention
 
-The middleware validates redirect paths to prevent open redirect attacks:
+The middleware validates redirect paths to prevent open redirect attacks. Validation logic is centralized in `src/lib/security/trusted-domains.ts`.
+
+**Key Security Features:**
+1. **Exact Domain Matching** - Only explicitly listed domains are allowed (no subdomain wildcards)
+2. **Environment-based Configuration** - Dev domains configured via `NEXT_PUBLIC_DEV_DOMAINS`
+3. **Bypass Prevention** - Blocks protocol-relative URLs, backslash injection, URL encoding tricks
 
 ```typescript
+// Production domains are always trusted
+const PRODUCTION_DOMAINS = [
+  'docs.athenius.io',
+  'athenius.io',
+  'www.athenius.io',
+];
+
+// Development domains from env (not included in production builds)
+// Set NEXT_PUBLIC_DEV_DOMAINS="localhost:3000,localhost:3001" for local dev
+function isExactTrustedDomain(host: string): boolean {
+  const trustedDomains = getTrustedDomains();
+  return trustedDomains.includes(host); // Exact match only!
+}
+
 function isValidRedirectPath(path: string): boolean {
-  // Must start with single forward slash
+  // For full URLs, validate against trusted domains (exact match)
+  if (path.startsWith('https://') || path.startsWith('http://')) {
+    return isValidTrustedUrl(path);
+  }
+
+  // Relative path validation
   if (!path.startsWith('/')) return false;
-  // Must not start with // (protocol-relative URL)
   if (path.startsWith('//')) return false;
-  // Must not contain backslash
   if (path.includes('\\')) return false;
-  // Check decoded version for encoded bypasses
+
   const decoded = decodeURIComponent(path);
   if (decoded.startsWith('//') || decoded.includes('\\')) return false;
-  // Must not contain protocol
   if (/^\/[a-z]+:/i.test(path)) return false;
+
   return true;
 }
 ```
+
+**Security Files:**
+- `src/lib/security/trusted-domains.ts` - Server-side domain validation
+- `src/lib/security/trusted-domains-client.ts` - Client-side validation (for 'use client' components)
+- `src/lib/security/rate-limit.ts` - Rate limiting utilities
 
 ### Route Matching Security
 
@@ -669,6 +696,78 @@ const isPublicRoute = publicRoutes.some(route => {
 ```
 
 This prevents attackers from creating paths like `/auth/login-malicious` that would incorrectly match `/auth/login`.
+
+### SSO (Single Sign-On) Security
+
+SSO between Athenius Search (AS) and Athenius Docs (AD) uses shared domain cookies. Security measures:
+
+**CSRF Protection:**
+- State parameter generated with `crypto.randomBytes(32)`
+- State stored in httpOnly cookie, validated on redirect
+- 1-minute expiry for state tokens
+
+**Session Validation:**
+- SSO redirect checks for auth cookies before processing
+- Session refresh performed to issue fresh tokens
+- Redirect to login if session invalid
+
+**Cookie Security:**
+```typescript
+// Explicit security attributes on all auth cookies
+{
+  httpOnly: true,
+  secure: IS_PRODUCTION,  // Only HTTPS in production
+  sameSite: 'lax',
+  domain: COOKIE_DOMAIN,  // e.g., '.athenius.io' for cross-subdomain
+}
+```
+
+**Protocol Validation:**
+- `x-forwarded-proto` header validated (only 'http' or 'https')
+- Production always uses HTTPS regardless of header
+
+**SSO Endpoint:** `/auth/sso-redirect`
+- POST: Initiates SSO with state token
+- GET: Completes SSO, validates state, sets shared cookies
+
+### Rate Limiting
+
+API and SSO endpoints are protected by rate limiting (`src/lib/security/rate-limit.ts`).
+
+**Pre-configured Limits:**
+| Endpoint Type | Limit | Window |
+|--------------|-------|--------|
+| SSO | 10 requests | 60 seconds |
+| Auth | 5 requests | 60 seconds |
+| API | 100 requests | 60 seconds |
+
+**Implementation:**
+```typescript
+import { rateLimit, getClientIp, SSO_RATE_LIMIT } from '@/lib/security/rate-limit';
+
+const clientIp = getClientIp(request);
+const result = await rateLimit(`sso:${clientIp}`, SSO_RATE_LIMIT);
+
+if (!result.success) {
+  return NextResponse.json(
+    { error: 'Too many requests' },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil((result.reset - Date.now()) / 1000)),
+        'X-RateLimit-Limit': String(SSO_RATE_LIMIT.limit),
+        'X-RateLimit-Remaining': '0',
+      },
+    }
+  );
+}
+```
+
+**Client IP Extraction:**
+- Supports `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` (Cloudflare)
+- Falls back to `127.0.0.1` for local development
+
+**Note:** Current implementation uses in-memory storage (suitable for development). For production on serverless platforms, upgrade to `@upstash/ratelimit` with Redis.
 
 ### Robust API Error Handling
 

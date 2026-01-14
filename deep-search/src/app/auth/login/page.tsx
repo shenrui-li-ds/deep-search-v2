@@ -10,40 +10,7 @@ import EmailOTPFallback from '@/components/EmailOTPFallback';
 import LanguageToggle from '@/components/LanguageToggle';
 import { useTranslations } from 'next-intl';
 import { APP_ICON } from '@/lib/branding';
-
-// Trusted domains for external redirects (must match middleware)
-const TRUSTED_REDIRECT_DOMAINS = [
-  'docs.athenius.io',
-  'athenius.io',
-  'www.athenius.io',
-  'localhost:3000',
-  'localhost:3001',
-];
-
-/**
- * Validate redirect URL to prevent open redirect attacks.
- * Only allows relative paths or absolute URLs to trusted domains.
- */
-function isValidRedirectUrl(url: string): boolean {
-  // Relative paths are always safe
-  if (url.startsWith('/') && !url.startsWith('//')) {
-    return true;
-  }
-
-  // Validate absolute URLs against trusted domains
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    try {
-      const parsed = new URL(url);
-      return TRUSTED_REDIRECT_DOMAINS.some(
-        domain => parsed.host === domain || parsed.host.endsWith('.' + domain)
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  return false;
-}
+import { isValidRedirectUrl } from '@/lib/security/trusted-domains-client';
 
 interface LockoutStatus {
   locked: boolean;

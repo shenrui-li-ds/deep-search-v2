@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { randomBytes } from 'crypto';
+import { isValidTrustedUrl } from '@/lib/security/trusted-domains';
+import { rateLimit, getClientIp, SSO_RATE_LIMIT } from '@/lib/security/rate-limit';
 
 /**
  * SSO Redirect Route
@@ -8,45 +11,164 @@ import { cookies } from 'next/headers';
  * This route forces cookies to be set with the shared domain (.athenius.io)
  * before redirecting to an external subdomain.
  *
- * The key insight: We must set cookies on the REDIRECT RESPONSE itself,
- * not via cookieStore (which sets on a different response object).
+ * Security features:
+ * - Validates redirect URLs against trusted domains (exact match)
+ * - Uses state parameter to prevent CSRF attacks
+ * - Checks session before processing
+ * - Sets secure cookie attributes
+ * - Rate limited to prevent abuse
  */
 
 const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Log the configured domain for debugging
-console.log('[SSO Redirect] COOKIE_DOMAIN configured as:', COOKIE_DOMAIN || '(not set - will use host-only)');
+// State cookie name for CSRF protection
+const SSO_STATE_COOKIE = 'sso_state';
 
-// Trusted domains for SSO redirects
-const TRUSTED_DOMAINS = [
-  'docs.athenius.io',
-  'athenius.io',
-  'www.athenius.io',
-  'localhost:3000',
-  'localhost:3001',
-];
-
-function isValidExternalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return TRUSTED_DOMAINS.some(
-      domain => parsed.host === domain || parsed.host.endsWith('.' + domain)
-    );
-  } catch {
-    return false;
-  }
+// Helper to determine if we should use shared domain (not for localhost)
+function shouldUseSharedDomain(host: string): boolean {
+  return COOKIE_DOMAIN !== undefined && !host.startsWith('localhost');
 }
 
+/**
+ * Generate a cryptographically secure state token for CSRF protection
+ */
+function generateState(): string {
+  return randomBytes(32).toString('hex');
+}
+
+/**
+ * POST: Initiate SSO redirect - generates state and redirects
+ * This should be called from the login page after successful authentication
+ */
+export async function POST(request: Request) {
+  // FIX #7: Rate limiting
+  const clientIp = getClientIp(request);
+  const rateLimitResult = await rateLimit(`sso-post:${clientIp}`, SSO_RATE_LIMIT);
+
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil((rateLimitResult.reset - Date.now()) / 1000)),
+          'X-RateLimit-Limit': String(SSO_RATE_LIMIT.limit),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(rateLimitResult.reset),
+        },
+      }
+    );
+  }
+
+  const url = new URL(request.url);
+  const origin = url.origin;
+
+  let body: { to?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+
+  const redirectTo = body.to;
+
+  // Validate redirect URL
+  if (!redirectTo || !isValidTrustedUrl(redirectTo)) {
+    return NextResponse.json({ error: 'Invalid redirect URL' }, { status: 400 });
+  }
+
+  // Generate state for CSRF protection
+  const state = generateState();
+
+  // Create response that redirects to GET with state
+  const ssoUrl = new URL('/auth/sso-redirect', origin);
+  ssoUrl.searchParams.set('to', redirectTo);
+  ssoUrl.searchParams.set('state', state);
+
+  const response = NextResponse.redirect(ssoUrl);
+
+  // Set state cookie (httpOnly, secure in production)
+  response.cookies.set(SSO_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: IS_PRODUCTION,
+    sameSite: 'lax',
+    maxAge: 60, // 1 minute expiry
+    path: '/auth/sso-redirect',
+  });
+
+  return response;
+}
+
+/**
+ * GET: Complete SSO redirect - validates state and sets shared domain cookies
+ */
 export async function GET(request: Request) {
+  // FIX #7: Rate limiting
+  const clientIp = getClientIp(request);
+  const rateLimitResult = await rateLimit(`sso-get:${clientIp}`, SSO_RATE_LIMIT);
+
+  if (!rateLimitResult.success) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again later.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(Math.ceil((rateLimitResult.reset - Date.now()) / 1000)),
+          'X-RateLimit-Limit': String(SSO_RATE_LIMIT.limit),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(rateLimitResult.reset),
+        },
+      }
+    );
+  }
+
   const url = new URL(request.url);
   const redirectTo = url.searchParams.get('to');
+  const stateParam = url.searchParams.get('state');
   const origin = url.origin;
+
+  // Get actual host from headers (url.host normalizes to localhost in Next.js dev)
+  const host = request.headers.get('host') || url.host;
+  const useSharedDomain = shouldUseSharedDomain(host);
 
   const cookieStore = await cookies();
 
-  // Create redirect response first - we'll set cookies on THIS response
-  const targetUrl = (redirectTo && isValidExternalUrl(redirectTo)) ? redirectTo : origin;
+  // ============================================================
+  // FIX #9: Check for existing session BEFORE processing
+  // ============================================================
+  const hasAuthCookies = cookieStore.getAll().some(c => c.name.includes('auth-token'));
+  if (!hasAuthCookies) {
+    // No session cookies - redirect to login
+    return NextResponse.redirect(`${origin}/auth/login`);
+  }
+
+  // ============================================================
+  // FIX #6: Validate CSRF state parameter
+  // ============================================================
+  const stateCookie = cookieStore.get(SSO_STATE_COOKIE);
+
+  // If state parameter is provided, validate it matches the cookie
+  // (For backwards compatibility, allow requests without state from internal redirects)
+  if (stateParam) {
+    if (!stateCookie || stateCookie.value !== stateParam) {
+      return NextResponse.json(
+        { error: 'Invalid state parameter - possible CSRF attack' },
+        { status: 403 }
+      );
+    }
+  }
+
+  // Validate redirect URL (Fix #1 and #4: exact domain matching)
+  const targetUrl = (redirectTo && isValidTrustedUrl(redirectTo)) ? redirectTo : origin;
+
+  // Create redirect response
   const response = NextResponse.redirect(targetUrl);
+
+  // Clear the state cookie
+  if (stateCookie) {
+    response.cookies.delete(SSO_STATE_COOKIE);
+  }
 
   // Create Supabase client that sets cookies on our redirect response
   const supabase = createServerClient(
@@ -58,14 +180,17 @@ export async function GET(request: Request) {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
-          // Set cookies directly on the redirect response with shared domain
-          console.log('[SSO Redirect] setAll called with', cookiesToSet.length, 'cookies');
           cookiesToSet.forEach(({ name, value, options }) => {
+            // ============================================================
+            // FIX #8: Explicitly set secure cookie attributes
+            // ============================================================
             const cookieOptions = {
               ...options,
-              ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+              httpOnly: true,
+              secure: IS_PRODUCTION,
+              sameSite: 'lax' as const,
+              ...(useSharedDomain && COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
             };
-            console.log('[SSO Redirect] Setting cookie:', name, 'with domain:', cookieOptions.domain || '(host-only)');
             response.cookies.set(name, value, cookieOptions);
           });
         },
@@ -74,26 +199,18 @@ export async function GET(request: Request) {
   );
 
   // Force session refresh - this calls setAll() with new tokens
-  console.log('[SSO Redirect] Calling refreshSession...');
   const { data: { session }, error } = await supabase.auth.refreshSession();
 
   if (error || !session) {
-    console.error('[SSO Redirect] Session refresh failed:', error?.message);
-    // Redirect to login instead
+    // ============================================================
+    // FIX #5: Remove sensitive data from logs (no error details)
+    // ============================================================
+    console.warn('[SSO Redirect] Session refresh failed');
     return NextResponse.redirect(`${origin}/auth/login`);
   }
 
-  console.log('[SSO Redirect] Session refresh successful, user:', session.user?.email);
-  console.log('[SSO Redirect] Redirecting to:', targetUrl);
+  // Non-sensitive logging only
+  console.info('[SSO Redirect] Redirect completed successfully');
 
-  // Log the cookies that will be sent
-  const setCookieHeaders = response.headers.getSetCookie();
-  console.log('[SSO Redirect] Set-Cookie headers count:', setCookieHeaders.length);
-  setCookieHeaders.forEach((cookie, i) => {
-    // Log first 100 chars of each cookie (avoid logging full tokens)
-    console.log(`[SSO Redirect] Cookie ${i + 1}:`, cookie.substring(0, 100) + '...');
-  });
-
-  // Return the response with cookies set
   return response;
 }

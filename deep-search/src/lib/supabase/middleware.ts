@@ -1,64 +1,25 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { isValidRedirectPath } from '@/lib/security/trusted-domains';
 
 // Cookie domain for cross-subdomain auth (e.g., '.athenius.io')
 const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Trusted domains for cross-app redirects (SSO)
-const TRUSTED_REDIRECT_DOMAINS = [
-  'docs.athenius.io',
-  'athenius.io',
-  'www.athenius.io',
-  // Add localhost for development
-  'localhost:3000',
-  'localhost:3001',
-];
-
-/**
- * Validates that a redirect path/URL is safe
- * Allows:
- * - Relative paths (e.g., /dashboard)
- * - Full URLs to trusted domains (e.g., https://docs.athenius.io/library)
- * Prevents:
- * - Open redirect attacks (//evil.com, /\evil.com, etc.)
- */
-function isValidRedirectPath(path: string): boolean {
-  // Check if it's a full URL to a trusted domain
-  if (path.startsWith('https://') || path.startsWith('http://')) {
-    try {
-      const url = new URL(path);
-      const isTrusted = TRUSTED_REDIRECT_DOMAINS.some(
-        domain => url.host === domain || url.host.endsWith('.' + domain)
-      );
-      return isTrusted;
-    } catch {
-      return false;
-    }
-  }
-
-  // Must start with single forward slash (relative path)
-  if (!path.startsWith('/')) return false;
-
-  // Must not start with // (protocol-relative URL)
-  if (path.startsWith('//')) return false;
-
-  // Must not contain backslash (some browsers interpret as forward slash)
-  if (path.includes('\\')) return false;
-
-  // Must not contain encoded slashes that could bypass checks
-  const decoded = decodeURIComponent(path);
-  if (decoded.startsWith('//') || decoded.includes('\\')) return false;
-
-  // Must not contain protocol
-  if (/^\/[a-z]+:/i.test(path)) return false;
-
-  return true;
+// Helper to determine if we should use shared domain (not for localhost)
+function shouldUseSharedDomain(host: string): boolean {
+  return COOKIE_DOMAIN !== undefined && !host.startsWith('localhost');
 }
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
+
+  // Determine if we should use shared domain (skip for localhost)
+  // Use headers.host because nextUrl.host normalizes to localhost in dev
+  const host = request.headers.get('host') || request.nextUrl.host;
+  const useSharedDomain = shouldUseSharedDomain(host);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -74,10 +35,13 @@ export async function updateSession(request: NextRequest) {
             request,
           });
           cookiesToSet.forEach(({ name, value, options }) => {
-            // Set cookie with shared domain for SSO (server-side only)
+            // FIX #8: Explicitly set secure cookie attributes
             supabaseResponse.cookies.set(name, value, {
               ...options,
-              ...(COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
+              httpOnly: true,
+              secure: IS_PRODUCTION,
+              sameSite: 'lax',
+              ...(useSharedDomain && COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),
             });
           });
         },
@@ -93,14 +57,13 @@ export async function updateSession(request: NextRequest) {
   try {
     const { data, error } = await supabase.auth.getUser();
     if (error) {
-      // Log but don't throw - treat as unauthenticated
-      console.warn('[Middleware] Auth error:', error.message);
+      // FIX #5: Remove sensitive error details from logs
+      // Treat as unauthenticated without exposing error details
     } else {
       user = data.user;
     }
-  } catch (err) {
+  } catch {
     // Rate limit or network error - treat as unauthenticated but don't loop
-    console.error('[Middleware] Auth check failed:', err);
   }
 
   // Define public routes that don't require authentication
@@ -149,9 +112,13 @@ export async function updateSession(request: NextRequest) {
     // This enables SSO: user logged in on AS, visiting from AD, should go back to AD
     const redirectTo = request.nextUrl.searchParams.get('redirectTo');
     if (redirectTo && isValidRedirectPath(redirectTo)) {
-      // External URL (e.g., https://docs.athenius.io) - redirect directly
+      // External URL - go through SSO redirect to set cookies with shared domain
       if (redirectTo.startsWith('http://') || redirectTo.startsWith('https://')) {
-        return NextResponse.redirect(redirectTo);
+        const ssoUrl = request.nextUrl.clone();
+        ssoUrl.pathname = '/auth/sso-redirect';
+        ssoUrl.search = '';
+        ssoUrl.searchParams.set('to', redirectTo);
+        return NextResponse.redirect(ssoUrl);
       }
       // Internal path - redirect within AS
       const url = request.nextUrl.clone();
