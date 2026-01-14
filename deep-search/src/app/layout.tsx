@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -26,6 +26,9 @@ export const metadata: Metadata = {
   title: APP_NAME,
   description: "An advanced internet search and research tool powered by AI",
   // Icons are generated dynamically via icon.tsx and apple-icon.tsx
+};
+
+export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#d1d5db' },
     { media: '(prefers-color-scheme: dark)', color: '#1f2937' },
