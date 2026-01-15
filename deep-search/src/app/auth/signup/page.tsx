@@ -290,7 +290,7 @@ export default function SignUpPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 py-12">
         <div className="w-full max-w-md text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -314,7 +314,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 py-12 relative">
       {/* Language Toggle */}
       <div className="absolute top-4 right-4">
         <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />

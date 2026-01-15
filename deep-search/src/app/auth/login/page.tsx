@@ -333,7 +333,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 relative">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4 py-12 relative">
       {/* Language Toggle */}
       <div className="absolute top-4 right-4">
         <LanguageToggle size="md" className="bg-[var(--card)] border border-[var(--border)] shadow-sm" />
