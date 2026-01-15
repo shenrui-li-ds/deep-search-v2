@@ -62,9 +62,23 @@ export async function checkAdminAccess(supabase?: SupabaseClient): Promise<Admin
 // Cookie domain for cross-subdomain auth (e.g., '.athenius.io')
 const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || undefined;
 
-// Helper to determine if we should use shared domain (not for localhost)
+// Helper to determine if we should use shared domain
+// Only use shared domain when the host is actually covered by COOKIE_DOMAIN
+// E.g., if COOKIE_DOMAIN is '.athenius.io', only apply for hosts ending in 'athenius.io'
 function shouldUseSharedDomain(host: string | null): boolean {
-  return COOKIE_DOMAIN !== undefined && host !== null && !host.startsWith('localhost');
+  if (!COOKIE_DOMAIN || !host) return false;
+
+  // Remove port from host for comparison
+  const hostWithoutPort = host.split(':')[0];
+
+  // COOKIE_DOMAIN typically starts with '.' (e.g., '.athenius.io')
+  // Check if the host would be covered by this domain
+  const domainToMatch = COOKIE_DOMAIN.startsWith('.')
+    ? COOKIE_DOMAIN.slice(1)  // Remove leading dot for matching
+    : COOKIE_DOMAIN;
+
+  // Host must end with the domain (or be exactly the domain)
+  return hostWithoutPort === domainToMatch || hostWithoutPort.endsWith('.' + domainToMatch);
 }
 
 export async function createClient() {

@@ -25,9 +25,23 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 // State cookie name for CSRF protection
 const SSO_STATE_COOKIE = 'sso_state';
 
-// Helper to determine if we should use shared domain (not for localhost)
+// Helper to determine if we should use shared domain
+// Only use shared domain when the host is actually covered by COOKIE_DOMAIN
+// E.g., if COOKIE_DOMAIN is '.athenius.io', only apply for hosts ending in 'athenius.io'
 function shouldUseSharedDomain(host: string): boolean {
-  return COOKIE_DOMAIN !== undefined && !host.startsWith('localhost');
+  if (!COOKIE_DOMAIN) return false;
+
+  // Remove port from host for comparison
+  const hostWithoutPort = host.split(':')[0];
+
+  // COOKIE_DOMAIN typically starts with '.' (e.g., '.athenius.io')
+  // Check if the host would be covered by this domain
+  const domainToMatch = COOKIE_DOMAIN.startsWith('.')
+    ? COOKIE_DOMAIN.slice(1)  // Remove leading dot for matching
+    : COOKIE_DOMAIN;
+
+  // Host must end with the domain (or be exactly the domain)
+  return hostWithoutPort === domainToMatch || hostWithoutPort.endsWith('.' + domainToMatch);
 }
 
 /**
@@ -181,12 +195,10 @@ export async function GET(request: Request) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            // ============================================================
-            // FIX #8: Explicitly set secure cookie attributes
-            // ============================================================
+            // Set secure cookie attributes
+            // Note: Do NOT set httpOnly - Supabase SSR requires cookies readable by JS
             const cookieOptions = {
               ...options,
-              httpOnly: true,
               secure: IS_PRODUCTION,
               sameSite: 'lax' as const,
               ...(useSharedDomain && COOKIE_DOMAIN && { domain: COOKIE_DOMAIN }),

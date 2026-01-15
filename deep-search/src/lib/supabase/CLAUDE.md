@@ -713,12 +713,12 @@ SSO between Athenius Search (AS) and Athenius Docs (AD) uses shared domain cooki
 
 **Cookie Security:**
 ```typescript
-// Explicit security attributes on all auth cookies
+// Security attributes on auth cookies
+// Note: Do NOT set httpOnly - Supabase SSR requires cookies readable by JS
 {
-  httpOnly: true,
   secure: IS_PRODUCTION,  // Only HTTPS in production
   sameSite: 'lax',
-  domain: COOKIE_DOMAIN,  // e.g., '.athenius.io' for cross-subdomain
+  domain: COOKIE_DOMAIN,  // e.g., '.athenius.io' for cross-subdomain (when host matches)
 }
 ```
 
