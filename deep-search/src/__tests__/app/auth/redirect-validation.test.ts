@@ -26,10 +26,14 @@ afterEach(() => {
 
 // Production domains - always trusted (must match trusted-domains.ts)
 const PRODUCTION_DOMAINS = [
+  // Custom domains
   'docs.athenius.io',
   'athenius.io',
   'www.athenius.io',
   'search.athenius.io',
+  // Vercel default domains
+  'deep-search-v2.vercel.app',
+  'athenius-docs.vercel.app',
 ];
 
 // Development domains from env
@@ -119,6 +123,7 @@ describe('Redirect URL Validation (Exact Domain Matching)', () => {
 
   describe('Trusted Domains (Exact Match Only)', () => {
     it('should allow exact production domain matches', () => {
+      // Custom domains
       expect(isValidRedirectUrl('https://athenius.io')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/')).toBe(true);
       expect(isValidRedirectUrl('https://athenius.io/search')).toBe(true);
@@ -128,6 +133,11 @@ describe('Redirect URL Validation (Exact Domain Matching)', () => {
       expect(isValidRedirectUrl('https://docs.athenius.io/files')).toBe(true);
       expect(isValidRedirectUrl('https://search.athenius.io')).toBe(true);
       expect(isValidRedirectUrl('https://search.athenius.io/results')).toBe(true);
+      // Vercel default domains
+      expect(isValidRedirectUrl('https://deep-search-v2.vercel.app')).toBe(true);
+      expect(isValidRedirectUrl('https://deep-search-v2.vercel.app/search')).toBe(true);
+      expect(isValidRedirectUrl('https://athenius-docs.vercel.app')).toBe(true);
+      expect(isValidRedirectUrl('https://athenius-docs.vercel.app/files')).toBe(true);
     });
 
     it('should allow exact dev domain matches from env', () => {

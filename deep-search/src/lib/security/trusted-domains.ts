@@ -8,10 +8,14 @@
 
 // Production domains - always trusted
 const PRODUCTION_DOMAINS = [
+  // Custom domains
   'docs.athenius.io',
   'athenius.io',
   'www.athenius.io',
   'search.athenius.io',
+  // Vercel default domains (SSO won't work across these due to cookie domain)
+  'deep-search-v2.vercel.app',
+  'athenius-docs.vercel.app',
 ];
 
 /**
