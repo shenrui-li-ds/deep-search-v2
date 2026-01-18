@@ -496,15 +496,20 @@ export async function resilientCall<T>(
 // CIRCUIT BREAKER REGISTRY
 // ============================================
 
+// User tiers for per-tier circuit breakers
+export type UserTier = 'free' | 'pro' | 'admin';
+
 /**
  * Global registry for circuit breakers.
- * Allows sharing circuit breaker state across multiple calls to the same service.
+ * Supports per-tier circuit breakers to isolate failures between user groups.
  */
 class CircuitBreakerRegistry {
   private breakers: Map<string, CircuitBreaker> = new Map();
 
   /**
    * Get or create a circuit breaker for a named service
+   * @param name - Service name (e.g., 'tavily', 'deepseek')
+   * @param options - Circuit breaker options
    */
   getBreaker(name: string, options?: CircuitBreakerOptions): CircuitBreaker {
     if (!this.breakers.has(name)) {
@@ -523,6 +528,28 @@ class CircuitBreakerRegistry {
   }
 
   /**
+   * Get or create a per-tier circuit breaker for a named service.
+   * This isolates circuit breaker state between user tiers, so one tier's
+   * failures don't affect other tiers.
+   *
+   * @param name - Service name (e.g., 'tavily', 'deepseek')
+   * @param tier - User tier ('free', 'pro', 'admin')
+   * @param options - Circuit breaker options
+   *
+   * @example
+   * // Creates separate breakers: 'tavily:free', 'tavily:pro', 'tavily:admin'
+   * const breaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+   */
+  getTieredBreaker(
+    name: string,
+    tier: UserTier = 'free',
+    options?: CircuitBreakerOptions
+  ): CircuitBreaker {
+    const tieredName = `${name}:${tier}`;
+    return this.getBreaker(tieredName, options);
+  }
+
+  /**
    * Get all circuit breaker stats
    */
   getAllStats(): Record<string, CircuitBreakerStats> {
@@ -534,10 +561,34 @@ class CircuitBreakerRegistry {
   }
 
   /**
+   * Get stats for a specific service (includes all tiers)
+   */
+  getServiceStats(serviceName: string): Record<string, CircuitBreakerStats> {
+    const stats: Record<string, CircuitBreakerStats> = {};
+    for (const [name, breaker] of this.breakers) {
+      if (name === serviceName || name.startsWith(`${serviceName}:`)) {
+        stats[name] = breaker.getStats();
+      }
+    }
+    return stats;
+  }
+
+  /**
    * Reset a specific circuit breaker
    */
   resetBreaker(name: string): void {
     this.breakers.get(name)?.reset();
+  }
+
+  /**
+   * Reset all circuit breakers for a service (all tiers)
+   */
+  resetService(serviceName: string): void {
+    for (const [name, breaker] of this.breakers) {
+      if (name === serviceName || name.startsWith(`${serviceName}:`)) {
+        breaker.reset();
+      }
+    }
   }
 
   /**

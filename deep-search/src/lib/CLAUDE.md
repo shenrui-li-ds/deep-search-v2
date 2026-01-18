@@ -172,6 +172,7 @@ Provides retry, circuit breaker, and timeout utilities for external API calls.
 | `circuitBreakerRegistry` | Global registry for circuit breakers |
 | `isRetryableError(error)` | Check if error should trigger retry |
 | `TimeoutError` | Error class for timeouts |
+| `UserTier` | Type for user tiers: `'free' | 'pro' | 'admin'` |
 
 **Usage:**
 ```typescript
@@ -198,6 +199,26 @@ const result = await resilientCall(
     circuitBreaker: breaker,
   }
 );
+
+// Per-tier circuit breaker (isolates failures by user tier)
+const tieredBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+// Creates separate breakers for 'tavily:free', 'tavily:pro', 'tavily:admin'
+```
+
+**Per-Tier Circuit Breakers:**
+
+Circuit breakers can be isolated by user tier to prevent issues with one tier from affecting others. This is useful when:
+- Free tier users hit rate limits but pro users should still be able to proceed
+- A specific tier is experiencing issues due to abuse
+
+```typescript
+// Registry methods for tiered breakers
+circuitBreakerRegistry.getTieredBreaker('service', 'free');     // Get/create tier-specific breaker
+circuitBreakerRegistry.getTieredBreaker('service', 'pro');      // Creates 'service:pro'
+circuitBreakerRegistry.getTieredBreaker('service');             // Defaults to 'free' tier
+circuitBreakerRegistry.getServiceStats('service');              // Get stats for all tiers
+circuitBreakerRegistry.resetService('service');                 // Reset all tiers for a service
+```
 
 // Monitor circuit breaker health
 const stats = circuitBreakerRegistry.getAllStats();

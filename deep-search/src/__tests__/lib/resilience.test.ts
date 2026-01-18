@@ -453,3 +453,83 @@ describe('CircuitBreakerRegistry', () => {
     expect(breaker2.getStats().state).toBe('closed');
   });
 });
+
+describe('Per-tier Circuit Breakers', () => {
+  beforeEach(() => {
+    circuitBreakerRegistry.resetAll();
+  });
+
+  it('should create separate breakers for different tiers', () => {
+    const freeBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+    const proBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'pro');
+    const adminBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'admin');
+
+    expect(freeBreaker).not.toBe(proBreaker);
+    expect(proBreaker).not.toBe(adminBreaker);
+    expect(freeBreaker).not.toBe(adminBreaker);
+  });
+
+  it('should return same breaker for same tier', () => {
+    const breaker1 = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+    const breaker2 = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+
+    expect(breaker1).toBe(breaker2);
+  });
+
+  it('should isolate failures between tiers', async () => {
+    // Use a unique service name to ensure fresh breakers with specific options
+    const freeBreaker = circuitBreakerRegistry.getTieredBreaker('isolation-test', 'free', {
+      failureThreshold: 2,
+    });
+    const proBreaker = circuitBreakerRegistry.getTieredBreaker('isolation-test', 'pro', {
+      failureThreshold: 2,
+    });
+
+    // Fail the free tier breaker
+    freeBreaker.recordFailure();
+    freeBreaker.recordFailure();
+
+    expect(freeBreaker.getStats().state).toBe('open');
+    expect(proBreaker.getStats().state).toBe('closed');
+    expect(proBreaker.isAllowed()).toBe(true);
+  });
+
+  it('should default to free tier when tier not specified', () => {
+    const defaultBreaker = circuitBreakerRegistry.getTieredBreaker('tavily');
+    const freeBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+
+    expect(defaultBreaker).toBe(freeBreaker);
+  });
+
+  it('should get stats for a specific service across all tiers', () => {
+    circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+    circuitBreakerRegistry.getTieredBreaker('tavily', 'pro');
+    circuitBreakerRegistry.getTieredBreaker('tavily', 'admin');
+
+    const stats = circuitBreakerRegistry.getServiceStats('tavily');
+
+    expect(stats).toHaveProperty('tavily:free');
+    expect(stats).toHaveProperty('tavily:pro');
+    expect(stats).toHaveProperty('tavily:admin');
+  });
+
+  it('should reset all breakers for a specific service', () => {
+    const freeBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'free');
+    const proBreaker = circuitBreakerRegistry.getTieredBreaker('tavily', 'pro');
+    const otherBreaker = circuitBreakerRegistry.getBreaker('other-service');
+
+    freeBreaker.trip();
+    proBreaker.trip();
+    otherBreaker.trip();
+
+    expect(freeBreaker.getStats().state).toBe('open');
+    expect(proBreaker.getStats().state).toBe('open');
+    expect(otherBreaker.getStats().state).toBe('open');
+
+    circuitBreakerRegistry.resetService('tavily');
+
+    expect(freeBreaker.getStats().state).toBe('closed');
+    expect(proBreaker.getStats().state).toBe('closed');
+    expect(otherBreaker.getStats().state).toBe('open');
+  });
+});

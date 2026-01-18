@@ -536,13 +536,13 @@ Generates related search queries based on the original query and content.
 - Handles markdown code blocks in LLM response
 - Limits output to 6 queries max
 
-### `/api/check-limit` - Credit Reservation
-Reserves credits before a search. Uses reserve→finalize pattern for fair billing based on actual usage.
+### `/api/check-limit` - Unified Limit Check & Credit Reservation
+Single atomic check for ALL limits (search, tokens, credits) before a search. Uses reserve→finalize pattern for fair billing.
 
 **Request:**
 ```json
 {
-  "mode": "web" | "pro" | "brainstorm"
+  "mode": "web" | "pro" | "deep" | "brainstorm"
 }
 ```
 
@@ -552,7 +552,36 @@ Reserves credits before a search. Uses reserve→finalize pattern for fair billi
   "allowed": true,
   "reservationId": "uuid",
   "maxCredits": 4,
-  "remainingAfterReserve": 996
+  "remainingAfterReserve": 996,
+  "userTier": "free",
+  "dailySearchesUsed": 5,
+  "dailySearchLimit": 50,
+  "monthlySearchesUsed": 25,
+  "monthlySearchLimit": 1000
+}
+```
+
+**When rate limited (search limits):**
+```json
+{
+  "allowed": false,
+  "reason": "Daily search limit reached (50 searches). Resets at midnight.",
+  "isRateLimitError": true,
+  "errorType": "daily_search_limit",
+  "dailySearchesUsed": 50,
+  "dailySearchLimit": 50
+}
+```
+
+**When token limited:**
+```json
+{
+  "allowed": false,
+  "reason": "Monthly token limit reached (500000 / 500000). Resets on the 1st.",
+  "isTokenLimitError": true,
+  "errorType": "monthly_token_limit",
+  "monthlyTokensUsed": 500000,
+  "monthlyTokenLimit": 500000
 }
 ```
 
@@ -567,13 +596,21 @@ Reserves credits before a search. Uses reserve→finalize pattern for fair billi
 }
 ```
 
-The `isCreditsError` flag allows the frontend to distinguish credit errors from other failures and show appropriate UI (e.g., "Purchase Credits" button instead of generic retry).
+**Error Types:**
+| errorType | Flag | Description |
+|-----------|------|-------------|
+| `daily_search_limit` | `isRateLimitError` | Daily search cap exceeded |
+| `monthly_search_limit` | `isRateLimitError` | Monthly search cap exceeded |
+| `daily_token_limit` | `isTokenLimitError` | Daily token cap exceeded |
+| `monthly_token_limit` | `isTokenLimitError` | Monthly token cap exceeded |
+| `insufficient_credits` | `isCreditsError` | Not enough credits for operation |
 
 **Max Credits Reserved (1 credit = 1 Tavily query):**
 | Mode | Max Credits | Actual Usage |
 |------|-------------|--------------|
 | web | 1 | 1 query |
 | pro | 4 | 3-4 queries |
+| deep | 7 | 3-7 queries |
 | brainstorm | 6 | 4-6 queries |
 
 **Response (temporary error):**
@@ -586,11 +623,12 @@ The `isCreditsError` flag allows the frontend to distinguish credit errors from 
 ```
 
 **Features:**
+- **Unified Single RPC**: Single `reserve_and_authorize_search` call checks ALL limits atomically
 - **Reserve→Finalize Pattern**: Reserves max credits, charges actual usage after search
-- **Optimized Path**: Single `reserve_credits` RPC call
-- **Legacy Fallback**: Falls back to `check_and_authorize_search` if reserve function unavailable
-- **Deep Fallback**: Falls back to `check_and_use_credits` if combined function unavailable
-- **Fail-closed on errors**: Returns `allowed: false` with `isTemporaryError: true` on database errors (prevents unlimited free searches)
+- **5-Level Check**: Daily search → Monthly search → Daily tokens → Monthly tokens → Credits
+- **Tier-Aware**: Token limits vary by user tier (free/pro/admin)
+- **Legacy Fallback**: Falls back to older functions if unified function unavailable
+- **Fail-closed on errors**: Returns `allowed: false` with `isTemporaryError: true` on database errors
 - Runs server-side to avoid React Strict Mode double-invocation
 - Called in parallel with first API call (no added latency)
 

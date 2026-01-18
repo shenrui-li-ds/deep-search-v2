@@ -2,19 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { MAX_CREDITS } from '@/lib/supabase/database';
 
-// Tier-based daily token limits
-const DAILY_TOKEN_LIMITS: Record<string, number> = {
-  free: 50_000,
-  pro: 200_000,
-  admin: Infinity, // Unlimited
-};
-
 /**
  * POST /api/check-limit
  *
- * Reserves credits for a search using dynamic billing:
- * 1. Daily token limits (tier-based) - prevents excessive LLM usage
- * 2. Credit reservation (billing) - reserves max credits, actual charged on finalize
+ * Unified limit check and credit reservation using single RPC call.
+ * Checks ALL limits in one atomic operation:
+ * 1. Daily search limits (security)
+ * 2. Monthly search limits (security)
+ * 3. Daily token limits (tier-based)
+ * 4. Monthly token limits (tier-based)
+ * 5. Credit availability (billing)
  *
  * Request body:
  * - mode: 'web' | 'pro' | 'deep' | 'brainstorm' - search mode (determines max credits)
@@ -24,6 +21,7 @@ const DAILY_TOKEN_LIMITS: Record<string, number> = {
  * - reservationId: string - ID to use when finalizing credits
  * - maxCredits: number - maximum credits that could be charged
  * - reason: string - explanation if not allowed
+ * - error_type: string - type of error for UI handling
  */
 export async function POST(request: NextRequest) {
   try {
@@ -50,30 +48,18 @@ export async function POST(request: NextRequest) {
 
     const maxCredits = MAX_CREDITS[mode];
 
-    // Check daily token limits (tier-based)
-    const tokenLimitCheck = await checkDailyTokenLimit(supabase);
-    if (!tokenLimitCheck.allowed) {
-      return NextResponse.json({
-        allowed: false,
-        reason: tokenLimitCheck.reason,
-        isTokenLimitError: true,
-        dailyTokensUsed: tokenLimitCheck.used,
-        dailyTokenLimit: tokenLimitCheck.limit,
-      });
-    }
-
-    // Try optimized single-call function first (checks rate limits + reserves credits)
-    const { data, error } = await supabase.rpc('reserve_credits', {
+    // Try new unified function first (single RPC for all checks)
+    const { data, error } = await supabase.rpc('reserve_and_authorize_search', {
       p_max_credits: maxCredits,
     });
 
     if (error) {
-      // Fall back to legacy system if reserve function doesn't exist
+      // Fall back to legacy system if new function doesn't exist
       if (error.code === '42883') { // function does not exist
-        console.warn('reserve_credits not found, using legacy system');
+        console.warn('reserve_and_authorize_search not found, using legacy system');
         return await legacyCheck(supabase, maxCredits);
       }
-      console.error('Error in reserve_credits:', error);
+      console.error('Error in reserve_and_authorize_search:', error);
       // Fail-closed: don't allow unlimited searches on database errors
       return NextResponse.json({
         allowed: false,
@@ -82,16 +68,60 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Handle reservation result
+    // Handle unified function result
     if (!data.allowed) {
-      const needed = data.needed || maxCredits;
-      const available = data.available || 0;
+      const errorType = data.error_type;
+
+      // Map error types to appropriate responses
+      if (errorType === 'daily_search_limit' || errorType === 'monthly_search_limit') {
+        return NextResponse.json({
+          allowed: false,
+          reason: data.reason,
+          isRateLimitError: true,
+          errorType: errorType,
+          dailySearchesUsed: data.daily_searches_used,
+          dailySearchLimit: data.daily_search_limit,
+          monthlySearchesUsed: data.monthly_searches_used,
+          monthlySearchLimit: data.monthly_search_limit,
+        });
+      }
+
+      if (errorType === 'daily_token_limit') {
+        return NextResponse.json({
+          allowed: false,
+          reason: data.reason,
+          isTokenLimitError: true,
+          errorType: 'daily_token_limit',
+          dailyTokensUsed: data.daily_tokens_used,
+          dailyTokenLimit: data.daily_token_limit,
+        });
+      }
+
+      if (errorType === 'monthly_token_limit') {
+        return NextResponse.json({
+          allowed: false,
+          reason: data.reason,
+          isTokenLimitError: true,
+          errorType: 'monthly_token_limit',
+          monthlyTokensUsed: data.monthly_tokens_used,
+          monthlyTokenLimit: data.monthly_token_limit,
+        });
+      }
+
+      if (errorType === 'insufficient_credits') {
+        return NextResponse.json({
+          allowed: false,
+          reason: data.reason,
+          creditsNeeded: data.credits_needed,
+          creditsAvailable: data.credits_available,
+          isCreditsError: true,
+        });
+      }
+
+      // Generic error
       return NextResponse.json({
         allowed: false,
-        reason: `You need ${needed} credits but only have ${available}. Purchase more credits to continue.`,
-        creditsNeeded: needed,
-        creditsAvailable: available,
-        isCreditsError: true,
+        reason: data.reason || data.error || 'Check failed',
       });
     }
 
@@ -101,6 +131,12 @@ export async function POST(request: NextRequest) {
       reservationId: data.reservation_id,
       maxCredits: data.reserved,
       remainingAfterReserve: data.remaining_after_reserve,
+      userTier: data.user_tier,
+      // Include limit info for UI (optional)
+      dailySearchesUsed: data.daily_searches_used,
+      dailySearchLimit: data.daily_search_limit,
+      monthlySearchesUsed: data.monthly_searches_used,
+      monthlySearchLimit: data.monthly_search_limit,
     });
   } catch (error) {
     console.error('Error in check-limit:', error);
@@ -115,110 +151,102 @@ export async function POST(request: NextRequest) {
 
 /**
  * Legacy check for backwards compatibility.
- * Used when reserve_credits function is not available.
+ * Used when reserve_and_authorize_search function is not available.
  */
 async function legacyCheck(
   supabase: Awaited<ReturnType<typeof createClient>>,
   maxCredits: number
 ) {
-  // Try the old combined function
-  const { data, error } = await supabase.rpc('check_and_authorize_search', {
-    p_credits_needed: maxCredits,
+  // Try reserve_credits (newer than check_and_authorize_search)
+  const { data: reserveData, error: reserveError } = await supabase.rpc('reserve_credits', {
+    p_max_credits: maxCredits,
   });
 
-  if (error) {
-    if (error.code === '42883') {
-      // Try even older function
-      const { data: oldData, error: oldError } = await supabase.rpc('check_and_use_credits', {
-        p_credits_needed: maxCredits,
-      });
-
-      if (oldError) {
-        console.error('No credit functions available:', oldError);
-        // Fail-closed: don't allow unlimited searches without credit system
-        return NextResponse.json({
-          allowed: false,
-          reason: 'Credit system unavailable. Please try again later.',
-          isTemporaryError: true,
-        });
-      }
-
-      if (!oldData.allowed) {
-        return NextResponse.json({
-          allowed: false,
-          reason: oldData.error || 'Insufficient credits',
-        });
-      }
-
+  if (!reserveError) {
+    if (!reserveData.allowed) {
       return NextResponse.json({
-        allowed: true,
-        creditsUsed: oldData.credits_used,
-        source: oldData.source,
+        allowed: false,
+        reason: reserveData.error || `You need ${reserveData.needed || maxCredits} credits but only have ${reserveData.available || 0}. Purchase more credits to continue.`,
+        creditsNeeded: reserveData.needed || maxCredits,
+        creditsAvailable: reserveData.available || 0,
+        isCreditsError: true,
       });
     }
-    console.error('Error in legacy check:', error);
-    // Fail-closed: don't allow unlimited searches on database errors
+
     return NextResponse.json({
-      allowed: false,
-      reason: 'Unable to verify credits. Please try again in a moment.',
-      isTemporaryError: true,
+      allowed: true,
+      reservationId: reserveData.reservation_id,
+      maxCredits: reserveData.reserved,
+      remainingAfterReserve: reserveData.remaining_after_reserve,
     });
   }
 
-  if (!data.allowed) {
-    return NextResponse.json({
-      allowed: false,
-      reason: data.reason || data.error || 'Check failed',
+  // Try check_and_authorize_search
+  if (reserveError.code === '42883') {
+    const { data, error } = await supabase.rpc('check_and_authorize_search', {
+      p_credits_needed: maxCredits,
     });
-  }
 
-  return NextResponse.json({
-    allowed: true,
-    creditsUsed: data.credits_used,
-    source: data.source,
-  });
-}
+    if (error) {
+      if (error.code === '42883') {
+        // Try oldest function
+        const { data: oldData, error: oldError } = await supabase.rpc('check_and_use_credits', {
+          p_credits_needed: maxCredits,
+        });
 
-/**
- * Check if user is within their daily token limit (tier-based).
- * Returns allowed: true for admin tier (unlimited).
- */
-async function checkDailyTokenLimit(
-  supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<{ allowed: boolean; reason?: string; used?: number; limit?: number }> {
-  try {
-    // Get user tier from credits
-    const { data: credits } = await supabase.rpc('get_user_credits');
-    const tier = credits?.user_tier || 'free';
-    const dailyLimit = DAILY_TOKEN_LIMITS[tier] ?? DAILY_TOKEN_LIMITS.free;
+        if (oldError) {
+          console.error('No credit functions available:', oldError);
+          return NextResponse.json({
+            allowed: false,
+            reason: 'Credit system unavailable. Please try again later.',
+            isTemporaryError: true,
+          });
+        }
 
-    // Admin has unlimited tokens
-    if (dailyLimit === Infinity) {
-      return { allowed: true };
-    }
+        if (!oldData.allowed) {
+          return NextResponse.json({
+            allowed: false,
+            reason: oldData.error || 'Insufficient credits',
+            isCreditsError: true,
+          });
+        }
 
-    // Get current daily token usage
-    const { data: limits } = await supabase
-      .from('user_limits')
-      .select('daily_tokens_used')
-      .single();
+        return NextResponse.json({
+          allowed: true,
+          creditsUsed: oldData.credits_used,
+          source: oldData.source,
+        });
+      }
 
-    const dailyUsed = limits?.daily_tokens_used || 0;
-
-    if (dailyUsed >= dailyLimit) {
-      return {
+      console.error('Error in legacy check:', error);
+      return NextResponse.json({
         allowed: false,
-        reason: `Daily token limit reached (${dailyUsed.toLocaleString()} / ${dailyLimit.toLocaleString()}). Resets at midnight.`,
-        used: dailyUsed,
-        limit: dailyLimit,
-      };
+        reason: 'Unable to verify credits. Please try again in a moment.',
+        isTemporaryError: true,
+      });
     }
 
-    return { allowed: true, used: dailyUsed, limit: dailyLimit };
-  } catch (error) {
-    // On error, allow the request (fail-open for token limits only)
-    // Credit system is the primary limiter
-    console.warn('Error checking daily token limit:', error);
-    return { allowed: true };
+    if (!data.allowed) {
+      return NextResponse.json({
+        allowed: false,
+        reason: data.reason || data.error || 'Check failed',
+        isCreditsError: data.phase === 'credits',
+        isRateLimitError: data.phase === 'rate_limit',
+      });
+    }
+
+    return NextResponse.json({
+      allowed: true,
+      creditsUsed: data.credits_used,
+      source: data.source,
+    });
   }
+
+  // Reserve error but not "function not found"
+  console.error('Error in reserve_credits:', reserveError);
+  return NextResponse.json({
+    allowed: false,
+    reason: 'Unable to verify credits. Please try again in a moment.',
+    isTemporaryError: true,
+  });
 }

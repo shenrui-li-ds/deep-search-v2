@@ -14,8 +14,12 @@ import {
   PROVIDER_TIMEOUTS,
   PROVIDER_RETRY_OPTIONS,
   CIRCUIT_BREAKER_OPTIONS,
+  UserTier,
 } from './resilience';
 import { TavilySearchResult } from './types';
+
+// Re-export UserTier for convenience
+export { UserTier } from './resilience';
 
 // Message type for LLM API calls
 interface ChatMessage {
@@ -965,13 +969,18 @@ export function getStreamParser(provider: LLMProvider) {
 }
 
 // Tavily API request
+// Supports optional userTier for per-tier circuit breaker isolation
 export async function callTavily(
   query: string,
   includeImages: boolean = true,
   searchDepth: 'basic' | 'advanced' = 'basic',
-  maxResults: number = 10
+  maxResults: number = 10,
+  userTier?: UserTier
 ) {
-  const circuitBreaker = circuitBreakerRegistry.getBreaker('tavily', CIRCUIT_BREAKER_OPTIONS.search);
+  // Use per-tier circuit breaker if tier is provided, otherwise global
+  const circuitBreaker = userTier
+    ? circuitBreakerRegistry.getTieredBreaker('tavily', userTier, CIRCUIT_BREAKER_OPTIONS.search)
+    : circuitBreakerRegistry.getBreaker('tavily', CIRCUIT_BREAKER_OPTIONS.search);
 
   const makeRequest = async () => {
     console.log('Calling Tavily API with:', { query, includeImages, searchDepth, maxResults });
@@ -1190,27 +1199,34 @@ export interface SearchWithFallbackResult {
 /**
  * Unified search function with automatic fallback
  * Tries Tavily first, falls back to Google Custom Search on failure
+ *
+ * @param userTier - Optional user tier for per-tier circuit breaker isolation.
+ *                   When provided, circuit breaker state is isolated per tier
+ *                   (e.g., free tier failures don't affect pro tier).
  */
 export async function callSearchWithFallback(
   query: string,
   includeImages: boolean = true,
   searchDepth: 'basic' | 'advanced' = 'basic',
-  maxResults: number = 10
+  maxResults: number = 10,
+  userTier?: UserTier
 ): Promise<SearchWithFallbackResult> {
-  // Check if Tavily circuit breaker is open
-  const tavilyBreaker = circuitBreakerRegistry.getBreaker('tavily');
+  // Check if Tavily circuit breaker is open (use tiered if tier provided)
+  const tavilyBreaker = userTier
+    ? circuitBreakerRegistry.getTieredBreaker('tavily', userTier)
+    : circuitBreakerRegistry.getBreaker('tavily');
   const tavilyCircuitOpen = !tavilyBreaker.isAllowed();
 
   // If Tavily circuit is open and Google is available, skip directly to Google
   if (tavilyCircuitOpen && isGoogleSearchAvailable()) {
-    console.log('[Search] Tavily circuit breaker open, using Google Search directly');
+    console.log(`[Search] Tavily circuit breaker open${userTier ? ` for tier ${userTier}` : ''}, using Google Search directly`);
     const results = await callGoogleSearch(query, maxResults);
     return { results, provider: 'google' };
   }
 
   // Try Tavily first
   try {
-    const results = await callTavily(query, includeImages, searchDepth, maxResults);
+    const results = await callTavily(query, includeImages, searchDepth, maxResults, userTier);
     return { results, provider: 'tavily' };
   } catch (tavilyError) {
     console.error('[Search] Tavily failed:', tavilyError);

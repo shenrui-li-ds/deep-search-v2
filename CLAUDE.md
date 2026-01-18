@@ -486,24 +486,35 @@ SELECT * FROM admin_user_credits;
 - `supabase/add-credit-system.sql` - Base credit system
 - `supabase/add-credit-reservation.sql` - Reserve→finalize system
 - `supabase/add-user-tiers.sql` - User tiers and admin functions
+- `supabase/migrations/001_unified_rate_limiting.sql` - Unified rate limiting and single RPC
+- `supabase/migrations/002_cleanup_stale_functions.sql` - Remove deprecated functions
 - Schema integrated in `supabase/schema.sql`
 
 ### Rate Limits (Security)
-Daily/monthly search limits are enforced for abuse prevention, separate from billing:
+Search and token limits are enforced for abuse prevention, separate from billing:
 
-| Limit | Default | Reset |
-|-------|---------|-------|
-| Daily searches | 50 | Midnight |
-| Monthly searches | 1,000 | 1st of month |
+| Limit | Free Tier | Pro Tier | Reset |
+|-------|-----------|----------|-------|
+| Daily searches | 50 | 50 | Midnight |
+| Monthly searches | 1,000 | 1,000 | 1st of month |
+| Daily tokens | 50,000 | 200,000 | Midnight |
+| Monthly tokens | 500,000 | 5,000,000 | 1st of month |
 
-These limits apply regardless of available credits. Prevents bad actors from abusing the system.
+Admin tier has unlimited token limits. These limits apply regardless of available credits. Prevents bad actors from abusing the system.
 
-### Dual-Check Model
-Every search request goes through a two-phase check in `/api/check-limit`:
-1. **Rate Limits (Security)**: `check_and_increment_search_v2` - blocks if daily/monthly caps exceeded
-2. **Credit Check (Billing)**: `check_and_use_credits` - deducts credits if allowed
+### Unified Check Model
+Every search request goes through a single atomic check in `/api/check-limit` using the `reserve_and_authorize_search()` RPC:
 
-Both checks must pass. Runs in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for database schema.
+1. Daily search limits (security)
+2. Monthly search limits (security)
+3. Daily token limits (tier-based)
+4. Monthly token limits (tier-based)
+5. Credit availability (billing)
+
+All checks happen in a **single database call** for atomic guarantees and reduced latency. If any check fails, returns a specific `error_type` for UI handling. Runs in parallel with first API call (no added latency). See `src/lib/supabase/CLAUDE.md` for database schema.
+
+**Per-Tier Circuit Breakers:**
+Circuit breakers can be isolated by user tier to prevent issues with one tier from affecting others. When Tavily is experiencing issues for free tier users (e.g., rate limits), pro tier users can still proceed.
 
 ## Path Alias
 

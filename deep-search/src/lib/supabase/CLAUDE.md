@@ -289,10 +289,13 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 
 | Function | Description |
 |----------|-------------|
+| `reserve_and_authorize_search(p_max_credits)` | **Unified limit check** - single RPC that checks ALL limits atomically (daily/monthly search limits, daily/monthly token limits, credit availability) and reserves credits |
+| `get_tier_daily_token_limit(tier)` | Get daily token limit by tier (free: 50K, pro: 200K, admin: unlimited) |
+| `get_tier_monthly_token_limit(tier)` | Get monthly token limit by tier (free: 500K, pro: 5M, admin: unlimited) |
+| `check_api_rate_limit(key, max, window_sec)` | Serverless-safe API rate limiting (atomic check-and-increment) |
+| `cleanup_api_rate_limits(hours)` | Clean up old rate limit entries (for pg_cron) |
 | `upsert_search_history(...)` | Atomic upsert for search history (updates bookmarked entries, inserts new) |
 | `upsert_user_preferences(...)` | Atomic upsert for user preferences |
-| `check_and_increment_search()` | Atomically check and increment search count (returns BOOLEAN) |
-| `check_and_increment_search_v2()` | Optimized version that returns JSON with all limit data (eliminates extra query) |
 | `increment_token_usage(user_id, tokens)` | Add tokens to daily and monthly usage |
 | `cleanup_old_history()` | Keep only last 100 entries per user |
 | `reset_daily_limits()` | Reset daily counters (call via cron) |
@@ -301,6 +304,11 @@ Located in `supabase/schema.sql`. Run this in Supabase SQL Editor.
 | `recover_search(p_search_id)` | Recover a soft-deleted entry (clears deleted_at) |
 | `soft_delete_all_searches()` | Soft delete all user's search history |
 | `cleanup_deleted_searches(p_days_old)` | Permanently delete soft-deleted records older than N days (default: 365) |
+
+**Deprecated Functions (kept for backwards compatibility):**
+- `check_and_increment_search()` - Use `reserve_and_authorize_search()` instead
+- `check_and_increment_search_v2()` - Use `reserve_and_authorize_search()` instead
+- `check_and_authorize_search()` - Use `reserve_and_authorize_search()` instead
 
 ### `upsert_search_history` Function
 
@@ -732,9 +740,33 @@ SSO between Athenius Search (AS) and Athenius Docs (AD) uses shared domain cooki
 
 ### Rate Limiting
 
-API and SSO endpoints are protected by rate limiting (`src/lib/security/rate-limit.ts`).
+**Two-Tier Rate Limiting:**
 
-**Pre-configured Limits:**
+1. **API-Level Rate Limiting** (Supabase `api_rate_limits` table) - Serverless-safe, persisted in database
+2. **In-Memory Rate Limiting** (`src/lib/security/rate-limit.ts`) - Fast, for auth/SSO endpoints
+
+**Supabase API Rate Limiting (Primary):**
+
+Uses the `check_api_rate_limit()` function for atomic check-and-increment. Serverless-safe because state is stored in PostgreSQL.
+
+```typescript
+// In API route
+const { data } = await supabase.rpc('check_api_rate_limit', {
+  p_key: `api:${userId}:search`,
+  p_max_requests: 100,
+  p_window_seconds: 60,
+});
+
+if (!data.allowed) {
+  return NextResponse.json(
+    { error: 'Too many requests', reset_in: data.reset_in_seconds },
+    { status: 429 }
+  );
+}
+```
+
+**In-Memory Rate Limiting (Auth/SSO):**
+
 | Endpoint Type | Limit | Window |
 |--------------|-------|--------|
 | SSO | 10 requests | 60 seconds |
@@ -766,8 +798,6 @@ if (!result.success) {
 **Client IP Extraction:**
 - Supports `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` (Cloudflare)
 - Falls back to `127.0.0.1` for local development
-
-**Note:** Current implementation uses in-memory storage (suitable for development). For production on serverless platforms, upgrade to `@upstash/ratelimit` with Redis.
 
 ### Robust API Error Handling
 
