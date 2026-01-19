@@ -19,7 +19,7 @@ import {
 import { TavilySearchResult } from './types';
 
 // Re-export UserTier for convenience
-export { UserTier } from './resilience';
+export type { UserTier } from './resilience';
 
 // Message type for LLM API calls
 interface ChatMessage {
