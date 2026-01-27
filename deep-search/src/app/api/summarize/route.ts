@@ -11,7 +11,7 @@ import {
 } from '@/lib/api-utils';
 import { summarizeSearchResultsPrompt } from '@/lib/prompts';
 import { OpenAIMessage } from '@/lib/types';
-import { trackServerApiUsage, estimateTokens, checkServerUsageLimits } from '@/lib/supabase/usage-tracking';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 import { generateCacheKey, getFromCache, setToCache } from '@/lib/cache';
 import { createClient } from '@/lib/supabase/server';
 
@@ -24,14 +24,11 @@ export async function POST(req: NextRequest) {
     const { query, results, stream = true, provider } = await req.json();
     const llmProvider = provider as LLMProvider | undefined;
 
-    // Check usage limits
-    const limitCheck = await checkServerUsageLimits();
-    if (!limitCheck.allowed) {
-      return NextResponse.json(
-        { error: limitCheck.reason || 'Usage limit exceeded' },
-        { status: 429 }
-      );
-    }
+    // Note: Usage limits are checked upfront by /api/check-limit before the search flow starts.
+    // That endpoint reserves credits and validates all limits (search, tokens, credits) atomically.
+    // We don't duplicate that check here to avoid race conditions where token usage from
+    // earlier API calls (like /api/refine) could cause this check to fail even though
+    // the search was already authorized.
 
     if (!query || !results || !Array.isArray(results)) {
       return NextResponse.json(

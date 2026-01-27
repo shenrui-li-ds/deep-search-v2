@@ -239,15 +239,9 @@ interface UsageStats {
 Track API token usage from server-side API routes.
 
 ```typescript
-import { trackServerApiUsage, estimateTokens, checkServerUsageLimits } from '@/lib/supabase/usage-tracking';
+import { trackServerApiUsage, estimateTokens } from '@/lib/supabase/usage-tracking';
 
-// In API route
-const limitCheck = await checkServerUsageLimits();
-if (!limitCheck.allowed) {
-  return NextResponse.json({ error: limitCheck.reason }, { status: 429 });
-}
-
-// After LLM call
+// After LLM call - track token usage for billing/monitoring
 trackServerApiUsage({
   provider: 'deepseek',
   tokens_used: estimateTokens(input) + estimateTokens(output),
@@ -261,7 +255,7 @@ trackServerApiUsage({
 |----------|-------------|
 | `trackServerApiUsage(record)` | Record token usage |
 | `estimateTokens(text)` | Estimate tokens (4 chars ≈ 1 token) |
-| `checkServerUsageLimits()` | Server-side token limit check (search limits handled by credit system) |
+| `checkServerUsageLimits()` | **Deprecated** - Use /api/check-limit instead. All limits are checked atomically at search start. |
 
 ## Database Schema
 

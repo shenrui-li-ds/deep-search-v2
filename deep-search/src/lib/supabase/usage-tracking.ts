@@ -92,8 +92,11 @@ export function estimateTokens(text: string): number {
  * Check if user can make an API request (server-side).
  * Returns true if within limits, false if limit exceeded.
  *
- * Note: Search count limits are now handled by the credit system (/api/check-limit).
- * This function only checks token limits as a safety net for excessive token usage.
+ * @deprecated Use /api/check-limit endpoint instead. That endpoint performs a unified
+ * atomic check of ALL limits (search, tokens, credits) at the start of each search flow.
+ * Calling this function mid-flow can cause race conditions where token usage from earlier
+ * API calls (like /api/refine) pushes the user over the limit even though the search
+ * was already authorized by /api/check-limit.
  */
 export async function checkServerUsageLimits(): Promise<{ allowed: boolean; reason?: string }> {
   try {
